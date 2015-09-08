@@ -117,6 +117,33 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="BuiltinClassificationType" xml:space="preserve">
+    <value>Python built-in</value>
+  </data>
+  <data name="ClassClassificationType" xml:space="preserve">
+    <value>Python class</value>
+  </data>
+  <data name="CommaClassificationType" xml:space="preserve">
+    <value>Python comma</value>
+  </data>
+  <data name="DotClassificationType" xml:space="preserve">
+    <value>Python dot</value>
+  </data>
+  <data name="FunctionClassificationType" xml:space="preserve">
+    <value>Python function</value>
+  </data>
+  <data name="GroupingClassificationType" xml:space="preserve">
+    <value>Python grouping</value>
+  </data>
+  <data name="ModuleClassificationType" xml:space="preserve">
+    <value>Python module</value>
+  </data>
+  <data name="OperatorClassificationType" xml:space="preserve">
+    <value>Python operator</value>
+  </data>
+  <data name="ParameterClassificationType" xml:space="preserve">
+    <value>Python parameter</value>
+  </data>
   <data name="ProductName" xml:space="preserve">
     <value>Python Tools for Visual Studio</value>
   </data>

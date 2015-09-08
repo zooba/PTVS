@@ -24,6 +24,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Logging;
+using Microsoft.PythonTools.Parsing;
 using Microsoft.PythonTools.Project;
 using Microsoft.PythonTools.Project.Web;
 using Microsoft.VisualStudioTools;
@@ -162,12 +163,12 @@ namespace Microsoft.PythonTools.Commands {
                             res.AppendLine("        Interpreter: " + factory.Description);
                             res.AppendLine("            Id: " + factory.Id);
                             res.AppendLine("            Version: " + factory.Configuration.Version);
-                            if (interpreterService.FindInterpreter(factory.Id, factory.Configuration.Version) == null) {
+                            if (interpreterService.FindInterpreter(factory.Id, factory.Configuration.Version.ToVersion()) == null) {
                                 res.AppendLine("            Arch: " + factory.Configuration.Architecture);
                                 res.AppendLine("            Prefix Path: " + factory.Configuration.PrefixPath ?? "(null)");
                                 res.AppendLine("            Path: " + factory.Configuration.InterpreterPath ?? "(null)");
                                 res.AppendLine("            Windows Path: " + factory.Configuration.WindowsInterpreterPath ?? "(null)");
-                                res.AppendLine("            Lib Path: " + factory.Configuration.LibraryPath ?? "(null)");
+                                res.AppendLine("            Search Path: " + string.Join(";", factory.Configuration.SysPath));
                                 res.AppendLine(string.Format("            Path Env: {0}={1}{2}",
                                     factory.Configuration.PathEnvironmentVariable ?? "(null)",
                                     Environment.GetEnvironmentVariable(factory.Configuration.PathEnvironmentVariable ?? ""),
@@ -194,7 +195,7 @@ namespace Microsoft.PythonTools.Commands {
                     res.AppendLine("        Prefix Path: " + factory.Configuration.PrefixPath ?? "(null)");
                     res.AppendLine("        Path: " + factory.Configuration.InterpreterPath ?? "(null)");
                     res.AppendLine("        Windows Path: " + factory.Configuration.WindowsInterpreterPath ?? "(null)");
-                    res.AppendLine("        Lib Path: " + factory.Configuration.LibraryPath ?? "(null)");
+                    res.AppendLine("        Search Path: " + string.Join(";", factory.Configuration.SysPath));
                     res.AppendLine("        Path Env: " + factory.Configuration.PathEnvironmentVariable ?? "(null)");
                     res.AppendLine();
                 }

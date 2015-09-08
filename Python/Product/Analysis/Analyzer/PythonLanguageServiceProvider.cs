@@ -28,8 +28,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 if (!_services.TryGetValue(config.InterpreterPath, out service)) {
                     service = new PythonLanguageService(config);
                     if (fileContextProvider != null) {
-                        await fileContextProvider.FindContextsAsync(config.PrefixPath, null, cancellationToken);
-                        foreach (var context in await fileContextProvider.GetContextsForFileAsync(config.PrefixPath, config.PrefixPath + "\\Lib\\os.py", cancellationToken)) {
+                        var contexts = await fileContextProvider.GetContextsForInterpreterAsync(
+                            config,
+                            null,
+                            cancellationToken
+                        );
+                        foreach (var context in contexts) {
                             await service.AddFileContextAsync(context, cancellationToken);
                         }
                     }

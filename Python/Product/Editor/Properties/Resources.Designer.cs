@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace Microsoft.PythonTools.Interpreter.Properties {
+namespace Microsoft.PythonTools.Editor.Properties {
     using System;
     
     
@@ -39,7 +39,7 @@ namespace Microsoft.PythonTools.Interpreter.Properties {
         internal static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
-                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("Microsoft.PythonTools.Interpreter.Properties.Resources", typeof(Resources).Assembly);
+                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("Microsoft.PythonTools.Editor.Properties.Resources", typeof(Resources).Assembly);
                     resourceMan = temp;
                 }
                 return resourceMan;
@@ -57,6 +57,87 @@ namespace Microsoft.PythonTools.Interpreter.Properties {
             }
             set {
                 resourceCulture = value;
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Python built-in.
+        /// </summary>
+        internal static string BuiltinClassificationType {
+            get {
+                return ResourceManager.GetString("BuiltinClassificationType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Python class.
+        /// </summary>
+        internal static string ClassClassificationType {
+            get {
+                return ResourceManager.GetString("ClassClassificationType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Python comma.
+        /// </summary>
+        internal static string CommaClassificationType {
+            get {
+                return ResourceManager.GetString("CommaClassificationType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Python dot.
+        /// </summary>
+        internal static string DotClassificationType {
+            get {
+                return ResourceManager.GetString("DotClassificationType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Python function.
+        /// </summary>
+        internal static string FunctionClassificationType {
+            get {
+                return ResourceManager.GetString("FunctionClassificationType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Python grouping.
+        /// </summary>
+        internal static string GroupingClassificationType {
+            get {
+                return ResourceManager.GetString("GroupingClassificationType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Python module.
+        /// </summary>
+        internal static string ModuleClassificationType {
+            get {
+                return ResourceManager.GetString("ModuleClassificationType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Python operator.
+        /// </summary>
+        internal static string OperatorClassificationType {
+            get {
+                return ResourceManager.GetString("OperatorClassificationType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Python parameter.
+        /// </summary>
+        internal static string ParameterClassificationType {
+            get {
+                return ResourceManager.GetString("ParameterClassificationType", resourceCulture);
             }
         }
         

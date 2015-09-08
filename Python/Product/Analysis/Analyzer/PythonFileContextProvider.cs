@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Interpreter;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     [Export(typeof(PythonFileContextProvider))]
@@ -37,12 +38,24 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
+        internal async Task<IReadOnlyCollection<PythonFileContext>> GetContextsForInterpreterAsync(
+            InterpreterConfiguration config,
+            IProgress<string> progress,
+            CancellationToken cancellationToken
+        ) {
+            var contexts = new List<PythonFileContext>();
+            foreach (var path in config.SysPath) {
+                contexts.AddRange(await GetContextsAsync(path, progress, cancellationToken));
+            }
+            return contexts;
+        }
+
         private static bool IsInitPyFile(string fullPath) {
             return Path.GetFileNameWithoutExtension(fullPath)
                 .Equals("__init__", StringComparison.OrdinalIgnoreCase);
         }
 
-        public async Task FindContextsAsync(
+        private async Task<IReadOnlyCollection<PythonFileContext>> GetContextsAsync(
             string workspaceLocation,
             IProgress<string> progress,
             CancellationToken cancellationToken
@@ -93,15 +106,30 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 }
             }
 
+            var result = new List<PythonFileContext>();
+
+            foreach (var kv in contexts) {
+                var pfc = new PythonFileContext(kv.Key, "");
+                await pfc.AddDocumentsAsync(
+                    kv.Value.Select(f => new FileSourceDocument(f)).ToList(),
+                    cancellationToken
+                );
+                result.Add(pfc);
+            }
+
+            return result;
+        }
+
+        public async Task FindContextsAsync(
+            string workspaceLocation,
+            IProgress<string> progress,
+            CancellationToken cancellationToken
+        ) {
+            var contexts = await GetContextsAsync(workspaceLocation, progress, cancellationToken);
+
             await _contextsLock.WaitAsync(cancellationToken);
             try {
-                foreach (var kv in contexts) {
-                    var pfc = new PythonFileContext(kv.Key, "");
-                    await pfc.AddDocumentsAsync(
-                        kv.Value.Select(f => new FileSourceDocument(f)).ToList(),
-                        cancellationToken
-                    );
-
+                foreach(var pfc in contexts) {
                     _contexts.Add(pfc);
                 }
             } finally {

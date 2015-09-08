@@ -44,7 +44,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
             _contexts = new Dictionary<PythonFileContext, PathSet<AnalysisState>>();
             _searchPaths = new List<KeyValuePair<string, string[]>>();
-            _searchPaths.AddRange(config.SysPath.Select(p => new KeyValuePair<string, string[]>(p, null)));
+            foreach (var p in config.SysPath) {
+                _searchPaths.Add(new KeyValuePair<string, string[]>(p, null));
+            }
 
             _updateTreeThread = new QueueThread(this, _disposing.Token);
             _updateMemberListThread = new QueueThread(this, _disposing.Token);
