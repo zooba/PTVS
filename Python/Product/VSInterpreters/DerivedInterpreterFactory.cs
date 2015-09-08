@@ -19,6 +19,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
+using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudioTools;
 
 namespace Microsoft.PythonTools.Interpreter {
@@ -40,18 +41,20 @@ namespace Microsoft.PythonTools.Interpreter {
                 options.Id,
                 options.Description,
                 new InterpreterConfiguration(
+                    options.IdString,
+                    options.Description,
                     options.PrefixPath,
                     options.InterpreterPath,
                     options.WindowInterpreterPath,
-                    options.LibraryPath,
+                    new[] { options.LibraryPath },
                     options.PathEnvironmentVariableName,
                     options.Architecture,
-                    options.LanguageVersion,
+                    options.LanguageVersion.ToLanguageVersion(),
                     InterpreterUIMode.CannotBeDefault | InterpreterUIMode.CannotBeConfigured
                 ),
                 options.WatchLibraryForNewModules
         ) {
-            if (baseFactory.Configuration.Version != options.LanguageVersion) {
+            if (baseFactory.Configuration.Version.ToVersion() != options.LanguageVersion) {
                 throw new ArgumentException("Language versions do not match", "options");
             }
 
@@ -138,7 +141,7 @@ namespace Microsoft.PythonTools.Interpreter {
             if (_baseDb == null && _base.IsCurrent) {
                 var includeBaseSitePackages = ShouldIncludeGlobalSitePackages(
                     Configuration.PrefixPath,
-                    Configuration.LibraryPath
+                    Configuration.SysPath[0]
                 );
 
                 _baseDb = _base.GetCurrentDatabase(includeBaseSitePackages);
@@ -160,7 +163,7 @@ namespace Microsoft.PythonTools.Interpreter {
         }
 
         public override void GenerateDatabase(GenerateDatabaseOptions options, Action<int> onExit = null) {
-            if (!Directory.Exists(Configuration.LibraryPath)) {
+            if (!Directory.Exists(Configuration.SysPath[0])) {
                 return;
             }
 

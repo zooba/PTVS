@@ -22,6 +22,7 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.PythonTools.Interpreter;
+using Microsoft.PythonTools.Parsing;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     /// <summary>
@@ -252,7 +253,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         /// <summary>
         /// Gets a unique identifier for the factory.
         /// </summary>
-        public static string GetIdentifier(Guid id, Version version) {
+        public static string GetIdentifier(Guid id, PythonLanguageVersion version) {
             return string.Format(CultureInfo.InvariantCulture, "{0};{1}", id, version);
         }
 

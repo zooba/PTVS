@@ -76,12 +76,12 @@ namespace Microsoft.PythonTools.Interpreter {
             // Avoid creating a interpreter with an unsupported version.
             // https://github.com/Microsoft/PTVS/issues/706
             try {
-                var langVer = _config.Version.ToLanguageVersion();
+                var langVer = _config.Version;
             } catch (InvalidOperationException ex) {
                 throw new ArgumentException(ex.Message, ex);
             }
 
-            if (watchLibraryForChanges && Directory.Exists(_config.LibraryPath)) {
+            if (watchLibraryForChanges && Directory.Exists(_config.PrefixPath)) {
                 _refreshIsCurrentTrigger = new Timer(RefreshIsCurrentTimer_Elapsed);
 
                 _libWatcher = CreateLibraryWatcher();
@@ -470,9 +470,9 @@ namespace Microsoft.PythonTools.Interpreter {
         /// </summary>
         private IEnumerable<string> RequiredBuiltinModules {
             get {
-                if (Configuration.Version.Major == 2) {
+                if (Configuration.Version.Is2x()) {
                     yield return "__builtin__";
-                } else if (Configuration.Version.Major == 3) {
+                } else if (Configuration.Version.Is3x()) {
                     yield return "builtins";
                 }
             }
@@ -503,7 +503,7 @@ namespace Microsoft.PythonTools.Interpreter {
                 return;
             }
 
-            if (Directory.Exists(Configuration.LibraryPath)) {
+            if (Directory.Exists(Configuration.PrefixPath)) {
                 RefreshIsCurrent();
             } else {
                 if (_libWatcher != null) {
@@ -687,7 +687,7 @@ namespace Microsoft.PythonTools.Interpreter {
             try {
                 watcher = new FileSystemWatcher {
                     IncludeSubdirectories = true,
-                    Path = _config.LibraryPath,
+                    Path = _config.PrefixPath,
                     NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite
                 };
                 watcher.Created += OnChanged;

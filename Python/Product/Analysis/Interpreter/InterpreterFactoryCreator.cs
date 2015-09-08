@@ -16,6 +16,7 @@ using System;
 using System.IO;
 using System.Reflection;
 using Microsoft.PythonTools.Interpreter.Default;
+using Microsoft.PythonTools.Parsing;
 
 namespace Microsoft.PythonTools.Interpreter {
     /// <summary>
@@ -35,16 +36,22 @@ namespace Microsoft.PythonTools.Interpreter {
                 prefixPath = Path.GetDirectoryName(options.InterpreterPath);
             }
 
+            var id = (options.Id == default(Guid)) ? Guid.NewGuid() : options.Id;
             return new CPythonInterpreterFactory(
-                ver,
-                (options.Id == default(Guid)) ? Guid.NewGuid() : options.Id,
+                id,
                 description,
-                prefixPath ?? string.Empty,
-                options.InterpreterPath ?? string.Empty,
-                options.WindowInterpreterPath ?? string.Empty,
-                options.LibraryPath ?? string.Empty,
-                options.PathEnvironmentVariableName ?? "PYTHONPATH",
-                options.Architecture,
+                new InterpreterConfiguration(
+                    id.ToString(),
+                    prefixPath ?? id.ToString(),
+                    prefixPath ?? string.Empty,
+                    options.InterpreterPath ?? string.Empty,
+                    options.WindowInterpreterPath ?? string.Empty,
+                    new string[0],
+                    options.PathEnvironmentVariableName ?? "PYTHONPATH",
+                    options.Architecture,
+                    ver.ToLanguageVersion(),
+                    InterpreterUIMode.Normal
+                ),
                 options.WatchLibraryForNewModules
             );
         }

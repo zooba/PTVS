@@ -39,7 +39,7 @@ namespace Microsoft.PythonTools.Analysis {
             @"\Analysis\StandardLibrary";
 
         private readonly Guid _id;
-        private readonly Version _version;
+        private readonly PythonLanguageVersion _version;
         private readonly string _interpreter;
         private readonly List<PythonLibraryPath> _library;
         private readonly string _outDir;
@@ -192,7 +192,7 @@ namespace Microsoft.PythonTools.Analysis {
 
         public PyLibAnalyzer(
             Guid id,
-            Version langVersion,
+            PythonLanguageVersion langVersion,
             string interpreter,
             IEnumerable<PythonLibraryPath> library,
             List<string> baseDb,
@@ -412,7 +412,7 @@ namespace Microsoft.PythonTools.Analysis {
 
             return new PyLibAnalyzer(
                 id,
-                version,
+                version.ToLanguageVersion(),
                 interpreter,
                 library,
                 baseDb,
@@ -780,7 +780,7 @@ namespace Microsoft.PythonTools.Analysis {
             // Ignoring case because these will become file paths, even though
             // they are case-sensitive module names.
             var builtinNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            builtinNames.Add(_version.Major == 3 ? BuiltinName3x : BuiltinName2x);
+            builtinNames.Add(_version.Is3x() ? BuiltinName3x : BuiltinName2x);
             using (var output = ProcessOutput.RunHiddenAndCapture(
                 _interpreter,
                 "-E", "-S",
@@ -1125,7 +1125,7 @@ namespace Microsoft.PythonTools.Analysis {
                 }
 
                 using (var factory = InterpreterFactoryCreator.CreateAnalysisInterpreterFactory(
-                    _version,
+                    _version.ToVersion(),
                     null,
                     new[] { _outDir, outDir }.Concat(_baseDb.Skip(1)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
                 ))
@@ -1198,7 +1198,7 @@ namespace Microsoft.PythonTools.Analysis {
                             var opts = new ParserOptions() { BindReferences = true, ErrorSink = errors };
 
                             TraceInformation("Parsing \"{0}\" (\"{1}\")", item.ModuleName, item.SourceFile);
-                            item.Tree = Parser.CreateParser(sourceUnit, _version.ToLanguageVersion(), opts).ParseFile();
+                            item.Tree = Parser.CreateParser(sourceUnit, _version, opts).ParseFile();
                             if (errors.Errors.Any() || errors.Warnings.Any()) {
                                 TraceWarning("File \"{0}\" contained parse errors", item.SourceFile);
                                 TraceInformation(string.Join(Environment.NewLine, errors.Errors.Concat(errors.Warnings)

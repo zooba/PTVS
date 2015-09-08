@@ -20,28 +20,11 @@ using Microsoft.VisualStudioTools;
 namespace Microsoft.PythonTools.Interpreter.Default {
     class CPythonInterpreterFactory : PythonInterpreterFactoryWithDatabase {
         public CPythonInterpreterFactory(
-            Version version,
             Guid id,
             string description,
-            string prefixPath,
-            string pythonPath,
-            string pythonwPath,
-            string libPath,
-            string pathEnvVar,
-            ProcessorArchitecture arch,
+            InterpreterConfiguration config,
             bool watchForNewModules)
-            : base(
-                id,
-                description,
-                new InterpreterConfiguration(
-                    prefixPath,
-                    pythonPath,
-                    pythonwPath,
-                    libPath,
-                    pathEnvVar,
-                    arch,
-                    version),
-                watchForNewModules) { }
+            : base(id, description, config, watchForNewModules) { }
 
         public override bool AssumeSimpleLibraryLayout {
             get {

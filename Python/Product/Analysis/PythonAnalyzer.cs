@@ -112,12 +112,6 @@ namespace Microsoft.PythonTools.Analysis {
             return new PythonAnalyzer(factory, interpreter, null);
         }
 
-        [Obsolete("Use CreateAsync instead")]
-        public PythonAnalyzer(IPythonInterpreterFactory factory, IPythonInterpreter interpreter = null)
-            : this(factory, interpreter, null) {
-            ReloadModulesAsync().WaitAndUnwrapExceptions();
-        }
-
         internal PythonAnalyzer(IPythonInterpreterFactory factory, IPythonInterpreter pythonInterpreter, string builtinName) {
             _interpreterFactory = factory;
             _langVersion = factory.GetLanguageVersion();

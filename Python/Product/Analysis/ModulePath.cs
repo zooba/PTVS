@@ -20,6 +20,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.PythonTools.Interpreter;
+using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudioTools;
 
 namespace Microsoft.PythonTools.Analysis {
@@ -30,8 +31,8 @@ namespace Microsoft.PythonTools.Analysis {
         /// Returns true if the provided version of Python can only import
         /// packages containing an <c>__init__.py</c> file.
         /// </summary>
-        public static bool PythonVersionRequiresInitPyFiles(Version languageVersion) {
-            return languageVersion < new Version(3, 3);
+        public static bool PythonVersionRequiresInitPyFiles(PythonLanguageVersion languageVersion) {
+            return languageVersion < PythonLanguageVersion.V33;
         }
 
         /// <summary>
@@ -344,7 +345,7 @@ namespace Microsoft.PythonTools.Analysis {
         public static IEnumerable<ModulePath> GetModulesInLib(IPythonInterpreterFactory factory) {
             return GetModulesInLib(
                 factory.Configuration.InterpreterPath,
-                factory.Configuration.LibraryPath,
+                factory.Configuration.PrefixPath + "\\Lib",
                 null,   // default site-packages path
                 PythonVersionRequiresInitPyFiles(factory.Configuration.Version)
             );

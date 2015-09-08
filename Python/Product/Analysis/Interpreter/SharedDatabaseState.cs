@@ -21,6 +21,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Microsoft.PythonTools.Interpreter.Default;
+using Microsoft.PythonTools.Parsing;
 
 namespace Microsoft.PythonTools.Interpreter {
     /// <summary>
@@ -40,7 +41,7 @@ namespace Microsoft.PythonTools.Interpreter {
         private readonly Dictionary<IPythonType, CPythonConstant> _constants = new Dictionary<IPythonType, CPythonConstant>();
         private readonly Dictionary<string, IPythonType> _sequenceTypes = new Dictionary<string, IPythonType>();
         private readonly bool _isDefaultDb;
-        private readonly Version _langVersion;
+        private readonly PythonLanguageVersion _langVersion;
         private readonly List<WeakReference> _corruptListeners = new List<WeakReference>();
         private IBuiltinPythonModule _builtinModule;
         private IPythonType _objectType;
@@ -50,15 +51,15 @@ namespace Microsoft.PythonTools.Interpreter {
         internal const string BuiltinName3x = "builtins";
         private readonly string _builtinName;
 
-        public SharedDatabaseState(Version languageVersion) {
+        public SharedDatabaseState(PythonLanguageVersion languageVersion) {
             _langVersion = languageVersion;
-            _builtinName = (_langVersion.Major == 3) ? BuiltinName3x : BuiltinName2x;
+            _builtinName = _langVersion.Is3x() ? BuiltinName3x : BuiltinName2x;
         }
 
-        public SharedDatabaseState(Version languageVersion, string databaseDirectory)
+        public SharedDatabaseState(PythonLanguageVersion languageVersion, string databaseDirectory)
             : this(languageVersion, databaseDirectory, false) { }
 
-        internal SharedDatabaseState(Version languageVersion, string databaseDirectory, bool defaultDatabase)
+        internal SharedDatabaseState(PythonLanguageVersion languageVersion, string databaseDirectory, bool defaultDatabase)
             : this(languageVersion) {
             _dbDir = databaseDirectory;
             _isDefaultDb = defaultDatabase;
@@ -74,14 +75,14 @@ namespace Microsoft.PythonTools.Interpreter {
             if (_inner.BuiltinModule != null) {
                 _builtinName = _inner.BuiltinModule.Name;
             } else {
-                _builtinName = (_langVersion.Major == 3) ? BuiltinName3x : BuiltinName2x;
+                _builtinName = _langVersion.Is3x() ? BuiltinName3x : BuiltinName2x;
             }
         }
 
         /// <summary>
         /// Gets the Python language version associated with this database.
         /// </summary>
-        public Version LanguageVersion {
+        public PythonLanguageVersion LanguageVersion {
             get { return _langVersion; }
         }
 
@@ -96,7 +97,7 @@ namespace Microsoft.PythonTools.Interpreter {
                 _builtinModule = MakeBuiltinModule(databaseDirectory);
             }
             _modules[_builtinName] = _builtinModule;
-            if (_isDefaultDb && _langVersion.Major == 3) {
+            if (_isDefaultDb && _langVersion.Is3x()) {
                 _modules[BuiltinName2x] = _builtinModule;
             }
 
@@ -110,7 +111,7 @@ namespace Microsoft.PythonTools.Interpreter {
                 }
 
                 string modName = Path.GetFileNameWithoutExtension(file);
-                if (_isDefaultDb && _langVersion.Major == 3) {
+                if (_isDefaultDb && _langVersion.Is3x()) {
                     // aliases for 3.x when using the default completion DB
                     switch (modName) {
                         case "cPickle": modName = "_pickle"; break;
@@ -133,7 +134,7 @@ namespace Microsoft.PythonTools.Interpreter {
 
         private CPythonBuiltinModule MakeBuiltinModule(string databaseDirectory) {
             string filename = Path.Combine(databaseDirectory, _builtinName + ".idb");
-            if (_langVersion.Major == 3 && !File.Exists(filename)) {
+            if (_langVersion.Is3x() && !File.Exists(filename)) {
                 // Python 3.x the module is builtins, but we may have __builtin__.idb if
                 // we're using the default completion DB that we install w/ PTVS.
                 filename = Path.Combine(databaseDirectory, "__builtin__.idb");
@@ -148,7 +149,7 @@ namespace Microsoft.PythonTools.Interpreter {
                 return res;
             }
             
-            if (_isDefaultDb && _langVersion.Major == 3) {
+            if (_isDefaultDb && _langVersion.Is3x()) {
                 // aliases for 3.x when using the default completion DB
                 switch (name) {
                     case "cPickle": return GetModule("_pickle");
@@ -383,7 +384,7 @@ namespace Microsoft.PythonTools.Interpreter {
             return GetBuiltinTypeName(id, _langVersion);
         }
 
-        public static string GetBuiltinTypeName(BuiltinTypeId id, Version languageVersion) {
+        public static string GetBuiltinTypeName(BuiltinTypeId id, PythonLanguageVersion languageVersion) {
             string name;
             switch (id) {
                 case BuiltinTypeId.Bool: name = "bool"; break;
@@ -392,12 +393,12 @@ namespace Microsoft.PythonTools.Interpreter {
                 case BuiltinTypeId.Float: name = "float"; break;
                 case BuiltinTypeId.Int: name = "int"; break;
                 case BuiltinTypeId.List: name = "list"; break;
-                case BuiltinTypeId.Long: name = languageVersion.Major == 3 ? "int" : "long"; break;
+                case BuiltinTypeId.Long: name = languageVersion.Is3x() ? "int" : "long"; break;
                 case BuiltinTypeId.Object: name = "object"; break;
                 case BuiltinTypeId.Set: name = "set"; break;
                 case BuiltinTypeId.Str: name = "str"; break;
-                case BuiltinTypeId.Unicode: name = languageVersion.Major == 3 ? "str" : "unicode"; break;
-                case BuiltinTypeId.Bytes: name = languageVersion.Major == 3 ? "bytes" : "str"; break;
+                case BuiltinTypeId.Unicode: name = languageVersion.Is3x() ? "str" : "unicode"; break;
+                case BuiltinTypeId.Bytes: name = languageVersion.Is3x() ? "bytes" : "str"; break;
                 case BuiltinTypeId.Tuple: name = "tuple"; break;
                 case BuiltinTypeId.Type: name = "type"; break;
 
@@ -415,8 +416,8 @@ namespace Microsoft.PythonTools.Interpreter {
                 case BuiltinTypeId.TupleIterator: name = "tuple_iterator"; break;
                 case BuiltinTypeId.SetIterator: name = "set_iterator"; break;
                 case BuiltinTypeId.StrIterator: name = "str_iterator"; break;
-                case BuiltinTypeId.UnicodeIterator: name = languageVersion.Major == 3 ? "str_iterator" : "unicode_iterator"; break;
-                case BuiltinTypeId.BytesIterator: name = languageVersion.Major == 3 ? "bytes_iterator" : "str_iterator"; break;
+                case BuiltinTypeId.UnicodeIterator: name = languageVersion.Is3x() ? "str_iterator" : "unicode_iterator"; break;
+                case BuiltinTypeId.BytesIterator: name = languageVersion.Is3x() ? "bytes_iterator" : "str_iterator"; break;
                 case BuiltinTypeId.CallableIterator: name = "callable_iterator"; break;
 
                 case BuiltinTypeId.Property: name = "property"; break;
@@ -760,7 +761,7 @@ namespace Microsoft.PythonTools.Interpreter {
         /// For the member to be included all checks must pass.
         /// </summary>
         internal bool VersionApplies(object version) {
-            if (_langVersion == null || version == null) {
+            if (version == null) {
                 return true;
             }
 
@@ -781,17 +782,18 @@ namespace Microsoft.PythonTools.Interpreter {
         }
 
         private bool OneVersionApplies(string strVer) {
+            Version langVer = _langVersion.ToVersion();
             Version specifiedVer;
             if (strVer.StartsWith(">=")) {
-                if (Version.TryParse(strVer.Substring(2), out specifiedVer) && _langVersion >= specifiedVer) {
+                if (Version.TryParse(strVer.Substring(2), out specifiedVer) && langVer >= specifiedVer) {
                     return true;
                 }
             } else if (strVer.StartsWith("<=")) {
-                if (Version.TryParse(strVer.Substring(2), out specifiedVer) && _langVersion <= specifiedVer) {
+                if (Version.TryParse(strVer.Substring(2), out specifiedVer) && langVer <= specifiedVer) {
                     return true;
                 }
             } else if (strVer.StartsWith("==")) {
-                if (Version.TryParse(strVer.Substring(2), out specifiedVer) && _langVersion == specifiedVer) {
+                if (Version.TryParse(strVer.Substring(2), out specifiedVer) && langVer == specifiedVer) {
                     return true;
                 }
             }
@@ -825,7 +827,7 @@ namespace Microsoft.PythonTools.Interpreter {
                 case "type": return BuiltinTypeId.Type;
                 case "object": return BuiltinTypeId.Object;
                 case "long": return BuiltinTypeId.Long;
-                case "str": return _langVersion.Major == 3 ? BuiltinTypeId.Unicode : BuiltinTypeId.Bytes;
+                case "str": return _langVersion.Is3x() ? BuiltinTypeId.Unicode : BuiltinTypeId.Bytes;
                 case "unicode": return BuiltinTypeId.Unicode;
                 case "bytes": return BuiltinTypeId.Bytes;
                 case "builtin_function": return BuiltinTypeId.BuiltinFunction;
@@ -838,7 +840,7 @@ namespace Microsoft.PythonTools.Interpreter {
                 case "list_iterator": return BuiltinTypeId.ListIterator;
                 case "tuple_iterator": return BuiltinTypeId.TupleIterator;
                 case "set_iterator": return BuiltinTypeId.SetIterator;
-                case "str_iterator": return _langVersion.Major == 3 ? BuiltinTypeId.UnicodeIterator : BuiltinTypeId.BytesIterator;
+                case "str_iterator": return _langVersion.Is3x() ? BuiltinTypeId.UnicodeIterator : BuiltinTypeId.BytesIterator;
                 case "unicode_iterator": return BuiltinTypeId.UnicodeIterator;
                 case "bytes_iterator": return BuiltinTypeId.BytesIterator;
                 case "callable_iterator": return BuiltinTypeId.CallableIterator;

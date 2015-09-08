@@ -49,4 +49,41 @@ namespace Microsoft.PythonTools.Interpreter {
         /// </summary>
         CannotBeConfigured = 0x08,
     }
+
+    public static class InterpreterUIModeExtensions {
+        /// <summary>
+        /// Returns <c>true</c> if the factory should appear in the UI.
+        /// </summary>
+        /// <remarks>New in 2.2</remarks>
+        public static bool IsUIVisible(this InterpreterUIMode mode) {
+            return !mode.HasFlag(InterpreterUIMode.Hidden);
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> if the factory can ever be the default
+        /// interpreter.
+        /// </summary>
+        /// <remarks>New in 2.2</remarks>
+        public static bool CanBeDefault(this InterpreterUIMode mode) {
+            return !mode.HasFlag(InterpreterUIMode.CannotBeDefault);
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> if the factory can be automatically selected as
+        /// the default interpreter.
+        /// </summary>
+        /// <remarks>New in 2.2</remarks>
+        public static bool CanBeAutoDefault(this InterpreterUIMode mode) {
+            return !mode.HasFlag(InterpreterUIMode.CannotBeDefault) &&
+                !mode.HasFlag(InterpreterUIMode.CannotBeAutoDefault);
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> if the factory can be configured.
+        /// </summary>
+        /// <remarks>New in 2.2</remarks>
+        public static bool CanBeConfigured(this InterpreterUIMode mode) {
+            return !mode.HasFlag(InterpreterUIMode.CannotBeConfigured);
+        }
+    }
 }

@@ -2548,7 +2548,7 @@ namespace AnalysisTests {
 
                 if (errorSink.Errors.Count != 0) {
                     var fileErrors = errorSink.Errors.ToList();
-                    if (curVersion.Configuration.Version == new Version(3, 5)) {
+                    if (curVersion.Configuration.Version == PythonLanguageVersion.V35) {
                         // TODO: https://github.com/Microsoft/PTVS/issues/337
                         fileErrors.RemoveAll(e => {
                             return e.Message == "non-keyword arg after keyword arg";

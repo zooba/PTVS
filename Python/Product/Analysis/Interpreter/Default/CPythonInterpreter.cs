@@ -19,6 +19,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
+using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudioTools;
 
 namespace Microsoft.PythonTools.Interpreter.Default {
@@ -30,7 +31,7 @@ namespace Microsoft.PythonTools.Interpreter.Default {
         private readonly object _referencesLock = new object();
 
         public CPythonInterpreter(PythonInterpreterFactoryWithDatabase factory) {
-            _langVersion = factory.Configuration.Version;
+            _langVersion = factory.Configuration.Version.ToVersion();
             _factory = factory;
             _typeDb = _factory.GetCurrentDatabase();
             _factory.NewDatabaseAvailable += OnNewDatabaseAvailable;

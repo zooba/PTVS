@@ -81,10 +81,12 @@ namespace AnalysisTests {
         private static IEnumerable<IPythonInterpreterFactory> Factories {
             get {
                 foreach (var interp in PythonPaths.Versions.Where(p => File.Exists(p.InterpreterPath))) {
-                    yield return new MockPythonInterpreterFactory(Guid.NewGuid(), "Test Interpreter",
-                        new InterpreterConfiguration(Path.GetDirectoryName(interp.InterpreterPath), interp.InterpreterPath, "", "", "",
+                    var id = Guid.NewGuid();
+                    yield return new MockPythonInterpreterFactory(id, "Test Interpreter",
+                        new InterpreterConfiguration(id.ToString("B"), "Test Interpreter",
+                            Path.GetDirectoryName(interp.InterpreterPath), interp.InterpreterPath, "", new string[0], "",
                             interp.Isx64 ? ProcessorArchitecture.Amd64 : ProcessorArchitecture.X86,
-                            interp.Version.ToVersion()
+                            interp.Version, InterpreterUIMode.Normal
                         )
                     );
                 }

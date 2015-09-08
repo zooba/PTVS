@@ -22,6 +22,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.PythonTools.Analysis;
+using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudioTools;
 using Microsoft.Win32;
 
@@ -208,7 +209,7 @@ namespace Microsoft.PythonTools.Interpreter {
                             description = CPythonInterpreterFactoryConstants.Description64;
                         }
 
-                        if (!_interpreters.Any(f => f.Id == id && f.Configuration.Version == version)) {
+                        if (!_interpreters.Any(f => f.Id == id && f.Configuration.Version.ToVersion() == version)) {
                             IPythonInterpreterFactory fact;
                             try {
                                 fact = InterpreterFactoryCreator.CreateInterpreterFactory(
