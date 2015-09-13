@@ -11,4 +11,29 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         string Moniker { get; }
     }
+
+    public sealed class StringLiteralDocument : ISourceDocument {
+        private readonly string _document;
+        private readonly string _moniker;
+
+        public StringLiteralDocument(string document, string moniker = "<string>") {
+            _document = document;
+            _moniker = moniker;
+        }
+
+        public string Moniker {
+            get {
+                return _moniker;
+            }
+        }
+
+        public async Task<Stream> ReadAsync() {
+            var ms = new MemoryStream();
+            using (var sw = new StreamWriter(ms, new UTF8Encoding(false), 4096, true)) {
+                await sw.WriteAsync(_document);
+            }
+            ms.Seek(0, SeekOrigin.Begin);
+            return ms;
+        }
+    }
 }

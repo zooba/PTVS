@@ -42,7 +42,7 @@ namespace AnalysisTests {
                 new { Path = "C:\\Python33\\Lib", Version = PythonLanguageVersion.V33 }
             };
 
-            foreach (var optionSet in new[] { TokenizerOptions.Verbatim | TokenizerOptions.VerbatimCommentsAndLineJoins, TokenizerOptions.Verbatim }) {
+            foreach (var optionSet in new[] { TokenizerOptions.None, TokenizerOptions.Verbatim }) {
                 foreach (var version in versions) {
                     Console.WriteLine("Testing version {0} {1} w/ Option Set {2}", version.Version, version.Path, optionSet);
                     int ran = 0, succeeded = 0;
@@ -87,7 +87,7 @@ namespace AnalysisTests {
         public void TrailingBackSlash() {
             var tokens = TestOneString(
                 PythonLanguageVersion.V27, 
-                TokenizerOptions.Verbatim | TokenizerOptions.VerbatimCommentsAndLineJoins,
+                TokenizerOptions.Verbatim,
                 "fob\r\n\\"
             );
             AssertEqualTokens(
@@ -101,7 +101,7 @@ namespace AnalysisTests {
 
             tokens = TestOneString(
                 PythonLanguageVersion.V27,
-                TokenizerOptions.Verbatim | TokenizerOptions.VerbatimCommentsAndLineJoins,
+                TokenizerOptions.Verbatim,
                 "fob\r\n\\b"
             );
             AssertEqualTokens(
@@ -138,15 +138,12 @@ namespace AnalysisTests {
         [TestMethod, Priority(0)]
         public void BinaryTest() {
             var filename = Path.Combine(System.Environment.GetFolderPath(Environment.SpecialFolder.System), "kernel32.dll");
-            TestOneFile(filename, PythonLanguageVersion.V27, TokenizerOptions.Verbatim | TokenizerOptions.VerbatimCommentsAndLineJoins);
             TestOneFile(filename, PythonLanguageVersion.V27, TokenizerOptions.Verbatim);
         }
 
         [TestMethod, Priority(0)]
         public void TestErrors() {
             TestOneString(PythonLanguageVersion.V27, TokenizerOptions.Verbatim, "http://xkcd.com/353/\")");
-            TestOneString(PythonLanguageVersion.V27, TokenizerOptions.Verbatim | TokenizerOptions.VerbatimCommentsAndLineJoins, "http://xkcd.com/353/\")");
-            TestOneString(PythonLanguageVersion.V27, TokenizerOptions.Verbatim | TokenizerOptions.VerbatimCommentsAndLineJoins, "lambda, U+039B");
             TestOneString(PythonLanguageVersion.V27, TokenizerOptions.Verbatim, "lambda, U+039B");
         }
 
@@ -159,14 +156,14 @@ namespace AnalysisTests {
         private static List<TokenWithSpan> TestOneString(PythonLanguageVersion version, TokenizerOptions optionSet, string originalText) {
             StringBuilder output = new StringBuilder();
 
-            var tokenizer = new Tokenizer(version, options: optionSet);
+            var tokenizer = new Tokenizer(version, ErrorSink.Null, options: optionSet);
             tokenizer.Initialize(new StringReader(originalText));
             Token token;
             int prevOffset = 0;
 
             List<TokenWithSpan> tokens = new List<TokenWithSpan>();
             while ((token = tokenizer.GetNextToken()) != Tokens.EndOfFileToken) {
-                tokens.Add(new TokenWithSpan(token, tokenizer.TokenSpan));
+                tokens.Add(new TokenWithSpan(token, tokenizer.TokenSpan, tokenizer.PreceedingWhiteSpace));
 
                 output.Append(tokenizer.PreceedingWhiteSpace);
                 output.Append(token.VerbatimImage);

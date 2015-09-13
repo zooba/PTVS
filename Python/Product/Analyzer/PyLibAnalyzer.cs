@@ -1068,7 +1068,7 @@ namespace Microsoft.PythonTools.Analysis {
             return false;
         }
 
-        internal Task Analyze() {
+        internal async Task Analyze() {
             if (_updater != null) {
                 _updater.UpdateStatus(_progressOffset, _progressTotal, "Starting analysis");
             }
@@ -1194,15 +1194,17 @@ namespace Microsoft.PythonTools.Analysis {
                         }
                         try {
                             var sourceUnit = new FileStream(item.SourceFile, FileMode.Open, FileAccess.Read, FileShare.Read);
-                            var errors = new CollectingErrorSink();
-                            var opts = new ParserOptions() { BindReferences = true, ErrorSink = errors };
-
+                            var result = await Parser.TokenizeAndParseAsync(new FileSourceDocument(item.SourceFile), _version);
+                            item.Tree = result.Tree;
+                            
                             TraceInformation("Parsing \"{0}\" (\"{1}\")", item.ModuleName, item.SourceFile);
-                            item.Tree = Parser.CreateParser(sourceUnit, _version, opts).ParseFile();
-                            if (errors.Errors.Any() || errors.Warnings.Any()) {
+
+                            if (result.Errors.Any()) {
                                 TraceWarning("File \"{0}\" contained parse errors", item.SourceFile);
-                                TraceInformation(string.Join(Environment.NewLine, errors.Errors.Concat(errors.Warnings)
-                                    .Select(er => string.Format("{0} {1}", er.Span, er.Message))));
+                                TraceInformation(string.Join(
+                                    Environment.NewLine,
+                                    result.Errors.Select(er => string.Format("{0} {1}", er.Span, er.Message))
+                                ));
                             }
                         } catch (Exception ex) {
                             TraceError("Error parsing \"{0}\" \"{1}\"{2}{3}", item.ModuleName, item.SourceFile, Environment.NewLine, ex.ToString());
@@ -1260,10 +1262,6 @@ namespace Microsoft.PythonTools.Analysis {
                     AnalysisLog.Flush();
                 }
             }
-
-            // Lets us have an awaitable function, even though it doesn't need
-            // to be async yet. This helps keep the interfaces consistent.
-            return Task.FromResult<object>(null);
         }
 
         internal Task Epilogue() {

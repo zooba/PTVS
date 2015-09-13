@@ -1,16 +1,17 @@
-﻿/* ****************************************************************************
- *
- * Copyright (c) Microsoft Corporation. 
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- *
- * ***************************************************************************/
+﻿extern alias analysis;
+/* ****************************************************************************
+*
+* Copyright (c) Microsoft Corporation. 
+*
+* This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
+* copy of the license can be found in the License.html file at the root of this distribution. If 
+* you cannot locate the Apache License, Version 2.0, please send an email to 
+* vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
+* by the terms of the Apache License, Version 2.0.
+*
+* You must not remove this notice, or any other, from this software.
+*
+* ***************************************************************************/
 
 using System;
 using System.Collections.Generic;
@@ -21,6 +22,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using analysis::Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Values;
 using Microsoft.PythonTools.Interpreter;
@@ -126,10 +128,10 @@ f(x=42, y = 'abc')
 
         [TestMethod, Priority(0)]
         public void TestPackageImportStar() {
-            var fobInit = GetSourceUnit("from oar import *", @"C:\Test\Lib\fob\__init__.py");
-            var oarInit = GetSourceUnit("from baz import *", @"C:\Test\Lib\fob\oar\__init__.py");
-            var baz = GetSourceUnit("import quox\r\nfunc = quox.func", @"C:\Test\Lib\fob\oar\baz.py");
-            var quox = GetSourceUnit("def func(): return 42", @"C:\Test\Lib\fob\oar\quox.py");
+            var fobInit = GetSourceDocument("from oar import *", @"C:\Test\Lib\fob\__init__.py");
+            var oarInit = GetSourceDocument("from baz import *", @"C:\Test\Lib\fob\oar\__init__.py");
+            var baz = GetSourceDocument("import quox\r\nfunc = quox.func", @"C:\Test\Lib\fob\oar\baz.py");
+            var quox = GetSourceDocument("def func(): return 42", @"C:\Test\Lib\fob\oar\quox.py");
 
             var state = CreateAnalyzer();
 
@@ -669,9 +671,9 @@ class D(object):
 ";
 
                 var mod1 = state.AddModule("mod1", "mod1", null);
-                Prepare(mod1, GetSourceUnit(text1, "mod1"));
+                Prepare(mod1, GetSourceDocument(text1, "mod1"));
                 var mod2 = state.AddModule("mod2", "mod2", null);
-                Prepare(mod2, GetSourceUnit(text2, "mod2"));
+                Prepare(mod2, GetSourceDocument(text2, "mod2"));
 
                 mod1.Analyze(CancellationToken.None, true);
                 mod2.Analyze(CancellationToken.None, true);
@@ -708,9 +710,9 @@ class D(object):
 ";
 
                 var mod1 = state.AddModule("mod1", "mod1", null);
-                Prepare(mod1, GetSourceUnit(text1, "mod1"));
+                Prepare(mod1, GetSourceDocument(text1, "mod1"));
                 var mod2 = state.AddModule("mod2", "mod2", null);
-                Prepare(mod2, GetSourceUnit(text2, "mod2"));
+                Prepare(mod2, GetSourceDocument(text2, "mod2"));
 
                 mod1.Analyze(CancellationToken.None);
                 mod2.Analyze(CancellationToken.None);
@@ -721,7 +723,7 @@ class D(object):
 
                 // mutate 1st file
                 text1 = text1.Substring(0, text1.IndexOf("    def")) + Environment.NewLine + text1.Substring(text1.IndexOf("    def"));
-                Prepare(mod1, GetSourceUnit(text1, "mod1"));
+                Prepare(mod1, GetSourceDocument(text1, "mod1"));
                 mod1.Analyze(CancellationToken.None);
 
                 VerifyReferences(UniqifyVariables(mod1.Analysis.GetVariablesByIndex("SomeMethod", text1.IndexOf("SomeMethod"))),
@@ -729,7 +731,7 @@ class D(object):
 
                 // mutate 2nd file
                 text2 = Environment.NewLine + text2;
-                Prepare(mod2, GetSourceUnit(text2, "mod1"));
+                Prepare(mod2, GetSourceDocument(text2, "mod1"));
                 mod2.Analyze(CancellationToken.None);
 
                 VerifyReferences(UniqifyVariables(mod1.Analysis.GetVariablesByIndex("SomeMethod", text1.IndexOf("SomeMethod"))),
@@ -2752,9 +2754,9 @@ abc()
                 var oarText = "class abc(object): pass";
 
                 var fobMod = state.AddModule("fob", "fob", null);
-                Prepare(fobMod, GetSourceUnit(fobText, "mod1"));
+                Prepare(fobMod, GetSourceDocument(fobText, "mod1"));
                 var oarMod = state.AddModule("oar", "oar", null);
-                Prepare(oarMod, GetSourceUnit(oarText, "mod2"));
+                Prepare(oarMod, GetSourceDocument(oarText, "mod2"));
 
                 fobMod.Analyze(CancellationToken.None);
                 oarMod.Analyze(CancellationToken.None);
@@ -2782,13 +2784,13 @@ abc()
 from baz import abc2 as abc";
 
                 var fobMod = state.AddModule("fob", "fob", null);
-                Prepare(fobMod, GetSourceUnit(fobText, "mod1"));
+                Prepare(fobMod, GetSourceDocument(fobText, "mod1"));
                 var oarMod = state.AddModule("oar", "oar", null);
-                Prepare(oarMod, GetSourceUnit(oarText, "mod2"));
+                Prepare(oarMod, GetSourceDocument(oarText, "mod2"));
                 var bazMod = state.AddModule("baz", "baz", null);
-                Prepare(bazMod, GetSourceUnit(bazText, "mod3"));
+                Prepare(bazMod, GetSourceDocument(bazText, "mod3"));
                 var oarBazMod = state.AddModule("oarbaz", "oarbaz", null);
-                Prepare(oarBazMod, GetSourceUnit(oarBazText, "mod4"));
+                Prepare(oarBazMod, GetSourceDocument(oarBazText, "mod4"));
 
                 fobMod.Analyze(CancellationToken.None, true);
                 oarMod.Analyze(CancellationToken.None, true);
@@ -3012,9 +3014,9 @@ mod1.l.append(a)
 ";
 
                     var mod1 = state.AddModule("mod1", "mod1", null);
-                    Prepare(mod1, GetSourceUnit(code1, "mod1"));
+                    Prepare(mod1, GetSourceDocument(code1, "mod1"));
                     var mod2 = state.AddModule("mod2", "mod2", null);
-                    Prepare(mod2, GetSourceUnit(code2, "mod2"));
+                    Prepare(mod2, GetSourceDocument(code2, "mod2"));
 
                     mod1.Analyze(CancellationToken.None, true);
                     mod2.Analyze(CancellationToken.None, true);
@@ -3022,7 +3024,7 @@ mod1.l.append(a)
                     mod1.AnalysisGroup.AnalyzeQueuedEntries(CancellationToken.None);
                     if (i == 0) {
                         // re-preparing shouldn't be necessary
-                        Prepare(mod2, GetSourceUnit(code2, "mod2"));
+                        Prepare(mod2, GetSourceDocument(code2, "mod2"));
                     }
 
                     mod2.Analyze(CancellationToken.None, true);
@@ -4385,7 +4387,7 @@ t.x, t. =
                 var baz = state.AddModule("baz", @"baz.py", EmptyAnalysisCookie.Instance);
 
                 AnalyzeLeak(() => {
-                    var oarSrc = GetSourceUnit(@"
+                    var oarSrc = GetSourceDocument(@"
 import sys
 from baz import D
 
@@ -4403,7 +4405,7 @@ min(a, D())
 
 ", @"oar.py");
 
-                    var bazSrc = GetSourceUnit(@"
+                    var bazSrc = GetSourceDocument(@"
 from oar import C
 
 class D(object):
@@ -4448,12 +4450,7 @@ min(a, D())
             List<string> files = new List<string>();
             CollectFiles(dir, files);
 
-            List<FileStreamReader> sourceUnits = new List<FileStreamReader>();
-            foreach (string file in files) {
-                sourceUnits.Add(
-                    new FileStreamReader(file)
-                );
-            }
+            var documents = files.Select(f => new FileSourceDocument(f)).ToList();
 
             Stopwatch sw = new Stopwatch();
 
@@ -4461,8 +4458,8 @@ min(a, D())
             long start0 = sw.ElapsedMilliseconds;
             using (var projectState = PythonAnalyzer.CreateSynchronously(InterpreterFactory, Interpreter)) {
                 var modules = new List<IPythonProjectEntry>();
-                foreach (var sourceUnit in sourceUnits) {
-                    modules.Add(projectState.AddModule(ModulePath.FromFullPath(sourceUnit.Path).ModuleName, sourceUnit.Path, null));
+                foreach (var document in documents) {
+                    modules.Add(projectState.AddModule(ModulePath.FromFullPath(document.Moniker).ModuleName, document.Moniker, null));
                 }
                 long start1 = sw.ElapsedMilliseconds;
                 Trace.TraceInformation("AddSourceUnit: {0} ms", start1 - start0);
@@ -4471,9 +4468,10 @@ min(a, D())
                 for (int i = 0; i < modules.Count; i++) {
                     PythonAst ast = null;
                     try {
-                        var sourceUnit = sourceUnits[i];
-
-                        ast = Parser.CreateParser(sourceUnit, InterpreterFactory.GetLanguageVersion()).ParseFile();
+                        ast = Parser.TokenizeAndParseAsync(
+                            documents[i],
+                            InterpreterFactory.GetLanguageVersion()
+                        ).GetAwaiter().GetResult().Tree;
                     } catch (Exception) {
                     }
                     nodes.Add(ast);
@@ -4491,7 +4489,7 @@ min(a, D())
 
                 long start3 = sw.ElapsedMilliseconds;
                 for (int i = 0; i < modules.Count; i++) {
-                    Trace.TraceInformation("Analyzing {1}: {0} ms", sw.ElapsedMilliseconds - start3, sourceUnits[i].Path);
+                    Trace.TraceInformation("Analyzing {1}: {0} ms", sw.ElapsedMilliseconds - start3, documents[i].Moniker);
                     var ast = nodes[i];
                     if (ast != null) {
                         modules[i].Analyze(CancellationToken.None, true);
@@ -4510,11 +4508,10 @@ min(a, D())
                     }
                 }
                 AnalyzeLeak(() => {
-                    using (var reader = new FileStreamReader(modules[index].FilePath)) {
-                        var ast = Parser.CreateParser(reader, InterpreterFactory.GetLanguageVersion()).ParseFile();
-
-                        modules[index].UpdateTree(ast, null);
-                    }
+                    modules[index].UpdateTree(Parser.TokenizeAndParseAsync(
+                        new FileSourceDocument(modules[index].FilePath),
+                        InterpreterFactory.GetLanguageVersion()
+                    ).GetAwaiter().GetResult().Tree, null);
 
                     modules[index].Analyze(CancellationToken.None, true);
                     modules[index].AnalysisGroup.AnalyzeQueuedEntries(CancellationToken.None);
@@ -4545,14 +4542,14 @@ min(a, D())
 
         [TestMethod, Priority(0)]
         public void MoveClass() {
-            var fobSrc = GetSourceUnit("from oar import C", @"fob.py");
+            var fobSrc = GetSourceDocument("from oar import C", @"fob.py");
 
-            var oarSrc = GetSourceUnit(@"
+            var oarSrc = GetSourceDocument(@"
 class C(object):
     pass
 ", @"oar.py");
 
-            var bazSrc = GetSourceUnit(@"
+            var bazSrc = GetSourceDocument(@"
 class C(object):
     pass
 ", @"baz.py");
@@ -4574,7 +4571,7 @@ class C(object):
                 Assert.AreEqual(fob.Analysis.GetValuesByIndex("C", 1).First().Description, "class C");
                 Assert.IsTrue(fob.Analysis.GetValuesByIndex("C", 1).First().Locations.Single().FilePath.EndsWith("oar.py"));
 
-                oarSrc = GetSourceUnit(@"
+                oarSrc = GetSourceDocument(@"
 ", @"oar.py");
 
                 // delete the class..
@@ -4584,7 +4581,7 @@ class C(object):
 
                 Assert.AreEqual(fob.Analysis.GetValuesByIndex("C", 1).ToArray().Length, 0);
 
-                fobSrc = GetSourceUnit("from baz import C", @"fob.py");
+                fobSrc = GetSourceDocument("from baz import C", @"fob.py");
                 Prepare(fob, fobSrc);
 
                 fob.Analyze(CancellationToken.None);
@@ -4596,14 +4593,14 @@ class C(object):
 
         [TestMethod, Priority(0)]
         public void Package() {
-            var src1 = GetSourceUnit("", @"C:\\Test\\Lib\\fob\\__init__.py");
+            var src1 = GetSourceDocument("", @"C:\\Test\\Lib\\fob\\__init__.py");
 
-            var src2 = GetSourceUnit(@"
+            var src2 = GetSourceDocument(@"
 from fob.y import abc
 import fob.y as y
 ", @"C:\\Test\\Lib\\fob\\x.py");
 
-            var src3 = GetSourceUnit(@"
+            var src3 = GetSourceDocument(@"
 abc = 42
 ", @"C:\\Test\\Lib\\fob\\y.py");
 
@@ -4636,9 +4633,9 @@ abc = 42
                 new { Content = "abc = 42",           FullPath = Path.Combine(tempPath, "y.py") } 
             };
 
-            var srcs = new TextReader[files.Length];
+            var srcs = new ISourceDocument[files.Length];
             for (int i = 0; i < files.Length; i++) {
-                srcs[i] = GetSourceUnit(files[i].Content, files[i].FullPath);
+                srcs[i] = GetSourceDocument(files[i].Content, files[i].FullPath);
                 File.WriteAllText(files[i].FullPath, files[i].Content);
             }
 
@@ -4676,9 +4673,9 @@ abc = 42
                 new { Content = "def y(): pass",    FullPath = Path.Combine(tempPath, "y.py") } 
             };
 
-            var srcs = new TextReader[files.Length];
+            var srcs = new ISourceDocument[files.Length];
             for (int i = 0; i < files.Length; i++) {
-                srcs[i] = GetSourceUnit(files[i].Content, files[i].FullPath);
+                srcs[i] = GetSourceDocument(files[i].Content, files[i].FullPath);
                 File.WriteAllText(files[i].FullPath, files[i].Content);
             }
 
@@ -4968,7 +4965,7 @@ def my_fn():
     return None
 ";
 
-            var sourceUnit = GetSourceUnit(text, "fob");
+            var sourceUnit = GetSourceDocument(text, "fob");
             var state = CreateAnalyzer();
             state.Limits.ProcessCustomDecorators = true;
             var entry = state.AddModule("fob", "fob", null);
@@ -4996,7 +4993,7 @@ def my_fn():
     return None
 ";
 
-            var sourceUnit = GetSourceUnit(text, "fob");
+            var sourceUnit = GetSourceDocument(text, "fob");
             var state = CreateAnalyzer();
             state.Limits.ProcessCustomDecorators = false;
             var entry = state.AddModule("fob", "fob", null);
@@ -5930,15 +5927,15 @@ mod1.f(42)
                 var entry2 = state.AddModule("mod2", "mod2", null);
 
                 // analyze both files
-                Prepare(entry1, GetSourceUnit(text1, "mod1"), InterpreterFactory.GetLanguageVersion());
+                Prepare(entry1, GetSourceDocument(text1, "mod1"), InterpreterFactory.GetLanguageVersion());
                 entry1.Analyze(CancellationToken.None);
-                Prepare(entry2, GetSourceUnit(text2, "mod2"), InterpreterFactory.GetLanguageVersion());
+                Prepare(entry2, GetSourceDocument(text2, "mod2"), InterpreterFactory.GetLanguageVersion());
                 entry2.Analyze(CancellationToken.None);
 
                 AssertUtil.ContainsExactly(entry1.Analysis.GetTypeIdsByIndex("abc", text1.IndexOf("pass")), BuiltinTypeId.Int);
 
                 // re-analyze project1, we should still know about the type info provided by module2
-                Prepare(entry1, GetSourceUnit(text1, "mod1"), InterpreterFactory.GetLanguageVersion());
+                Prepare(entry1, GetSourceDocument(text1, "mod1"), InterpreterFactory.GetLanguageVersion());
                 entry1.Analyze(CancellationToken.None);
 
                 AssertUtil.ContainsExactly(entry1.Analysis.GetTypeIdsByIndex("abc", text1.IndexOf("pass")), BuiltinTypeId.Int);
@@ -6626,10 +6623,10 @@ def f():
                 state.SpecializeFunction("NullNamedArgument", "fn", callable);
 
                 var entry1 = state.AddModule("NullNamedArgument", "NullNamedArgument.py");
-                Prepare(entry1, GetSourceUnit("def fn(**kwargs): pass", "NullNamedArgument"), state.LanguageVersion);
+                Prepare(entry1, GetSourceDocument("def fn(**kwargs): pass", "NullNamedArgument"), state.LanguageVersion);
                 entry1.Analyze(CancellationToken.None);
                 var entry2 = state.AddModule("test", "test.py");
-                Prepare(entry2, GetSourceUnit("import NullNamedArgument; NullNamedArgument.fn(a=0, ]]])", "test"), state.LanguageVersion);
+                Prepare(entry2, GetSourceDocument("import NullNamedArgument; NullNamedArgument.fn(a=0, ]]])", "test"), state.LanguageVersion);
                 entry2.Analyze(CancellationToken.None);
             }
         }

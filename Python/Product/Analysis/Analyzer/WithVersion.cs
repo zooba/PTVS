@@ -1,13 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.ExceptionServices;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
-    class WithVersion<T> where T : class {
+    public sealed class WithVersion<T> where T : class {
         private T _value;
         private int _version;
         private TaskCompletionSource<int> _newVersion;
@@ -34,9 +29,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 tcs = _newVersion;
                 _newVersion = null;
             }
-            if (tcs != null) {
-                tcs.SetResult(version);
-            }
+            tcs?.SetResult(version);
+            NewVersion?.Invoke(this, EventArgs.Empty);
         }
 
         public T Get() {
@@ -64,5 +58,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             await tcs.Task;
             return _value;
         }
+
+        public event EventHandler NewVersion;
     }
 }

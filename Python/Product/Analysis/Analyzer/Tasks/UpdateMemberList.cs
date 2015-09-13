@@ -12,7 +12,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
     sealed class UpdateMemberList : QueueItem {
         private readonly PythonAst _tree;
 
-        public UpdateMemberList(PythonLanguageService.AnalysisState item, PythonAst tree)
+        public UpdateMemberList(AnalysisState item, PythonAst tree)
             : base(item) {
             _tree = tree;
         }

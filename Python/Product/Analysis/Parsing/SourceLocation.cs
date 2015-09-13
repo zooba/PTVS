@@ -13,7 +13,11 @@
  * ***************************************************************************/
 
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
+using Microsoft.PythonTools.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Parsing {
     /// <summary>
@@ -39,6 +43,45 @@ namespace Microsoft.PythonTools.Parsing {
             _index = index;
             _line = line;
             _column = column;
+        }
+
+        public static SourceLocation FromIndex(Tokenization tokenization, int index) {
+            if (index < 0) {
+                return SourceLocation.Invalid;
+            }
+            int line = tokenization.GetLineNumberByIndex(index);
+            if (line < 0) {
+                return new SourceLocation(index, 1, 1);
+            }
+            int lineStart = tokenization.GetLineStartIndex(line);
+
+            return new SourceLocation(index, line + 1, index - lineStart + 1);
+        }
+
+        public static SourceLocation FromIndex(IReadOnlyList<int> lineLocations, int index) {
+            if (index < 0 || lineLocations.Count == 0) {
+                return SourceLocation.Invalid;
+            }
+
+            var lineArray = lineLocations as int[] ?? lineLocations.ToArray();
+
+            int line = Array.BinarySearch(lineArray, index);
+            if (line < 0) {
+                if (line == -1) {
+                    // If our index = -1, assume we're on the first line.
+                    Debug.Fail("Invalid index");
+                    line = 0;
+                } else {
+                    // If we couldn't find an exact match for this line number, get the nearest
+                    // matching line number less than this one
+                    line = ~line - 1;
+                }
+            }
+
+            Debug.Assert(0 <= line && line < lineArray.Length);
+            int lineStart = lineArray[line];
+
+            return new SourceLocation(index, line + 1, index - lineStart + 1);
         }
 
         private static void ValidateLocation(int index, int line, int column) {

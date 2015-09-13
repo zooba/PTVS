@@ -124,8 +124,8 @@
     <Compile Include="Intellisense\ReverseExpressionParser.cs" />
     <Compile Include="IPythonEditorOptions.cs" />
     <Compile Include="LanguagePreferences.cs" />
-    <Compile Include="PythonAnalysisClassifier.cs" />
-    <Compile Include="PythonAnalysisClassifierProvider.cs" />
+    <None Include="PythonAnalysisClassifier.cs" />
+    <None Include="PythonAnalysisClassifierProvider.cs" />
     <Compile Include="PythonClassifier.cs" />
     <Compile Include="PythonClassifierProvider.cs" />
     <Compile Include="PythonPredefinedClassificationTypeNames.cs" />

@@ -86,6 +86,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _updateTreeThread.Enqueue(item);
         }
 
+        internal void Enqueue(UpdateTokenization item) {
+            _updateTreeThread.Enqueue(item);
+        }
+
         internal void Enqueue(UpdateTree item) {
             _updateTreeThread.Enqueue(item);
         }
@@ -347,26 +351,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 prefix = localName + ".";
             }
             return new DictionaryPrefixWrapper<PythonMemberType>(members, prefix, new[] { '.' });
-        }
-
-        internal class AnalysisState {
-            public readonly PythonFileContext Context;
-            public readonly WithVersion<ISourceDocument> Document;
-
-            public readonly WithVersion<PythonAst> Tree;
-
-            public readonly WithVersion<IReadOnlyDictionary<string, PythonMemberType>> MemberList;
-
-            public readonly WithVersion<object> Analysis;
-
-            public AnalysisState(ISourceDocument document, PythonFileContext context) {
-                Document = new WithVersion<ISourceDocument>(document);
-                Tree = new WithVersion<PythonAst>();
-                MemberList = new WithVersion<IReadOnlyDictionary<string, PythonMemberType>>();
-                Analysis = new WithVersion<object>();
-
-                Context = context;
-            }
         }
 
         sealed class QueueThread : IDisposable {

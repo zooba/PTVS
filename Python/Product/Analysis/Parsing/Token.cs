@@ -18,27 +18,21 @@ namespace Microsoft.PythonTools.Parsing {
     internal struct TokenWithSpan {
         public static readonly TokenWithSpan Empty = new TokenWithSpan();
 
-        private readonly Token _token;
-        private readonly IndexSpan _span;
+        public readonly Token Token;
+        public readonly IndexSpan Span;
+        public string LeadingWhitespace;
 
-        public TokenWithSpan(Token token, IndexSpan span) {
-            _token = token;
-            _span = span;
+        public TokenWithSpan(Token token, IndexSpan span, string leadingWhitespace) {
+            Token = token;
+            Span = span;
+            LeadingWhitespace = leadingWhitespace;
         }
-
-        public IndexSpan Span {
-            get { return _span; }
-        }
-
-        public Token Token {
-            get { return _token; }
-        }
-
     }
 
     /// <summary>
     /// Summary description for Token.
     /// </summary>
+    [Serializable]
     public abstract class Token {
         private readonly TokenKind _kind;
 

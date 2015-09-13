@@ -25,19 +25,30 @@ namespace Microsoft.PythonTools.Parsing.Ast {
     public sealed class PythonAst : ScopeStatement, ILocationResolver {
         private readonly PythonLanguageVersion _langVersion;
         private readonly Statement _body;
-        internal readonly int[] _lineLocations;
+        private readonly Tokenization _tokenization;
         private readonly Dictionary<Node, Dictionary<object, object>> _attributes = new Dictionary<Node, Dictionary<object, object>>();
         private string _privatePrefix;
+        private ErrorResult[] _errors;
 
-        public PythonAst(Statement body, int[] lineLocations, PythonLanguageVersion langVersion) {
+        public PythonAst(
+            Statement body,
+            Tokenization tokenization
+        ) {
             if (body == null) {
                 throw new ArgumentNullException("body");
             }
-            _langVersion = langVersion;
+            _tokenization = tokenization;
             _body = body;
-            _lineLocations = lineLocations;
+        }
+
+        internal void SetErrors(ErrorResult[] errors) {
+            _errors = errors;
         }
         
+        public Tokenization Tokenization {
+            get { return _tokenization; }
+        }
+
         public override string Name {
             get {
                 return "<module>";
@@ -108,23 +119,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         internal SourceLocation IndexToLocation(int index) {
-            if (index == -1) {
-                return SourceLocation.Invalid;
-            }
-
-            var locs = GlobalParent._lineLocations;
-            int match = Array.BinarySearch(locs, index);
-            if (match < 0) {
-                // If our index = -1, it means we're on the first line.
-                if (match == -1) {
-                    return new SourceLocation(index, 1, index + 1);
-                }
-
-                // If we couldn't find an exact match for this line number, get the nearest
-                // matching line number less than this one
-                match = ~match - 1;
-            }
-            return new SourceLocation(index, match + 2, index - locs[match] + 1);
+            return SourceLocation.FromIndex(GlobalParent._tokenization, index);
         }
 
         #region Name Binding Support

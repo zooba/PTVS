@@ -9,14 +9,14 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
     sealed class DocumentChanged : QueueItem {
         private readonly ISourceDocument _document;
 
-        public DocumentChanged(PythonLanguageService.AnalysisState item, ISourceDocument document)
+        public DocumentChanged(AnalysisState item, ISourceDocument document)
             : base(item) {
             _document = document;
         }
 
         public override async Task PerformAsync(PythonLanguageService analyzer, CancellationToken cancellationToken) {
             _item.Document.SetValue(_document);
-            analyzer.Enqueue(new UpdateTree(_item, _document));
+            analyzer.Enqueue(new UpdateTokenization(_item, _document));
         }
     }
 }

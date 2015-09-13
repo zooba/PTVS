@@ -10,7 +10,7 @@ using Microsoft.PythonTools.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
     abstract class QueueItem : IReadOnlyCollection<QueueItem> {
-        protected QueueItem(PythonLanguageService.AnalysisState item) {
+        protected QueueItem(AnalysisState item) {
             _item = item;
         }
 
@@ -18,7 +18,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
         IEnumerator IEnumerable.GetEnumerator() { return GetEnumerator(); }
         public IEnumerator<QueueItem> GetEnumerator() { yield return this; }
 
-        protected readonly PythonLanguageService.AnalysisState _item;
+        protected readonly AnalysisState _item;
         public abstract Task PerformAsync(PythonLanguageService analyzer, CancellationToken cancellationToken);
     }
 }

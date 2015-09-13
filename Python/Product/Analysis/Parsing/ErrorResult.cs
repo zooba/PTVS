@@ -13,25 +13,15 @@
  * ***************************************************************************/
 
 namespace Microsoft.PythonTools.Parsing {
-    public class ErrorResult {
-        private readonly string _message;
-        private readonly SourceSpan _span;
+    public struct ErrorResult {
+        public readonly string Message;
+        public readonly IndexSpan Span;
+        public readonly Severity Severity;
 
-        public ErrorResult(string message, SourceSpan span) {
-            _message = message;
-            _span = span;
-        }
-
-        public string Message {
-            get {
-                return _message;
-            }
-        }
-
-        public SourceSpan Span {
-            get {
-                return _span;
-            }
+        public ErrorResult(string message, IndexSpan span, Severity severity) {
+            Message = message;
+            Span = span;
+            Severity = severity;
         }
     }
 }

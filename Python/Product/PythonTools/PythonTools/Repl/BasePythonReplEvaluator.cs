@@ -1227,11 +1227,11 @@ namespace Microsoft.PythonTools.Repl {
             }
 
             var parser = Parser.CreateParser(new StringReader(text), LanguageVersion);
-            ParseResult result;
+            ParseState result;
             parser.ParseInteractiveCode(out result);
-            if (result == ParseResult.Empty) {
+            if (result == ParseState.Empty) {
                 return false;
-            } else if (!(result == ParseResult.Complete || result == ParseResult.Invalid)) {
+            } else if (!(result == ParseState.Complete || result == ParseState.Invalid)) {
                 return false;
             }
 
@@ -1261,9 +1261,9 @@ namespace Microsoft.PythonTools.Repl {
 #endif
 
             var parser = Parser.CreateParser(new StringReader(text), LanguageVersion);
-            ParseResult parseResult;
+            ParseState parseResult;
             parser.ParseInteractiveCode(out parseResult);
-            if (parseResult == ParseResult.Empty) {
+            if (parseResult == ParseState.Empty) {
                 return ExecutionResult.Succeeded;
             }
 
@@ -1647,7 +1647,7 @@ namespace Microsoft.PythonTools.Repl {
         internal static IEnumerable<string> JoinCodeLines(IEnumerable<string> lines, PythonLanguageVersion version) {
             StringBuilder temp = new StringBuilder();
             string prevText = null;
-            ParseResult? prevParseResult = null;
+            ParseState? prevParseResult = null;
 
             using (var e = new PeekableEnumerator<string>(lines)) {
                 bool skipNextMoveNext = false;
@@ -1663,14 +1663,14 @@ namespace Microsoft.PythonTools.Repl {
                     string newCode = temp.ToString();
 
                     var parser = Parser.CreateParser(new StringReader(newCode), version);
-                    ParseResult result;
+                    ParseState result;
                     parser.ParseInteractiveCode(out result);
 
                     // if this parse is invalid then we need more text to be valid.
                     // But if this text is invalid and the previous parse was incomplete
                     // then appending more text won't fix things - the code in invalid, the user
                     // needs to fix it, so let's not break it up which would prevent that from happening.
-                    if (result == ParseResult.Empty) {
+                    if (result == ParseState.Empty) {
                         if (!String.IsNullOrWhiteSpace(newCode)) {
                             // comment line, include w/ following code.
                             prevText = newCode;
@@ -1678,7 +1678,7 @@ namespace Microsoft.PythonTools.Repl {
                         } else {
                             temp.Clear();
                         }
-                    } else if (result == ParseResult.Complete) {
+                    } else if (result == ParseState.Complete) {
                         yield return FixEndingNewLine(newCode);
                         temp.Clear();
 
@@ -1720,9 +1720,9 @@ namespace Microsoft.PythonTools.Repl {
             }
         }
 
-        private static bool ShouldAppendCode(ParseResult? prevParseResult, ParseResult result) {
-            if (result == ParseResult.Invalid) {
-                if (prevParseResult == ParseResult.IncompleteStatement || prevParseResult == ParseResult.Invalid) {
+        private static bool ShouldAppendCode(ParseState? prevParseResult, ParseState result) {
+            if (result == ParseState.Invalid) {
+                if (prevParseResult == ParseState.IncompleteStatement || prevParseResult == ParseState.Invalid) {
                     return false;
                 }
             }

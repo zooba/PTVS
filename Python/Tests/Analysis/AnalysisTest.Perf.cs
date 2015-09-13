@@ -1,16 +1,17 @@
-﻿/* ****************************************************************************
- *
- * Copyright (c) Microsoft Corporation. 
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- *
- * ***************************************************************************/
+﻿extern alias analysis;
+/* ****************************************************************************
+*
+* Copyright (c) Microsoft Corporation. 
+*
+* This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
+* copy of the license can be found in the License.html file at the root of this distribution. If 
+* you cannot locate the Apache License, Version 2.0, please send an email to 
+* vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
+* by the terms of the Apache License, Version 2.0.
+*
+* You must not remove this notice, or any other, from this software.
+*
+* ***************************************************************************/
 
 using System;
 using System.Collections.Generic;
@@ -19,6 +20,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using analysis::Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.PythonTools.Interpreter;
@@ -210,12 +212,7 @@ import System
                 return null;
             }
 
-            List<FileStreamReader> sourceUnits = new List<FileStreamReader>();
-            foreach (string file in files) {
-                sourceUnits.Add(
-                    new FileStreamReader(file)
-                );
-            }
+            var documents = files.Select(f => new FileSourceDocument(f)).ToList();
 
             Stopwatch sw = new Stopwatch();
 
@@ -230,11 +227,11 @@ import System
             projectState.Limits = AnalysisLimits.GetStandardLibraryLimits();
 
             var modules = new List<IPythonProjectEntry>();
-            foreach (var sourceUnit in sourceUnits) {
+            foreach (var document in documents) {
                 try {
                     modules.Add(projectState.AddModule(
-                        ModulePath.FromFullPath(sourceUnit.Path).ModuleName,
-                        sourceUnit.Path,
+                        ModulePath.FromFullPath(document.Moniker).ModuleName,
+                        document.Moniker,
                         null
                     ));
                 } catch (ArgumentException) {
@@ -248,9 +245,8 @@ import System
             for (int i = 0; i < modules.Count; i++) {
                 PythonAst ast = null;
                 try {
-                    var sourceUnit = sourceUnits[i];
-
-                    ast = Parser.CreateParser(sourceUnit, version).ParseFile();
+                    ast = Parser.TokenizeAndParseAsync(documents[i], version)
+                        .WaitAndUnwrapExceptions().Tree;
                 } catch (Exception) {
                 }
                 nodes.Add(ast);
@@ -268,7 +264,7 @@ import System
 
             long start3 = sw.ElapsedMilliseconds;
             for (int i = 0; i < modules.Count; i++) {
-                Trace.TraceInformation("Analyzing {1}: {0} ms", sw.ElapsedMilliseconds - start3, sourceUnits[i].Path);
+                Trace.TraceInformation("Analyzing {1}: {0} ms", sw.ElapsedMilliseconds - start3, documents[i].Moniker);
                 var ast = nodes[i];
                 if (ast != null) {
                     modules[i].Analyze(cancel ?? CancellationToken.None, true);

@@ -11,7 +11,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
     sealed class UpdateAnalysis : QueueItem {
         private readonly PythonAst _tree;
 
-        public UpdateAnalysis(PythonLanguageService.AnalysisState item, PythonAst tree)
+        public UpdateAnalysis(AnalysisState item, PythonAst tree)
             : base(item) {
             _tree = tree;
         }

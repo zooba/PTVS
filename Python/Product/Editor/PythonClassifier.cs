@@ -27,13 +27,9 @@ namespace Microsoft.PythonTools.Editor {
     /// Provides classification based upon the DLR TokenCategory enum.
     /// </summary>
     internal sealed class PythonClassifier : IClassifier, IDisposable {
-        private readonly TokenCache _tokenCache;
         private readonly PythonClassifierProvider _provider;
         private readonly ITextBuffer _buffer;
         private PythonLanguageVersion _version;
-
-        [ThreadStatic]
-        private static Dictionary<PythonLanguageVersion, Tokenizer> _tokenizers;    // tokenizer for each version, shared between all buffers
 
         internal PythonClassifier(PythonClassifierProvider provider, ITextBuffer buffer) {
             buffer.Changed += BufferChanged;

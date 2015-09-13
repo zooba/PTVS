@@ -17,7 +17,7 @@ namespace Microsoft.PythonTools.Parsing {
     public class ErrorSink {
         public static readonly ErrorSink Null = new ErrorSink();
         
-        public virtual void Add(string message, int[] lineLocations, int startIndex, int endIndex, int errorCode, Severity severity) {
+        public virtual void Add(string message, IndexSpan span, int errorCode, Severity severity) {
         }
     }
 }

@@ -35,7 +35,7 @@ namespace Microsoft.PythonTools.Parsing {
         private SourceCodeKind _kind = SourceCodeKind.AutoDetect;
         private ErrorSink _errors;
         private Severity _indentationInconsistencySeverity;
-        private bool _endContinues, _printFunction, _unicodeLiterals, _withStatement;
+        private bool _printFunction, _unicodeLiterals, _withStatement;
         private List<int> _newLineLocations;
         private SourceLocation _initialLocation;
         private TextReader _reader;
@@ -44,7 +44,7 @@ namespace Microsoft.PythonTools.Parsing {
         private int _position, _end, _tokenEnd, _start, _tokenStartIndex, _tokenEndIndex;
         private bool _bufferResized;
         private readonly TokenizerOptions _options;
-        private readonly Action<SourceSpan, string> _commentProcessor;
+        private readonly List<KeyValuePair<IndexSpan, string>> _comments;
 
         private const int EOF = -1;
         private const int MaxIndent = 80;
@@ -53,16 +53,14 @@ namespace Microsoft.PythonTools.Parsing {
         private Dictionary<object, NameToken> _names;
         private static object _currentName = new object();
 
+        private FromFutureImportStage _fromFutureImportStage;
+
         // precalcuated strings for space indentation strings so we usually don't allocate.
         private static readonly string[] SpaceIndentation, TabIndentation;
 
-        public Tokenizer(PythonLanguageVersion version, ErrorSink errorSink = null, TokenizerOptions options = TokenizerOptions.None)
-            : this(version, errorSink, options, null) {
-        }
-
-        public Tokenizer(PythonLanguageVersion version, ErrorSink errorSink, TokenizerOptions options, Action<SourceSpan, string> commentProcessor) {
+        public Tokenizer(PythonLanguageVersion version, ErrorSink errorSink, TokenizerOptions options) {
             _errors = errorSink ?? ErrorSink.Null;
-            _commentProcessor = commentProcessor;
+            _comments = new List<KeyValuePair<IndexSpan, string>>();
             _state = new State(options);
             _printFunction = false;
             _unicodeLiterals = false;
@@ -108,9 +106,9 @@ namespace Microsoft.PythonTools.Parsing {
         public List<TokenInfo> ReadTokens(int characterCount) {
             List<TokenInfo> tokens = new List<TokenInfo>();
 
-            int start = CurrentPosition.Index;
+            int start = CurrentIndex;
 
-            while (CurrentPosition.Index - start < characterCount) {
+            while (CurrentIndex - start < characterCount) {
                 TokenInfo token = ReadToken();
                 if (token.Category == TokenCategory.EndOfStream) {
                     break;
@@ -125,27 +123,6 @@ namespace Microsoft.PythonTools.Parsing {
             get {
                 return _state;
             }
-        }
-
-        public SourceLocation CurrentPosition {
-            get {
-                return IndexToLocation(CurrentIndex);
-            }
-        }
-
-        public SourceLocation IndexToLocation(int index) {
-            int match = _newLineLocations.BinarySearch(index);
-            if (match < 0) {
-                // If our index = -1, it means we're on the first line.
-                if (match == -1) {
-                    return new SourceLocation(index + _initialLocation.Index, _initialLocation.Line, checked(index + _initialLocation.Column));
-                }
-                // If we couldn't find an exact match for this line number, get the nearest
-                // matching line number less than this one
-                match = ~match - 1;
-            }
-
-            return new SourceLocation(index + _initialLocation.Index, match + 2 + _initialLocation.Line - 1, index - _newLineLocations[match] + _initialLocation.Column);
         }
 
         internal ErrorSink ErrorSink {
@@ -175,7 +152,7 @@ namespace Microsoft.PythonTools.Parsing {
 
         internal IndexSpan TokenSpan {
             get {
-                return new IndexSpan(_tokenStartIndex, _tokenEndIndex - _tokenStartIndex);
+                return IndexSpan.FromPoints(_tokenStartIndex, _tokenEndIndex);
             }
         }
 
@@ -206,7 +183,7 @@ namespace Microsoft.PythonTools.Parsing {
                 _buffer = new char[bufferCapacity];
             }
 
-            _newLineLocations = new List<int>();
+            _newLineLocations = new List<int> { 0 };
             _tokenEnd = -1;
             _multiEolns = !_disableLineFeedLineSeparator;
             _initialLocation = initialLocation;
@@ -232,107 +209,47 @@ namespace Microsoft.PythonTools.Parsing {
                 throw new InvalidOperationException("Uninitialized");
             }
 
-            TokenInfo result = new TokenInfo();
-            Token token = GetNextToken();
-            result.SourceSpan = new SourceSpan(IndexToLocation(TokenSpan.Start), IndexToLocation(TokenSpan.End));
+            var t = GetNextToken();
+            var span = TokenSpan;
+            return new TokenInfo(t, span);
+        }
 
-            switch (token.Kind) {
-                case TokenKind.EndOfFile:
-                    result.Category = TokenCategory.EndOfStream;
-                    break;
+        internal void ReadAllTokens(
+            out List<Token[]> tokenLines,
+            out List<int> lineStarts,
+            out List<TokenInfo[]> tokenLineInfo,
+            out List<string[]> precedingWhitespace
+        ) {
+            tokenLines = new List<Token[]>();
+            lineStarts = new List<int> { 0 };
+            tokenLineInfo = new List<TokenInfo[]>();
+            precedingWhitespace = new List<string[]>();
 
-                case TokenKind.Comment:
-                    result.Category = TokenCategory.Comment;
-                    break;
+            var tokens = new List<Token>();
+            var tokenInfo = new List<TokenInfo>();
+            var whitespace = new List<string>();
+            Token t;
+            while ((t = GetNextToken()) != null) {
+                tokens.Add(t);
+                tokenInfo.Add(new TokenInfo(t, TokenSpan));
+                whitespace.Add(PreceedingWhiteSpace);
+                if (t.Kind == TokenKind.EndOfFile || t.Kind == TokenKind.NewLine) {
+                    tokenLines.Add(tokens.ToArray());
+                    tokens.Clear();
 
-                case TokenKind.Name:
-                    if ("True".Equals(token.Value) || "False".Equals(token.Value)) {
-                        result.Category = TokenCategory.BuiltinIdentifier;
-                    } else {
-                        result.Category = TokenCategory.Identifier;
-                    }
-                    break;
+                    tokenLineInfo.Add(tokenInfo.ToArray());
+                    tokenInfo.Clear();
 
-                case TokenKind.Error:
-                    if (token is IncompleteStringErrorToken) {
-                        result.Category = TokenCategory.IncompleteMultiLineStringLiteral;
-                    } else {
-                        result.Category = TokenCategory.Error;
-                    }
-                    break;
+                    lineStarts.Add(TokenSpan.End);
 
-                case TokenKind.Constant:
-                    if (token == Tokens.NoneToken) {
-                        result.Category = TokenCategory.BuiltinIdentifier;
-                    } else if (token.Value is string || token.Value is AsciiString) {
-                        result.Category = TokenCategory.StringLiteral;
-                    } else {
-                        result.Category = TokenCategory.NumericLiteral;
-                    }
-                    break;
+                    precedingWhitespace.Add(whitespace.ToArray());
+                    whitespace.Clear();
 
-                case TokenKind.LeftParenthesis:
-                    result.Category = TokenCategory.Grouping;
-                    result.Trigger = TokenTriggers.MatchBraces | TokenTriggers.ParameterStart;
-                    break;
-
-                case TokenKind.RightParenthesis:
-                    result.Category = TokenCategory.Grouping;
-                    result.Trigger = TokenTriggers.MatchBraces | TokenTriggers.ParameterEnd;
-                    break;
-
-                case TokenKind.LeftBracket:
-                case TokenKind.LeftBrace:
-                case TokenKind.RightBracket:
-                case TokenKind.RightBrace:
-                    result.Category = TokenCategory.Grouping;
-                    result.Trigger = TokenTriggers.MatchBraces;
-                    break;
-
-                case TokenKind.Colon:
-                    result.Category = TokenCategory.Delimiter;
-                    break;
-
-                case TokenKind.Semicolon:
-                    result.Category = TokenCategory.Delimiter;
-                    break;
-
-                case TokenKind.Comma:
-                    result.Category = TokenCategory.Delimiter;
-                    result.Trigger = TokenTriggers.ParameterNext;
-                    break;
-
-                case TokenKind.Dot:
-                    result.Category = TokenCategory.Operator;
-                    result.Trigger = TokenTriggers.MemberSelect;
-                    break;
-
-                case TokenKind.NewLine:
-                case TokenKind.NLToken:
-                    result.Category = TokenCategory.WhiteSpace;
-                    break;
-
-                case TokenKind.KeywordTrue:
-                case TokenKind.KeywordFalse:
-                    result.Category = TokenCategory.Keyword;
-                    break;
-
-                case TokenKind.KeywordAsync:
-                case TokenKind.KeywordAwait:
-                    result.Category = TokenCategory.Identifier;
-                    break;
-
-                default:
-                    if (token.Kind >= TokenKind.FirstKeyword && token.Kind <= TokenKind.KeywordNonlocal) {
-                        result.Category = TokenCategory.Keyword;
+                    if (t.Kind == TokenKind.EndOfFile) {
                         break;
                     }
-
-                    result.Category = TokenCategory.Operator;
-                    break;
+                }
             }
-
-            return result;
         }
 
         private Token TransformStatementToken(Token token) {
@@ -382,26 +299,17 @@ namespace Microsoft.PythonTools.Parsing {
             get {
                 return _printFunction;
             }
-            set {
-                _printFunction = value;
-            }
         }
 
         internal bool WithStatement {
             get {
                 return _withStatement;
             }
-            set {
-                _withStatement = value;
-            }
         }
 
         internal bool UnicodeLiterals {
             get {
                 return _unicodeLiterals;
-            }
-            set {
-                _unicodeLiterals = value;
             }
         }
 
@@ -478,56 +386,10 @@ namespace Microsoft.PythonTools.Parsing {
                         break;
 
                     case '#':
-                        if ((_options & (TokenizerOptions.VerbatimCommentsAndLineJoins | TokenizerOptions.Verbatim)) != 0) {
-                            var commentRes = ReadSingleLineComment(out ch);
-                            if ((_options & TokenizerOptions.VerbatimCommentsAndLineJoins) == 0) {
-                                _state.CurWhiteSpace.Append(commentRes.VerbatimImage);
-                                DiscardToken();
-                                SeekRelative(+1);
-                            } else {
-                                return commentRes;
-                            }
-                        } else {
-                            ch = SkipSingleLineComment();
-                        }
-                        break;
+                        return ReadSingleLineComment(out ch);
 
                     case '\\':
-                        NewLineKind nlKind;
-                        var nextChar = NextChar();
-                        if ((nlKind = ReadEolnOpt(nextChar)) != NewLineKind.None) {
-                            _newLineLocations.Add(CurrentIndex);
-
-                            if ((_options & TokenizerOptions.VerbatimCommentsAndLineJoins) != 0) {
-                                // report the explicit line join
-                                MarkTokenEnd();
-
-                                return new VerbatimToken(TokenKind.ExplicitLineJoin, "\\" + nlKind.GetString(), "<explicit line join>");
-                            } else {
-                                DiscardToken();
-                                // discard token '\\<eoln>':
-                                if (_state.CurWhiteSpace != null) {
-                                    _state.CurWhiteSpace.Append('\\');
-                                    _state.CurWhiteSpace.Append(nlKind.GetString());
-                                }
-                            }
-
-                            ch = NextChar();
-                            if (ch == -1) {
-                                _endContinues = true;
-                            }
-                            break;
-
-                        } else {
-                            if (nextChar == -1) {
-                                _endContinues = true;
-                                MarkTokenEnd();
-                                return new VerbatimToken(TokenKind.EndOfFile, "\\", "<eof>");
-                            }
-                            BufferBack();
-                            goto default;
-                        }
-
+                        return new VerbatimToken(TokenKind.ExplicitLineJoin, "\\", "<explicit line join>");
                     case '\"':
                     case '\'':
                         _state.LastNewLine = false;
@@ -590,6 +452,7 @@ namespace Microsoft.PythonTools.Parsing {
                         return ReadNumber(ch);
 
                     default:
+                        NewLineKind nlKind;
                         if ((nlKind = ReadEolnOpt(ch)) > 0) {
                             _newLineLocations.Add(CurrentIndex);
                             // token marked by the callee:
@@ -660,13 +523,8 @@ namespace Microsoft.PythonTools.Parsing {
         }
 
         private void ProcessComment() {
-            if (_commentProcessor != null) {
-                var tokenSpan = TokenSpan;
-                if (tokenSpan.Length > 0) {
-                    var span = new SourceSpan(IndexToLocation(tokenSpan.Start), IndexToLocation(tokenSpan.End));
-                    var text = GetTokenString();
-                    _commentProcessor(span, text);
-                }
+            if (_comments != null) {
+                _comments.Add(new KeyValuePair<IndexSpan, string>(TokenSpan, GetTokenString()));
             }
         }
 
@@ -908,7 +766,7 @@ namespace Microsoft.PythonTools.Parsing {
                 try {
                     contents = LiteralParser.ParseString(_buffer, start, length, isRaw, true, !_disableLineFeedLineSeparator);
                 } catch (DecoderFallbackException e) {
-                    _errors.Add(e.Message, _newLineLocations.ToArray(), _tokenStartIndex, _tokenEndIndex, ErrorCodes.SyntaxError, Severity.Error);
+                    _errors.Add(e.Message, TokenSpan, ErrorCodes.SyntaxError, Severity.Error);
                     contents = "";
                 }
 
@@ -1303,6 +1161,9 @@ namespace Microsoft.PythonTools.Parsing {
             // *** BEGIN GENERATED CODE ***
             // generated by function: keyword_lookup_generator from: generate_ops.py
 
+            var fromFutureImportStage = _fromFutureImportStage;
+            _fromFutureImportStage = FromFutureImportStage.NotStarted;
+
             int ch;
             BufferBack();
             ch = NextChar();
@@ -1316,6 +1177,11 @@ namespace Microsoft.PythonTools.Parsing {
                 } else if (ch == 'm') {
                     if (NextChar() == 'p' && NextChar() == 'o' && NextChar() == 'r' && NextChar() == 't' && !IsNamePart(Peek())) {
                         MarkTokenEnd();
+                        if (fromFutureImportStage == FromFutureImportStage.Future) {
+                            _fromFutureImportStage = FromFutureImportStage.Import;
+                        } else {
+                            _fromFutureImportStage = FromFutureImportStage.NotStarted;
+                        }
                         return Tokens.KeywordImportToken;
                     }
                 } else if (ch == 's') {
@@ -1378,6 +1244,11 @@ namespace Microsoft.PythonTools.Parsing {
                 if (ch == 'r') {
                     if (NextChar() == 'o' && NextChar() == 'm' && !IsNamePart(Peek())) {
                         MarkTokenEnd();
+                        if (fromFutureImportStage == FromFutureImportStage.NotStarted) {
+                            _fromFutureImportStage = FromFutureImportStage.From;
+                        } else {
+                            _fromFutureImportStage = FromFutureImportStage.NotStarted;
+                        }
                         return Tokens.KeywordFromToken;
                     }
                 } else if (ch == 'i') {
@@ -1539,6 +1410,24 @@ namespace Microsoft.PythonTools.Parsing {
                 token = _names[name] = new NameToken(name);
             }
 
+            if (fromFutureImportStage == FromFutureImportStage.From && token.Name == "__future__") {
+                _fromFutureImportStage = FromFutureImportStage.Future;
+            } else if (fromFutureImportStage == FromFutureImportStage.Import) {
+                switch (token.Name) {
+                    case "with_statement":
+                        _withStatement = true;
+                        break;
+                    case "print_function":
+                        _printFunction = true;
+                        break;
+                    case "unicode_literals":
+                        _unicodeLiterals = true;
+                        break;
+                }
+                _fromFutureImportStage = FromFutureImportStage.Name;
+            }
+
+
             return token;
         }
 
@@ -1658,6 +1547,11 @@ namespace Microsoft.PythonTools.Parsing {
                     }
                     return Tokens.RightBraceToken;
                 case ',':
+                    if (_fromFutureImportStage == FromFutureImportStage.Name) {
+                        _fromFutureImportStage = FromFutureImportStage.Import;
+                    } else {
+                        _fromFutureImportStage = FromFutureImportStage.NotStarted;
+                    }
                     return Tokens.CommaToken;
                 case ':':
                     return Tokens.ColonToken;
@@ -1750,16 +1644,6 @@ namespace Microsoft.PythonTools.Parsing {
             }
         }
 
-        /// <summary>
-        /// True if the last characters in the buffer are a backslash followed by a new line indicating
-        /// that their is an incompletement statement which needs further input to complete.
-        /// </summary>
-        public bool EndContinues {
-            get {
-                return _endContinues;
-            }
-        }
-
         private static void AppendSpace(ref string curWhiteSpace, ref StringBuilder constructedWhiteSpace, ref bool? isSpace) {
             if (constructedWhiteSpace == null) {
                 if (isSpace == null) {
@@ -1846,20 +1730,9 @@ namespace Microsoft.PythonTools.Parsing {
                         sb.Append('\f');
                         break;
                     case '#':
-                        if ((_options & TokenizerOptions.VerbatimCommentsAndLineJoins) != 0) {
-                            BufferBack();
-                            MarkTokenEnd();
-                            return true;
-                        } else {
-                            BufferBack();
-                            DiscardToken();
-                            var commentRes = ReadSingleLineComment(out ch);
-                            if ((_options & TokenizerOptions.Verbatim) != 0) {
-                                _state.NextWhiteSpace.Append(commentRes.VerbatimImage);
-                            }
-                            DiscardToken();
-                        }
-                        break;
+                        BufferBack();
+                        MarkTokenEnd();
+                        return true;
                     default:
                         BufferBack();
 
@@ -1953,14 +1826,11 @@ namespace Microsoft.PythonTools.Parsing {
                         neq = sb[i] != previousIndent[i];
                     }
                     if (neq) {
-                        SourceLocation eoln_token_end = BufferTokenEnd;
-
                         // We've hit a difference in the way we're indenting, report it.
                         _errors.Add("inconsistent whitespace",
-                            this._newLineLocations.ToArray(),
-                            _tokenStartIndex + 1,
-                            _tokenEndIndex,
-                            ErrorCodes.TabError, _indentationInconsistencySeverity
+                            IndexSpan.FromPoints(_tokenStartIndex + 1, _tokenEndIndex),
+                            ErrorCodes.TabError,
+                            _indentationInconsistencySeverity
                         );
                         break;
                     }
@@ -2031,7 +1901,7 @@ namespace Microsoft.PythonTools.Parsing {
         }
 
         private void ReportSyntaxError(IndexSpan span, string message, int errorCode) {
-            _errors.Add(message, _newLineLocations.ToArray(), span.Start, span.End, errorCode, Severity.FatalError);
+            _errors.Add(message, span, errorCode, Severity.FatalError);
         }
 
         [Conditional("DUMP_TOKENS")]
@@ -2039,8 +1909,8 @@ namespace Microsoft.PythonTools.Parsing {
             Console.WriteLine("{0} `{1}`", token.Kind, token.Image.Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t"));
         }
 
-        public int[] GetLineLocations() {
-            return _newLineLocations.ToArray();
+        internal IReadOnlyList<int> GetLineLocations() {
+            return _newLineLocations;
         }
 
         [Serializable]
@@ -2329,12 +2199,6 @@ namespace Microsoft.PythonTools.Parsing {
             CheckInvariants();
         }
 
-        private SourceLocation BufferTokenEnd {
-            get {
-                return IndexToLocation(_tokenEndIndex);
-            }
-        }
-
         private IndexSpan BufferTokenSpan {
             get {
                 return new IndexSpan(_tokenStartIndex, _tokenEndIndex - _tokenStartIndex);
@@ -2438,22 +2302,23 @@ namespace Microsoft.PythonTools.Parsing {
                     _errors.Add(
                         String.Format(
                             "(unicode error) '{0}' codec can't decode byte 0x{1:x} in position {2}",
-                            Parser.NormalizeEncodingName(streamReader.CurrentEncoding.WebName),
+                            PythonEncoding.NormalizeEncodingName(streamReader.CurrentEncoding.WebName),
                             bse.BadByte,
                             bse.Index + CurrentIndex
                         ),
-                        null,
-                        CurrentIndex + bse.Index,
-                        CurrentIndex + bse.Index + 1,
+                        new IndexSpan(CurrentIndex + bse.Index, 1),
                         ErrorCodes.SyntaxError,
                         Severity.FatalError
                     );
                 } else {
                     _errors.Add(
-                        String.Format("Non-ASCII character '\\x{0:x}' at position {1}, but no encoding declared; see http://www.python.org/peps/pep-0263.html for details", bse.BadByte, bse.Index + CurrentIndex),
-                        null,
-                        CurrentIndex + bse.Index,
-                        CurrentIndex + bse.Index + 1,
+                        string.Format(
+                            "Non-ASCII character '\\x{0:x}' at position {1}, but no encoding declared; " +
+                                "see http://www.python.org/peps/pep-0263.html for details",
+                            bse.BadByte,
+                            bse.Index + CurrentIndex
+                        ),
+                        new IndexSpan(CurrentIndex + bse.Index, 1),
                         ErrorCodes.SyntaxError,
                         Severity.FatalError
                     );
@@ -2484,6 +2349,14 @@ namespace Microsoft.PythonTools.Parsing {
         }
 
         #endregion
+
+        private enum FromFutureImportStage {
+            NotStarted,
+            From,
+            Future,
+            Import,
+            Name
+        }
     }
 
     enum NewLineKind {
