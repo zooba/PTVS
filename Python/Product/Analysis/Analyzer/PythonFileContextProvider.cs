@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Interpreter;
+using Microsoft.VisualStudioTools;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     [Export(typeof(PythonFileContextProvider))]
@@ -37,6 +38,32 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 _contextsLock.Release();
             }
         }
+
+        public async Task<IReadOnlyCollection<PythonFileContext>> GetOrCreateContextsForFileAsync(
+            string workspaceLocation,
+            string filePath,
+            CancellationToken cancellationToken
+        ) {
+            var contexts = await GetContextsForFileAsync(
+                workspaceLocation,
+                filePath,
+                cancellationToken
+            );
+            if (contexts.Any()) {
+                return contexts;
+            }
+
+            if (string.IsNullOrEmpty(workspaceLocation)) {
+                workspaceLocation = CommonUtils.GetParent(filePath);
+            }
+            await FindContextsAsync(workspaceLocation, null, cancellationToken);
+            return await GetContextsForFileAsync(
+                workspaceLocation,
+                filePath,
+                cancellationToken
+            );
+        }
+
 
         internal async Task<IReadOnlyCollection<PythonFileContext>> GetContextsForInterpreterAsync(
             InterpreterConfiguration config,
@@ -127,14 +154,22 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         ) {
             var contexts = await GetContextsAsync(workspaceLocation, progress, cancellationToken);
 
+            bool any = false;
             await _contextsLock.WaitAsync(cancellationToken);
             try {
                 foreach(var pfc in contexts) {
                     _contexts.Add(pfc);
+                    any = true;
                 }
             } finally {
                 _contextsLock.Release();
             }
+
+            if (any) {
+                ContextsChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
+
+        public event EventHandler ContextsChanged;
     }
 }

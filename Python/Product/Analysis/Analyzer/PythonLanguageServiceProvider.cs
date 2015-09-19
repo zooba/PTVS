@@ -9,12 +9,19 @@ using Microsoft.PythonTools.Interpreter;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     [Export(typeof(PythonLanguageServiceProvider))]
-    public sealed class PythonLanguageServiceProvider {
+    public sealed class PythonLanguageServiceProvider : IDisposable {
         private readonly PathSet<PythonLanguageService> _services;
         private readonly SemaphoreSlim _servicesLock = new SemaphoreSlim(1, 1);
 
         public PythonLanguageServiceProvider() {
             _services = new PathSet<PythonLanguageService>(null);
+        }
+
+        public void Dispose() {
+            _servicesLock.Wait();
+            foreach (var v in _services.GetValues()) {
+                v.Dispose();
+            }
         }
 
         public async Task<PythonLanguageService> GetServiceAsync(

@@ -14,10 +14,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using TestUtilities;
 
 namespace AnalysisTests {
     /// <summary>
@@ -31,24 +34,13 @@ namespace AnalysisTests {
         //
         [TestMethod, Priority(0)]
         public void SimpleTest() {
-            var versions = new[] { 
-                new { Path = "C:\\Python25\\Lib", Version = PythonLanguageVersion.V25 },
-                new { Path = "C:\\Python26\\Lib", Version = PythonLanguageVersion.V26 },
-                new { Path = "C:\\Python27\\Lib", Version = PythonLanguageVersion.V27 },
-                
-                new { Path = "C:\\Python30\\Lib", Version = PythonLanguageVersion.V30 },
-                new { Path = "C:\\Python31\\Lib", Version = PythonLanguageVersion.V31 },
-                new { Path = "C:\\Python32\\Lib", Version = PythonLanguageVersion.V32 },
-                new { Path = "C:\\Python33\\Lib", Version = PythonLanguageVersion.V33 }
-            };
-
-            foreach (var optionSet in new[] { TokenizerOptions.None, TokenizerOptions.Verbatim }) {
-                foreach (var version in versions) {
-                    Console.WriteLine("Testing version {0} {1} w/ Option Set {2}", version.Version, version.Path, optionSet);
+            foreach (var optionSet in new[] { TokenizerOptions.Verbatim }) {
+                foreach (var version in PythonPaths.Versions) {
+                    Console.WriteLine("Testing version {0} {1} w/ Option Set {2}", version.Version, version.LibPath, optionSet);
                     int ran = 0, succeeded = 0;
                     string[] files;
                     try {
-                        files = Directory.GetFiles(version.Path);
+                        files = Directory.GetFiles(version.LibPath);
                     } catch (DirectoryNotFoundException) {
                         continue;
                     }
@@ -110,7 +102,8 @@ namespace AnalysisTests {
                     new ExpectedToken(TokenKind.Name, new IndexSpan(0, 3), "fob"), 
                     new ExpectedToken(TokenKind.NewLine, new IndexSpan(3, 2), "\r\n"), 
                     new ExpectedToken(TokenKind.Error, new IndexSpan(5, 1), "\\"), 
-                    new ExpectedToken(TokenKind.Name, new IndexSpan(6, 1), "b")
+                    new ExpectedToken(TokenKind.Name, new IndexSpan(6, 1), "b"),
+                    new ExpectedToken(TokenKind.EndOfFile, new IndexSpan(7, 0), "")
                 }
             );
         }
@@ -125,12 +118,14 @@ namespace AnalysisTests {
                 }
             } finally {
                 foreach (var token in tokens) {
-                    Console.WriteLine("new ExpectedToken(TokenKind.{0}, new IndexSpan({1}, {2}), \"{3}\"), ",
-                        token.Token.Kind,
-                        token.Span.Start,
-                        token.Span.Length,
-                        token.Token.VerbatimImage
-                    );
+                    var sb = new StringBuilder("new ExpectedToken(TokenKind.");
+                    sb.Append(token.Token.Kind);
+                    sb.Append(", new IndexSpan");
+                    sb.AppendFormat("({0}, {1})", token.Span.Start, token.Span.Length);
+                    sb.Append(", \"");
+                    sb.AppendRepr(token.Token.VerbatimImage);
+                    sb.Append("\"), ");
+                    Trace.TraceInformation(sb.ToString());
                 }
             }
         }
@@ -148,21 +143,22 @@ namespace AnalysisTests {
         }
 
         private static void TestOneFile(string filename, PythonLanguageVersion version, TokenizerOptions optionSet) {
-            var originalText = File.ReadAllText(filename);
-
-            TestOneString(version, optionSet, originalText);
+            using (var file = new FileStream(filename, FileMode.Open, FileAccess.Read))
+            using (var reader = PythonEncoding.GetStreamReaderWithEncoding(file, version, ErrorSink.Null)) {
+                TestOneString(version, optionSet, reader.ReadToEnd());
+            }
         }
 
         private static List<TokenWithSpan> TestOneString(PythonLanguageVersion version, TokenizerOptions optionSet, string originalText) {
             StringBuilder output = new StringBuilder();
 
-            var tokenizer = new Tokenizer(version, ErrorSink.Null, options: optionSet);
+            var tokenizer = new Tokenizer(version, ErrorSink.Null, options: optionSet, indentationInconsistency: Severity.Ignore);
             tokenizer.Initialize(new StringReader(originalText));
             Token token;
             int prevOffset = 0;
 
             List<TokenWithSpan> tokens = new List<TokenWithSpan>();
-            while ((token = tokenizer.GetNextToken()) != Tokens.EndOfFileToken) {
+            while ((token = tokenizer.GetNextToken()) != null) {
                 tokens.Add(new TokenWithSpan(token, tokenizer.TokenSpan, tokenizer.PreceedingWhiteSpace));
 
                 output.Append(tokenizer.PreceedingWhiteSpace);
@@ -185,17 +181,23 @@ namespace AnalysisTests {
                             }
                         }
 
-                        Console.WriteLine("Mismatch context at {0}:", i);
-                        Console.WriteLine("Original: {0}", x.ToString());
-                        Console.WriteLine("New     : {0}", y.ToString());
-                        Console.WriteLine("Differs : {0}", z.ToString());
-                        Console.WriteLine("Token   : {0}", token);
+                        Trace.TraceInformation("Mismatch context at {0}:", i);
+                        Trace.TraceInformation("Original: {0}", x.ToString());
+                        Trace.TraceInformation("New     : {0}", y.ToString());
+                        Trace.TraceInformation("Differs : {0}", z.ToString());
+                        Trace.TraceInformation("Token   : {0}", token);
 
-                        Assert.AreEqual(originalText[i], output[i], String.Format("Characters differ at {0}, got {1}, expected {2}", i, output[i], originalText[i]));
+                        char cx = StringBuilderExtensions.FixChar(originalText[i]);
+                        char cy = StringBuilderExtensions.FixChar(output[i]);
+                        Assert.AreEqual(originalText[i], output[i], String.Format("Characters differ at {0}, got {1}, expected {2}", i, cy, cx));
                     }
                 }
 
                 prevOffset = output.Length;
+
+                if (token.Kind == TokenKind.EndOfFile) {
+                    break;
+                }
             }
             output.Append(tokenizer.PreceedingWhiteSpace);
 
@@ -205,16 +207,35 @@ namespace AnalysisTests {
     }
 
     static class StringBuilderExtensions {
+        private static readonly string From = "\t\r\n\f\0";
+        private static readonly char[] FromChars = From.ToCharArray();
+        private static readonly string To = "\x2192\x00B6\x2193\x00AC\x00B7";
+
+        public static char FixChar(char ch) {
+            int i = From.IndexOf(ch);
+            return i < 0 ? ch : To[i];
+        }
+
         public static void AppendRepr(this StringBuilder self, char ch) {
-            switch (ch) {
-                // we append funky characters unlikely to show up here just so we always append a single char and it's easier to compare strings
-                case '\t': self.Append("»"); break;
-                case '\r': self.Append("¬"); break;
-                case '\n': self.Append("‼"); break;
-                case '\f': self.Append("╢"); break;
-                case (char)0: self.Append(' '); break;
-                default:
-                    self.Append(ch); break;
+            int i = From.IndexOf(ch);
+            self.Append(i < 0 ? ch : To[i]);
+        }
+
+        public static void AppendRepr(this StringBuilder self, string str) {
+            for (int start = 0; start < str.Length; ) {
+                int next = str.IndexOfAny(From.ToCharArray(), start);
+                if (next < 0) {
+                    self.Append(str.Substring(start));
+                    return;
+                }
+
+                if (next > start) {
+                    self.Append(str.Substring(start, next - start));
+                }
+
+                int i = From.IndexOf(str[next]);
+                self.Append(i < 0 ? str[next] : To[i]);
+                start = next + 1;
             }
         }
     }

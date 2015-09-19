@@ -16,7 +16,15 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             _document = document;
         }
 
-        public override async Task PerformAsync(PythonLanguageService analyzer, CancellationToken cancellationToken) {
+        public override ThreadPriority Priority {
+            get { return ThreadPriority.AboveNormal; }
+        }
+
+        public override async Task PerformAsync(
+            PythonLanguageService analyzer,
+            PythonFileContext context,
+            CancellationToken cancellationToken
+        ) {
             var tokenizer = await Tokenization.TokenizeAsync(
                 _document,
                 analyzer.Configuration.Version,
@@ -26,7 +34,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             );
             _item.Tokenization.SetValue(tokenizer);
 
-            analyzer.Enqueue(new UpdateTree(_item));
+            await analyzer.EnqueueAsync(context, new UpdateTree(_item), cancellationToken);
         }
     }
 }

@@ -1,11 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-
-#pragma warning disable 1998    // async method without await
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     sealed class FileSourceDocument : ISourceDocument {

@@ -14,7 +14,7 @@ namespace Microsoft.PythonTools.Analysis {
             string prefix,
             char[] excludeKeysContaining) {
             _dict = dict;
-            _prefix = prefix ?? string.Empty; ;
+            _prefix = prefix ?? string.Empty;
             _excludeKeysContaining = excludeKeysContaining ?? new char[0];
         }
 

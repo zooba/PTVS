@@ -16,7 +16,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             _tree = tree;
         }
 
-        public override async Task PerformAsync(PythonLanguageService analyzer, CancellationToken cancellationToken) {
+        public override async Task PerformAsync(
+            PythonLanguageService analyzer,
+            PythonFileContext context,
+            CancellationToken cancellationToken
+        ) {
             // TODO: Implement
         }
     }

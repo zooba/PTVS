@@ -28,6 +28,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         public event EventHandler Disposed;
 
+        public event EventHandler<SourceDocumentContentChangedEventArgs> SourceDocumentContentChanged;
+
         public string ContextRoot {
             get { return _contextRoot; }
         }
@@ -62,6 +64,14 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             } finally {
                 _filesLock.Release();
             }
+        }
+
+        public void NotifyDocumentContentChanged(ISourceDocument document) {
+            SourceDocumentContentChanged?.Invoke(this, new SourceDocumentContentChangedEventArgs(document));
+        }
+
+        public object First() {
+            throw new NotImplementedException();
         }
     }
 }

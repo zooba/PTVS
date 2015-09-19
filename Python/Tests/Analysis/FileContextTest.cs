@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -10,6 +11,7 @@ using System.Threading.Tasks;
 using analysis::Microsoft.PythonTools.Analysis.Analyzer;
 using analysis::Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.VisualStudioTools;
 using TestUtilities;
 
 namespace AnalysisTests {
@@ -72,6 +74,7 @@ namespace AnalysisTests {
                 PythonPaths.Python34 ?? PythonPaths.Python34_x64 ??
                 PythonPaths.Python27 ?? PythonPaths.Python27_x64;
             python.AssertInstalled();
+            Trace.TraceInformation("Using " + python.PrefixPath);
             return python.Configuration;
         }
 
@@ -99,22 +102,18 @@ namespace AnalysisTests {
                     await service.ResolveImportAsync(".util", "ctypes.__init__", ct)
                 );
 
+                var sitePath = Path.Combine(config.PrefixPath, "Lib", "site-packages");
+                var pipPath = Path.Combine(sitePath, "pip", "__init__.py");
+
+                if (!File.Exists(pipPath)) {
+                    Assert.Inconclusive("Could not use " + pipPath);
+                }
+
                 Assert.IsNull(await service.ResolveImportAsync("pip", "", ct));
 
-                await service.AddFileContextAsync((await pfcp.GetContextsForFileAsync(
-                    null,
-                    Path.Combine(config.PrefixPath, "Lib", "site-packages", "pip", "__init__.py"),
-                    ct
-                )).First(), ct);
+                await service.AddSearchPathAsync(sitePath, null, ct);
 
-                Assert.IsNull(await service.ResolveImportAsync("pip", "", ct));
-
-                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib", "site-packages"), null, ct);
-
-                Assert.AreEqual(
-                    Path.Combine(config.PrefixPath, "Lib", "site-packages", "pip", "__init__.py"),
-                    await service.ResolveImportAsync("pip", "", ct)
-                );
+                Assert.AreEqual(pipPath, await service.ResolveImportAsync("pip", "", ct));
             }
         }
 
@@ -152,8 +151,13 @@ namespace AnalysisTests {
                 await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, ct);
 
                 var moniker = await service.ResolveImportAsync("os", "", ct);
+                Trace.TraceInformation("Looking at {0}", moniker);
                 var imports = await service.GetModuleMembersAsync(null, moniker, null, ct);
-                AssertUtil.ContainsAtLeast(imports.Keys, "walk", "execl");
+                AssertUtil.CheckCollection(
+                    imports.Keys,
+                    new[] { "walk", "environ", "_wrap_close", "_exit" },
+                    new[] { "__init__", "__enter__" }
+                );
                 Assert.AreEqual(PythonMemberType.Function, imports["walk"]);
 
                 moniker = await service.ResolveImportAsync("collections", "", ct);

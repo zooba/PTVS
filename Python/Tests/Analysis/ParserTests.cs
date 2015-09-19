@@ -2496,7 +2496,7 @@ namespace AnalysisTests {
         public async Task StdLib() {
             var tasks = new List<KeyValuePair<string, Task<string>>>();
 
-            foreach (var curVersion in PythonPaths.Versions) {
+            foreach (var curVersion in new[] { PythonPaths.Python35 }) { // PythonPaths.Versions) {
                 Console.WriteLine("Starting: {0}", curVersion);
                 tasks.Add(new KeyValuePair<string, Task<string>>(
                     curVersion.ToString(),

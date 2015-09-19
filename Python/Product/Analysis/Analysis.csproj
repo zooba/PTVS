@@ -85,6 +85,7 @@
     <Compile Include="AnalysisValue.cs" />
     <Compile Include="AnalysisVariable.cs" />
     <Compile Include="Analyzer\AnalysisState.cs" />
+    <Compile Include="Analyzer\SourceDocumentContentChangedEventArgs.cs" />
     <Compile Include="Analyzer\Tasks\UpdateTokenization.cs" />
     <Compile Include="DictionaryPrefixWrapper.cs" />
     <Compile Include="Analyzer\FileSourceDocument.cs" />

@@ -72,12 +72,12 @@ namespace Microsoft.PythonTools.Parsing {
             return !self.Equals(other);
         }
 
-        #region IEquatable<IndexSpan> Members
-
         public bool Equals(IndexSpan other) {
             return _length == other._length && _start == other._start;
         }
 
-        #endregion
+        public override string ToString() {
+            return string.Format("[{0}, {1})", _start, _start + _length);
+        }
     }
 }

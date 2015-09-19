@@ -14,9 +14,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             _document = document;
         }
 
-        public override async Task PerformAsync(PythonLanguageService analyzer, CancellationToken cancellationToken) {
+        public override ThreadPriority Priority {
+            get { return ThreadPriority.AboveNormal; }
+        }
+
+        public override async Task PerformAsync(
+            PythonLanguageService analyzer,
+            PythonFileContext context,
+            CancellationToken cancellationToken
+        ) {
             _item.Document.SetValue(_document);
-            analyzer.Enqueue(new UpdateTokenization(_item, _document));
+            await analyzer.EnqueueAsync(context, new UpdateTokenization(_item, _document), cancellationToken);
         }
     }
 }

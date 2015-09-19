@@ -23,7 +23,6 @@ namespace Microsoft.PythonTools.Parsing.Ast {
     /// Top-level ast for all Python code.  Holds onto the body and the line mapping information.
     /// </summary>
     public sealed class PythonAst : ScopeStatement, ILocationResolver {
-        private readonly PythonLanguageVersion _langVersion;
         private readonly Statement _body;
         private readonly Tokenization _tokenization;
         private readonly Dictionary<Node, Dictionary<object, object>> _attributes = new Dictionary<Node, Dictionary<object, object>>();
@@ -85,7 +84,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         public PythonLanguageVersion LanguageVersion {
-            get { return _langVersion; }
+            get { return _tokenization.LanguageVersion; }
         }
 
         internal bool TryGetAttribute(Node node, object key, out object value) {

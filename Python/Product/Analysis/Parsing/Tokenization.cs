@@ -52,8 +52,12 @@ namespace Microsoft.PythonTools.Parsing {
             Severity indentationInconsistency,
             List<ErrorResult> errors
         ) {
-            var tokenizer = new Tokenizer(languageVersion, new CollectingErrorSink(errors), options);
-            tokenizer.IndentationInconsistencySeverity = indentationInconsistency;
+            var tokenizer = new Tokenizer(
+                languageVersion,
+                new CollectingErrorSink(errors),
+                options,
+                indentationInconsistency
+            );
 
             tokenizer.Initialize(null, reader, SourceLocation.MinValue);
 

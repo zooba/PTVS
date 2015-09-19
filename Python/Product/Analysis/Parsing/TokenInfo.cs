@@ -28,102 +28,110 @@ namespace Microsoft.PythonTools.Parsing {
             StartIndex = span.Start;
             EndIndex = span.End;
 
-            Category = TokenCategory.None;
-            Trigger = TokenTriggers.None;
+            GetCategory(token, out Category, out Trigger);
+        }
+
+        private static void GetCategory(Token token, out TokenCategory category, out TokenTriggers trigger) {
+            category = TokenCategory.None;
+            trigger = TokenTriggers.None;
+
+            if (token == null) {
+                return;
+            }
 
             switch (token.Kind) {
                 case TokenKind.EndOfFile:
-                    Category = TokenCategory.EndOfStream;
+                    category = TokenCategory.EndOfStream;
                     break;
 
                 case TokenKind.Comment:
-                    Category = TokenCategory.Comment;
+                    category = TokenCategory.Comment;
                     break;
 
                 case TokenKind.Name:
                     if ("True".Equals(token.Value) || "False".Equals(token.Value)) {
-                        Category = TokenCategory.BuiltinIdentifier;
+                        category = TokenCategory.BuiltinIdentifier;
                     } else {
-                        Category = TokenCategory.Identifier;
+                        category = TokenCategory.Identifier;
                     }
                     break;
 
                 case TokenKind.Error:
                     if (token is IncompleteStringErrorToken) {
-                        Category = TokenCategory.IncompleteMultiLineStringLiteral;
+                        category = TokenCategory.IncompleteMultiLineStringLiteral;
                     } else {
-                        Category = TokenCategory.Error;
+                        category = TokenCategory.Error;
                     }
                     break;
 
                 case TokenKind.Constant:
                     if (token == Tokens.NoneToken) {
-                        Category = TokenCategory.BuiltinIdentifier;
+                        category = TokenCategory.BuiltinIdentifier;
                     } else if (token.Value is string || token.Value is AsciiString) {
-                        Category = TokenCategory.StringLiteral;
+                        category = TokenCategory.StringLiteral;
                     } else {
-                        Category = TokenCategory.NumericLiteral;
+                        category = TokenCategory.NumericLiteral;
                     }
                     break;
 
                 case TokenKind.LeftParenthesis:
-                    Category = TokenCategory.Grouping;
-                    Trigger = TokenTriggers.MatchBraces | TokenTriggers.ParameterStart;
+                    category = TokenCategory.Grouping;
+                    trigger = TokenTriggers.MatchBraces | TokenTriggers.ParameterStart;
                     break;
 
                 case TokenKind.RightParenthesis:
-                    Category = TokenCategory.Grouping;
-                    Trigger = TokenTriggers.MatchBraces | TokenTriggers.ParameterEnd;
+                    category = TokenCategory.Grouping;
+                    trigger = TokenTriggers.MatchBraces | TokenTriggers.ParameterEnd;
                     break;
 
                 case TokenKind.LeftBracket:
                 case TokenKind.LeftBrace:
                 case TokenKind.RightBracket:
                 case TokenKind.RightBrace:
-                    Category = TokenCategory.Grouping;
-                    Trigger = TokenTriggers.MatchBraces;
+                    category = TokenCategory.Grouping;
+                    trigger = TokenTriggers.MatchBraces;
                     break;
 
                 case TokenKind.Colon:
-                    Category = TokenCategory.Delimiter;
+                    category = TokenCategory.Delimiter;
                     break;
 
                 case TokenKind.Semicolon:
-                    Category = TokenCategory.Delimiter;
+                    category = TokenCategory.Delimiter;
                     break;
 
                 case TokenKind.Comma:
-                    Category = TokenCategory.Delimiter;
-                    Trigger = TokenTriggers.ParameterNext;
+                    category = TokenCategory.Delimiter;
+                    trigger = TokenTriggers.ParameterNext;
                     break;
 
                 case TokenKind.Dot:
-                    Category = TokenCategory.Operator;
-                    Trigger = TokenTriggers.MemberSelect;
+                    category = TokenCategory.Operator;
+                    trigger = TokenTriggers.MemberSelect;
                     break;
 
                 case TokenKind.NewLine:
                 case TokenKind.NLToken:
-                    Category = TokenCategory.WhiteSpace;
+                    category = TokenCategory.WhiteSpace;
                     break;
 
                 case TokenKind.KeywordTrue:
                 case TokenKind.KeywordFalse:
-                    Category = TokenCategory.Keyword;
+                    category = TokenCategory.Keyword;
                     break;
 
                 case TokenKind.KeywordAsync:
                 case TokenKind.KeywordAwait:
-                    Category = TokenCategory.Identifier;
+                    category = TokenCategory.Identifier;
                     break;
 
                 default:
                     if (token.Kind >= TokenKind.FirstKeyword && token.Kind <= TokenKind.KeywordNonlocal) {
-                        Category = TokenCategory.Keyword;
+                        category = TokenCategory.Keyword;
                         break;
                     }
 
-                    Category = TokenCategory.Operator;
+                    category = TokenCategory.Operator;
                     break;
             }
         }

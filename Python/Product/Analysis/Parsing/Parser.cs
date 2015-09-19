@@ -18,6 +18,7 @@ using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -28,6 +29,9 @@ using Microsoft.PythonTools.Parsing.Ast;
 namespace Microsoft.PythonTools.Parsing {
 
     public class Parser {
+        // When this string is encountered as a comment, parser state is reset.
+        public const string ResetStateMarker = "#reset_state_29F700BB398E4AE7931E8409F6EA4735";
+
         // immutable properties:
         private readonly Tokenization _tokenization;
         private readonly List<ErrorResult> _errorList;
@@ -40,7 +44,7 @@ namespace Microsoft.PythonTools.Parsing {
         private FutureOptions _languageFeatures;
         private readonly PythonLanguageVersion _langVersion;
         // state:
-        private TokenWithSpan _token, _lookahead, _lookahead2;
+        private TokenWithSpan _token, _lookahead, _lookahead2, _eofToken;
         private IEnumerator<TokenWithSpan> _tokens;
 
         private Stack<FunctionDefinition> _functions;
@@ -116,32 +120,6 @@ namespace Microsoft.PythonTools.Parsing {
             var parser = new Parser(tokenization, parserOptions);
             return parser.ParseFile();
         }
-
-        //public static Parser CreateParser(TextReader reader, PythonLanguageVersion version, ParserOptions parserOptions) {
-        //    if (reader == null) {
-        //        throw new ArgumentNullException("reader");
-        //    }
-
-        //    var options = parserOptions ?? ParserOptions.Default;
-
-        //    Parser parser = null;
-        //    var tokenizer = new Tokenizer(
-        //        version, options.ErrorSink,
-        //        (options.Verbatim ? TokenizerOptions.Verbatim : TokenizerOptions.None) | TokenizerOptions.GroupingRecovery,
-        //        (span, text) => options.RaiseProcessComment(parser, new CommentEventArgs(span, text)));
-        //    tokenizer.Initialize(null, reader, SourceLocation.MinValue);
-        //    tokenizer.IndentationInconsistencySeverity = options.IndentationInconsistencySeverity;
-
-        //    parser = new Parser(
-        //        tokenizer,
-        //        options.ErrorSink ?? ErrorSink.Null,
-        //        version,
-        //        options.Verbatim,
-        //        options.BindReferences,
-        //        options.PrivatePrefix
-        //    ) { _sourceReader = reader };
-        //    return parser;
-        //}
 
         #endregion
 
@@ -249,9 +227,10 @@ namespace Microsoft.PythonTools.Parsing {
         public void Reset(FutureOptions languageFeatures) {
             _languageFeatures = languageFeatures;
             _tokens = _tokenization.RawTokens.GetEnumerator();
-            _token = _tokens.MoveNext() ? _tokens.Current : TokenWithSpan.Empty;
-            _lookahead = _tokens.MoveNext() ? _tokens.Current : TokenWithSpan.Empty;
-            _lookahead2 = _tokens.MoveNext() ? _tokens.Current : TokenWithSpan.Empty;
+            _token = TokenWithSpan.Empty;
+            _lookahead = TokenWithSpan.Empty;
+            _lookahead2 = TokenWithSpan.Empty;
+            _eofToken = TokenWithSpan.Empty;
             _fromFutureAllowed = true;
             _classDepth = 0;
             _functions = null;
@@ -286,11 +265,12 @@ namespace Microsoft.PythonTools.Parsing {
             var start = span.Start;
             var end = span.End;
 
-            if (allowIncomplete && (t.Kind == TokenKind.EndOfFile || (_tokens == null && (t.Kind == TokenKind.Dedent || t.Kind == TokenKind.NLToken)))) {
+            if (allowIncomplete &&
+                (t.Kind == TokenKind.EndOfFile || t.Kind == TokenKind.Dedent || t.Kind == TokenKind.NLToken || t.Kind == TokenKind.Comment)) {
                 errorCode |= ErrorCodes.IncompleteStatement;
             }
 
-            string msg = String.Format(CultureInfo.InvariantCulture, GetErrorMessage(t, errorCode), t.Image);
+            string msg = string.Format(CultureInfo.InvariantCulture, GetErrorMessage(t, errorCode), t.Image);
 
             ReportSyntaxError(start, end, msg, errorCode);
         }
@@ -2677,7 +2657,7 @@ namespace Microsoft.PythonTools.Parsing {
         //suite: simple_stmt NEWLINE | Newline INDENT stmt+ DEDENT
         private Statement ParseSuite() {
 
-            if (!EatNoEof(TokenKind.Colon)) {
+            if (!Eat(TokenKind.Colon)) {
                 // improve error handling...
                 var error = ErrorStmt(_verbatim ? (_lookahead.LeadingWhitespace + _lookahead.Token.VerbatimImage) : null);
                 NextToken();
@@ -4670,9 +4650,7 @@ namespace Microsoft.PythonTools.Parsing {
             FetchLookahead();
 
             string whitespace = _verbatim ? "" : null;
-            while (PeekToken().Kind == TokenKind.NLToken) {
-                NextToken();
-
+            while (MaybeEat(TokenKind.NLToken)) {
                 if (whitespace != null) {
                     whitespace += _token.LeadingWhitespace + _token.Token.VerbatimImage;
                 }
@@ -4691,7 +4669,9 @@ namespace Microsoft.PythonTools.Parsing {
         }
 
         private Token NextToken() {
-            FetchLookahead();
+            _token = _lookahead;
+            _lookahead = _lookahead2;
+            _lookahead2 = FetchNext();
             return _token.Token;
         }
 
@@ -4704,9 +4684,27 @@ namespace Microsoft.PythonTools.Parsing {
         }
 
         private void FetchLookahead() {
-            _token = _lookahead;
-            _lookahead = _lookahead2;
-            _lookahead2 = _tokens.MoveNext() ? _tokens.Current : TokenWithSpan.Empty;
+            _lookahead = FetchNext();
+            _lookahead2 = FetchNext();
+        }
+
+        private TokenWithSpan FetchNext() {
+            if (_eofToken.Token != null) {
+                return _eofToken;
+            }
+            while (_tokens.MoveNext()) {
+                var tws = _tokens.Current;
+                if (tws.Token == null) {
+                    break;
+                } else if (tws.Token.Kind == TokenKind.EndOfFile) {
+                    _eofToken = tws;
+                } else if (tws.Token.Kind == TokenKind.Comment) {
+                    continue;
+                }
+
+                return tws;
+            }
+            return TokenWithSpan.Empty;
         }
 
         private bool PeekToken(TokenKind kind) {
@@ -4726,16 +4724,6 @@ namespace Microsoft.PythonTools.Parsing {
                 NextToken();
                 return true;
             }
-        }
-
-        private bool EatNoEof(TokenKind kind) {
-            Token next = PeekToken();
-            if (next.Kind != kind) {
-                ReportSyntaxError(_lookahead.Token, _lookahead.Span, ErrorCodes.SyntaxError, false);
-                return false;
-            }
-            NextToken();
-            return true;
         }
 
         private bool MaybeEat(TokenKind kind) {

@@ -65,7 +65,7 @@ namespace Microsoft.PythonTools.Editor {
                     //}
                 }
             }
-            return VSConstants.S_OK;
+            return hr;
         }
 
         #endregion

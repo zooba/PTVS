@@ -14,6 +14,7 @@ using Microsoft.PythonTools.Analysis.Values;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Parsing;
 using Microsoft.PythonTools.Parsing.Ast;
+using Microsoft.VisualStudioTools;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     public sealed class PythonLanguageService : IDisposable {
@@ -22,13 +23,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private int _users;
 
         private readonly SemaphoreSlim _contextLock = new SemaphoreSlim(1, 1);
-        private readonly Dictionary<PythonFileContext, PathSet<AnalysisState>> _contexts;
+        private readonly Dictionary<PythonFileContext, ContextState> _contexts;
 
         private readonly SemaphoreSlim _searchPathsLock = new SemaphoreSlim(1, 1);
         private readonly List<KeyValuePair<string, string[]>> _searchPaths;
-
-        private readonly QueueThread _updateTreeThread;
-        private readonly QueueThread _updateMemberListThread;
 
         private static readonly Regex ImportNameRegex = new Regex(
             @"^([\w_][\w\d_]+)(\.py[wcd]?)?$",
@@ -42,14 +40,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _disposing = new CancellationTokenSource();
             _config = config;
 
-            _contexts = new Dictionary<PythonFileContext, PathSet<AnalysisState>>();
+            _contexts = new Dictionary<PythonFileContext, ContextState>();
             _searchPaths = new List<KeyValuePair<string, string[]>>();
             foreach (var p in config.SysPath) {
                 _searchPaths.Add(new KeyValuePair<string, string[]>(p, null));
             }
-
-            _updateTreeThread = new QueueThread(this, _disposing.Token);
-            _updateMemberListThread = new QueueThread(this, _disposing.Token);
         }
 
         #region Lifetime Management
@@ -71,31 +66,19 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
             _disposing.Cancel();
 
-            _updateTreeThread.Dispose();
-            _updateMemberListThread.Dispose();
             // TODO: Clean up service
+
+            foreach (var context in _contexts) {
+                context.Key.Disposed -= Context_Disposed;
+                context.Key.SourceDocumentContentChanged -= Context_SourceDocumentContentChanged;
+                context.Value.Dispose();
+            }
         }
 
         #endregion
 
         public InterpreterConfiguration Configuration {
             get { return _config; }
-        }
-
-        internal void Enqueue(DocumentChanged item) {
-            _updateTreeThread.Enqueue(item);
-        }
-
-        internal void Enqueue(UpdateTokenization item) {
-            _updateTreeThread.Enqueue(item);
-        }
-
-        internal void Enqueue(UpdateTree item) {
-            _updateTreeThread.Enqueue(item);
-        }
-
-        internal void Enqueue(UpdateMemberList item) {
-            _updateMemberListThread.Enqueue(item);
         }
 
         public async Task AddSearchPathAsync(string searchPath, string prefix, CancellationToken cancellationToken) {
@@ -185,11 +168,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         initParts :
                         SkipMatchingLeadingElements(initParts, kv.Value).ToList();
 
-                    foreach (var files in _contexts.Values) {
+                    foreach (var context in _contexts.Values) {
                         AnalysisState value;
                         // TODO: Check whether .py file precedes /__init__.py
-                        if (files.TryFindValueByParts(kv.Key, trimmedFileParts, out value) ||
-                            files.TryFindValueByParts(kv.Key, trimmedInitParts, out value)) {
+                        if (context.AnalysisStates.TryFindValueByParts(kv.Key, trimmedFileParts, out value) ||
+                            context.AnalysisStates.TryFindValueByParts(kv.Key, trimmedInitParts, out value)) {
                             return value.Document.Get().Moniker;
                         }
                     }
@@ -220,13 +203,14 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         public async Task AddFileContextAsync(PythonFileContext context, CancellationToken cancellationToken) {
             ThrowIfDisposed();
 
-            PathSet<AnalysisState> states;
+            ContextState state;
 
             await _contextLock.WaitAsync(cancellationToken);
             try {
-                if (!_contexts.TryGetValue(context, out states)) {
-                    _contexts[context] = states = new PathSet<AnalysisState>(context.ContextRoot);
+                if (!_contexts.TryGetValue(context, out state)) {
+                    _contexts[context] = state = new ContextState(this, context, _disposing.Token);
                     context.Disposed += Context_Disposed;
+                    context.SourceDocumentContentChanged += Context_SourceDocumentContentChanged;
                 }
             } finally {
                 _contextLock.Release();
@@ -235,13 +219,30 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             var docs = await context.GetDocumentsAsync(cancellationToken);
 
             foreach (var doc in docs) {
-                AnalysisState state;
-                if (!states.TryGetValue(doc.Moniker, out state)) {
-                    state = new AnalysisState(doc, context);
-                    states.Add(doc.Moniker, state);
+                AnalysisState item;
+                if (!state.AnalysisStates.TryGetValue(doc.Moniker, out item)) {
+                    item = new AnalysisState(doc, context);
+                    state.AnalysisStates.Add(doc.Moniker, item);
                 }
-                Enqueue(new DocumentChanged(state, doc));
+                state.Enqueue(new DocumentChanged(item, doc));
             }
+        }
+
+        private async void Context_SourceDocumentContentChanged(object sender, SourceDocumentContentChangedEventArgs e) {
+            var context = (PythonFileContext)sender;
+            var item = await GetAnalysisStateAsync(context, e.Document.Moniker, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            await _contextLock.WaitAsync(CancellationToken.None);
+            try {
+                ContextState state;
+                if (_contexts.TryGetValue(context, out state)) {
+                    state.Enqueue(new DocumentChanged(item, e.Document));
+                }
+            } finally {
+                _contextLock.Release();
+            }
+
         }
 
         private async Task<AnalysisState> GetAnalysisStateAsync(
@@ -249,30 +250,42 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string moniker,
             CancellationToken cancellationToken
         ) {
-            PathSet<AnalysisState> states;
             await _contextLock.WaitAsync(cancellationToken);
             try {
-                AnalysisState state;
+                AnalysisState item;
                 if (context == null) {
                     foreach (var c in _contexts.Values) {
-                        if (c.TryGetValue(moniker, out state)) {
-                            return state;
+                        if (c.AnalysisStates.TryGetValue(moniker, out item)) {
+                            return item;
                         }
                     }
                     return null;
                 }
 
-                if (!_contexts.TryGetValue(context, out states)) {
+                ContextState state;
+                if (!_contexts.TryGetValue(context, out state)) {
                     return null;
                 }
 
-                if (!states.TryGetValue(moniker, out state)) {
+                if (!state.AnalysisStates.TryGetValue(moniker, out item)) {
                     return null;
                 }
-                return state;
+                return item;
             } finally {
                 _contextLock.Release();
             }
+        }
+
+        public async Task<Tokenization> GetNextTokenizationAsync(
+            PythonFileContext context,
+            string moniker,
+            CancellationToken cancellationToken
+        ) {
+            var state = await GetAnalysisStateAsync(context, moniker, cancellationToken);
+            if (state == null) {
+                return null;
+            }
+            return await state.Tokenization.GetNewVersionAsync();
         }
 
         public async Task<PythonAst> GetAstAsync(
@@ -314,8 +327,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         }
                     }
 
-                    foreach (var kv in _contexts) {
-                        foreach (var c in kv.Value.GetChildren(searchPath.Key, parts.Skip(skipParts))) {
+                    foreach (var state in _contexts.Values) {
+                        foreach (var c in state.AnalysisStates.GetChildren(searchPath.Key, parts.Skip(skipParts))) {
                             try {
                                 var m = ImportNameRegex.Match(c);
                                 if (m.Success) {
@@ -350,23 +363,58 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             if (!string.IsNullOrEmpty(localName)) {
                 prefix = localName + ".";
             }
-            return new DictionaryPrefixWrapper<PythonMemberType>(members, prefix, new[] { '.' });
+            //return new DictionaryPrefixWrapper<PythonMemberType>(members, prefix, new[] { '.' });
+            return members;
+        }
+
+
+        internal async Task EnqueueAsync(
+            PythonFileContext context,
+            QueueItem item,
+            CancellationToken cancellationToken
+        ) {
+            await _contextLock.WaitAsync(cancellationToken);
+            try {
+                ContextState state;
+                if (_contexts.TryGetValue(context, out state)) {
+                    state.Enqueue(item);
+                }
+            } finally {
+                _contextLock.Release();
+            }
         }
 
         sealed class QueueThread : IDisposable {
-            private readonly Queue<QueueItem> _queue;
+            private readonly Queue<QueueItem>[] _queue;
             private readonly Thread _thread;
             private readonly ManualResetEventSlim _queueChanged;
             private readonly PythonLanguageService _analyzer;
+            private readonly PythonFileContext _context;
             private readonly CancellationToken _cancel;
             private ExceptionDispatchInfo _edi;
 
-            public QueueThread(PythonLanguageService analyzer, CancellationToken cancellationToken) {
-                _queue = new Queue<QueueItem>();
+            public QueueThread(
+                PythonLanguageService analyzer,
+                PythonFileContext context,
+                string threadName,
+                CancellationToken cancellationToken
+            ) {
+                _queue = new Queue<QueueItem>[Enum.GetValues(typeof(ThreadPriority)).Length];
                 _queueChanged = new ManualResetEventSlim();
                 _analyzer = analyzer;
+                _context = context;
                 _cancel = cancellationToken;
                 _thread = new Thread(Worker);
+
+                var name = context.ContextRoot;
+                if (!string.IsNullOrEmpty(name)) {
+                    if (name.Length > 30) {
+                        name = name.Substring(0, 13) + "..." + name.Substring(name.Length - 13);
+                    }
+                    _thread.Name = threadName + ": " + name;
+                } else {
+                    _thread.Name = threadName;
+                }
                 _thread.Start(this);
             }
 
@@ -379,18 +427,26 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             public void Enqueue(QueueItem item) {
+                if (_edi != null) {
+                    _edi.Throw();
+                }
                 lock (_queue) {
-                    _queue.Enqueue(item);
+                    var q = _queue[(int)item.Priority];
+                    if (q == null) {
+                        _queue[(int)item.Priority] = q = new Queue<QueueItem>();
+                    }
+                    q.Enqueue(item);
                     _queueChanged.Set();
                 }
             }
 
             private static void Worker(object o) {
+                var thread = (QueueThread)o;
                 try {
-                    ((QueueThread)o).QueueWorker();
+                    thread.QueueWorker();
                 } catch (OperationCanceledException) {
                 } catch (Exception ex) {
-                    ((QueueThread)o)._edi = ExceptionDispatchInfo.Capture(ex);
+                    thread._edi = ExceptionDispatchInfo.Capture(ex);
                 }
             }
 
@@ -406,24 +462,54 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         break;
                     }
 
+                    try {
+                        _queueChanged.Reset();
+                    } catch (ObjectDisposedException) {
+                        throw new OperationCanceledException();
+                    }
+
                     QueueItem item;
                     while (true) {
                         lock (_queue) {
-                            if (!_queue.Any()) {
-                                try {
-                                    _queueChanged.Reset();
-                                } catch (ObjectDisposedException) {
-                                    throw new OperationCanceledException();
+                            item = null;
+                            for (int i = _queue.Length - 1; i >= 0; --i) {
+                                var q = _queue[i];
+                                if (q != null && q.Any()) {
+                                    item = q.Dequeue();
+                                    break;
                                 }
+                            }
+                            if (item == null) {
                                 break;
                             }
-                            item = _queue.Dequeue();
                         }
-                        item.PerformAsync(_analyzer, _cancel).GetAwaiter().GetResult();
+                        item.PerformAsync(_analyzer, _context, _cancel).GetAwaiter().GetResult();
                     }
                 }
             }
         }
 
+        private struct ContextState {
+            public readonly PathSet<AnalysisState> AnalysisStates;
+            public readonly QueueThread Thread;
+
+            public ContextState(
+                PythonLanguageService analyzer,
+                PythonFileContext context,
+                CancellationToken disposalToken
+            ) {
+                AnalysisStates = new PathSet<AnalysisState>(context.ContextRoot);
+                
+                Thread = new QueueThread(analyzer, context, "Analysis", disposalToken);
+            }
+
+            public void Dispose() {
+                Thread.Dispose();
+            }
+
+            internal void Enqueue(QueueItem item) {
+                Thread.Enqueue(item);
+            }
+        }
     }
 }

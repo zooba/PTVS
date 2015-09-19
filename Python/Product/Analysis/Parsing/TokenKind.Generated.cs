@@ -129,6 +129,7 @@ namespace Microsoft.PythonTools.Parsing {
 
     internal static class Tokens {
         public static readonly Token EndOfFileToken = new VerbatimToken(TokenKind.EndOfFile, "", "<eof>");
+        public static readonly Token JoinedEndOfFileToken = new VerbatimToken(TokenKind.EndOfFile, "\\", "<eof>");
 
         public static readonly Token ImpliedNewLineToken = new VerbatimToken(TokenKind.NewLine, "", "<newline>");
 
@@ -139,6 +140,10 @@ namespace Microsoft.PythonTools.Parsing {
         public static readonly Token NLToken = new VerbatimToken(TokenKind.NLToken, "\n", "<NL>");  // virtual token used for error reporting
         public static readonly Token NLTokenCRLF = new VerbatimToken(TokenKind.NLToken, "\r\n", "<NL>");  // virtual token used for error reporting
         public static readonly Token NLTokenCR = new VerbatimToken(TokenKind.NLToken, "\r", "<NL>");  // virtual token used for error reporting
+
+        public static readonly Token JoinedNewLineToken = new VerbatimToken(TokenKind.NewLine, "\\\n", "<newline>");
+        public static readonly Token JoinedNewLineTokenCRLF = new VerbatimToken(TokenKind.NewLine, "\\\r\n", "<newline>");
+        public static readonly Token JoinedNewLineTokenCR = new VerbatimToken(TokenKind.NewLine, "\\\r", "<newline>");
 
         public static readonly Token IndentToken = new DentToken(TokenKind.Indent, "<indent>");
 

@@ -34,7 +34,7 @@ namespace Microsoft.PythonTools.Parsing {
         private bool _disableLineFeedLineSeparator = false;
         private SourceCodeKind _kind = SourceCodeKind.AutoDetect;
         private ErrorSink _errors;
-        private Severity _indentationInconsistencySeverity;
+        private readonly Severity _indentationInconsistencySeverity;
         private bool _printFunction, _unicodeLiterals, _withStatement;
         private List<int> _newLineLocations;
         private SourceLocation _initialLocation;
@@ -58,7 +58,12 @@ namespace Microsoft.PythonTools.Parsing {
         // precalcuated strings for space indentation strings so we usually don't allocate.
         private static readonly string[] SpaceIndentation, TabIndentation;
 
-        public Tokenizer(PythonLanguageVersion version, ErrorSink errorSink, TokenizerOptions options) {
+        public Tokenizer(
+            PythonLanguageVersion version,
+            ErrorSink errorSink,
+            TokenizerOptions options,
+            Severity indentationInconsistency
+        ) {
             _errors = errorSink ?? ErrorSink.Null;
             _comments = new List<KeyValuePair<IndexSpan, string>>();
             _state = new State(options);
@@ -67,6 +72,7 @@ namespace Microsoft.PythonTools.Parsing {
             _names = new Dictionary<object, NameToken>(128, new TokenEqualityComparer(this));
             _langVersion = version;
             _options = options;
+            _indentationInconsistencySeverity = indentationInconsistency;
         }
 
         static Tokenizer() {
@@ -135,13 +141,6 @@ namespace Microsoft.PythonTools.Parsing {
 
         internal Severity IndentationInconsistencySeverity {
             get { return _indentationInconsistencySeverity; }
-            set {
-                _indentationInconsistencySeverity = value;
-
-                if (value != Severity.Ignore && _state.IndentFormat == null) {
-                    _state.IndentFormat = new string[MaxIndent];
-                }
-            }
         }
 
         public bool IsEndOfFile {
@@ -174,6 +173,9 @@ namespace Microsoft.PythonTools.Parsing {
                 _state = new State((State)state, Verbatim);
             } else {
                 _state = new State(_options);
+                if (IndentationInconsistencySeverity != Severity.Ignore) {
+                    _state.IndentFormat = new string[MaxIndent];
+                }
             }
 
             Debug.Assert(_reader == null, "Must uninitialize tokenizer before reinitializing");
@@ -389,7 +391,15 @@ namespace Microsoft.PythonTools.Parsing {
                         return ReadSingleLineComment(out ch);
 
                     case '\\':
-                        return new VerbatimToken(TokenKind.ExplicitLineJoin, "\\", "<explicit line join>");
+                        ch = Peek();
+                        if (ch == '\r' || ch == '\n' || ch == EOF) {
+                            _state.LastLineJoin = true;
+                            ch = NextChar();
+                        } else {
+                            ch = '\\';
+                        }
+                        goto default;
+
                     case '\"':
                     case '\'':
                         _state.LastNewLine = false;
@@ -457,7 +467,7 @@ namespace Microsoft.PythonTools.Parsing {
                             _newLineLocations.Add(CurrentIndex);
                             // token marked by the callee:
                             if (ReadIndentationAfterNewLine(nlKind)) {
-                                return NewLineKindToToken(nlKind, _state.LastNewLine);
+                                return NewLineKindToToken(nlKind, _state.LastNewLine, _state.LastLineJoin);
                             }
 
                             // we're in a grouping, white space is ignored
@@ -484,8 +494,15 @@ namespace Microsoft.PythonTools.Parsing {
             }
         }
 
-        private Token NewLineKindToToken(NewLineKind nlKind, bool lastNewLine = false) {
-            if (lastNewLine) {
+        private Token NewLineKindToToken(NewLineKind nlKind, bool lastNewLine = false, bool lastLineJoin = false) {
+            if (lastLineJoin) {
+                _state.LastLineJoin = false;
+                switch (nlKind) {
+                    case NewLineKind.CarriageReturn: return Tokens.JoinedNewLineTokenCR;
+                    case NewLineKind.CarriageReturnLineFeed: return Tokens.JoinedNewLineTokenCRLF;
+                    case NewLineKind.LineFeed: return Tokens.JoinedNewLineToken;
+                }
+            } else if (lastNewLine) {
                 switch (nlKind) {
                     case NewLineKind.CarriageReturn: return Tokens.NLTokenCR;
                     case NewLineKind.CarriageReturnLineFeed: return Tokens.NLTokenCRLF;
@@ -522,30 +539,21 @@ namespace Microsoft.PythonTools.Parsing {
             return ch;
         }
 
-        private void ProcessComment() {
-            if (_comments != null) {
-                _comments.Add(new KeyValuePair<IndexSpan, string>(TokenSpan, GetTokenString()));
-            }
-        }
-
-        private int SkipSingleLineComment() {
-            // do single-line comment:
-            int ch = ReadLine();
-            MarkTokenEnd();
-            ProcessComment();
-
-            // discard token '# ...':
-            DiscardToken();
-            SeekRelative(+1);
-
-            return ch;
-        }
-
         private Token ReadSingleLineComment(out int ch) {
             // do single-line comment:
             ch = ReadLine();
             MarkTokenEnd();
-            ProcessComment();
+
+            var comment = GetTokenString();
+            if (comment == Parser.ResetStateMarker) {
+                _state = new State(_options);
+                DiscardToken();
+                SeekRelative(+1);
+                return null;
+            }
+            if (_comments != null) {
+                _comments.Add(new KeyValuePair<IndexSpan, string>(TokenSpan, comment));
+            }
 
             return new CommentToken(GetTokenString());
         }
@@ -597,6 +605,10 @@ namespace Microsoft.PythonTools.Parsing {
                 SetIndent(0, null, null, _position);
                 _state.PendingDedents--;
                 return Tokens.DedentToken;
+            }
+
+            if (_state.LastLineJoin) {
+                return Tokens.JoinedEndOfFileToken;
             }
 
             return Tokens.EndOfFileToken;
@@ -1680,10 +1692,6 @@ namespace Microsoft.PythonTools.Parsing {
             }
         }
 
-        // This is another version of ReadNewline with nearly identical semantics. The difference is
-        // that checks are made to see that indentation is used consistently. This logic is in a
-        // duplicate method to avoid inflicting the overhead of the extra logic when we're not making
-        // the checks.
         /// <summary>
         /// Reads the white space after a new line until we get to the next level of indentation
         /// or a otherwise hit a token which should be returned (any other token if we're in a grouping,
@@ -1692,6 +1700,12 @@ namespace Microsoft.PythonTools.Parsing {
         /// Returns true if we should return the new line token which kicked this all off.  Returns false
         /// if we should continue processing the current token.
         /// </summary>
+        /// <remarks>
+        /// This is another version of ReadNewline with nearly identical semantics. The difference is
+        /// that checks are made to see that indentation is used consistently. This logic is in a
+        /// duplicate method to avoid inflicting the overhead of the extra logic when we're not making
+        /// the checks.
+        /// </remarks>
         private bool ReadIndentationAfterNewLine(NewLineKind startingKind) {
             // Keep track of the indentation format for the current line
             StringBuilder sb = null;                    // the white space we've encounted after the new line if it's mixed tabs/spaces or is an unreasonable size.
@@ -1736,13 +1750,17 @@ namespace Microsoft.PythonTools.Parsing {
                     default:
                         BufferBack();
 
-                        if (GroupingLevel > 0) {
+                        if (GroupingLevel > 0 || _state.LastLineJoin) {
                             int startingWhiteSpace = 0;
                             if (Verbatim) {
                                 // we're not producing a new line after all...  All of the white space
                                 // we collected goes to the current token, including the new line token
                                 // that we're not producing.
                                 startingWhiteSpace = _state.CurWhiteSpace.Length;
+                                if (_state.LastLineJoin) {
+                                    _state.CurWhiteSpace.Append('\\');
+                                    _state.LastLineJoin = false;
+                                }
                                 _state.CurWhiteSpace.Append(startingKind.GetString());
                                 _state.CurWhiteSpace.Append(_state.NextWhiteSpace);
                                 _state.NextWhiteSpace.Clear();
@@ -1972,6 +1990,7 @@ namespace Microsoft.PythonTools.Parsing {
             public int IndentLevel;
             public int PendingDedents;
             public bool LastNewLine;        // true if the last token we emitted was a new line.
+            public bool LastLineJoin;
             public IncompleteString IncompleteString;
 
             // Indentation state used only when we're reporting on inconsistent identation format.
@@ -1988,6 +2007,7 @@ namespace Microsoft.PythonTools.Parsing {
             public State(State state, bool verbatim) {
                 Indent = (int[])state.Indent.Clone();
                 LastNewLine = state.LastNewLine;
+                LastLineJoin = state.LastLineJoin;
                 BracketLevel = state.BraceLevel;
                 ParenLevel = state.ParenLevel;
                 BraceLevel = state.BraceLevel;
@@ -2008,6 +2028,7 @@ namespace Microsoft.PythonTools.Parsing {
             public State(TokenizerOptions options) {
                 Indent = new int[MaxIndent]; // TODO
                 LastNewLine = true;
+                LastLineJoin = false;
                 BracketLevel = ParenLevel = BraceLevel = PendingDedents = IndentLevel = 0;
                 IndentFormat = null;
                 IncompleteString = null;
@@ -2041,6 +2062,7 @@ namespace Microsoft.PythonTools.Parsing {
                        left.ParenLevel == right.ParenLevel &&
                        left.PendingDedents == right.PendingDedents &&
                        left.LastNewLine == right.LastNewLine &&
+                       left.LastLineJoin == right.LastLineJoin &&
                        left.IncompleteString == right.IncompleteString;
             }
 

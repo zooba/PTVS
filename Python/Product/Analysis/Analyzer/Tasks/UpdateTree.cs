@@ -12,7 +12,15 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
         public UpdateTree(AnalysisState item)
             : base(item) { }
 
-        public override async Task PerformAsync(PythonLanguageService analyzer, CancellationToken cancellationToken) {
+        public override ThreadPriority Priority {
+            get { return ThreadPriority.Normal; }
+        }
+
+        public override async Task PerformAsync(
+            PythonLanguageService analyzer,
+            PythonFileContext context,
+            CancellationToken cancellationToken
+        ) {
             var parser = new Parser(
                 await _item.Tokenization.GetAsync(),
                 ParserOptions.Default
@@ -21,8 +29,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             _item.Tree.SetValue(result.Tree);
             _item.ParseErrors.SetValue(result.Errors);
 
-            analyzer.Enqueue(new UpdateMemberList(_item, result.Tree));
-            //analyzer.Enqueue(new UpdateAnalysis(_item, tree));
+            await analyzer.EnqueueAsync(context, new UpdateMemberList(_item, result.Tree), cancellationToken);
+            //analyzer.Enqueue(context, new UpdateAnalysis(_item, tree));
         }
     }
 }

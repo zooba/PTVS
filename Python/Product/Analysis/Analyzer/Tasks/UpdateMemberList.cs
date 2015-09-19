@@ -17,7 +17,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             _tree = tree;
         }
 
-        public override async Task PerformAsync(PythonLanguageService analyzer, CancellationToken cancellationToken) {
+        public override async Task PerformAsync(
+            PythonLanguageService analyzer,
+            PythonFileContext context,
+            CancellationToken cancellationToken
+        ) {
             var walker = new MemberNameWalker();
             _tree.Walk(walker);
             _item.MemberList.SetValue(walker.Members);
@@ -68,7 +72,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
                 if (Members.TryGetValue(fn, out existing)) {
                     type = Merge(type, existing);
                 }
-                Members[fullName.ToString()] = type;
+                Members[fn] = type;
             }
 
             private void RemoveMember(string name) {
@@ -80,7 +84,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
                 fullName.Append(name);
                 var fn = fullName.ToString();
 
-                Members.Remove(fn);
+                //Members.Remove(fn);
             }
 
             public override bool Walk(ClassDefinition node) {
@@ -115,6 +119,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
                             AddMember(node.Names[i].Names[0].Name, PythonMemberType.Module);
                         }
                     }
+                }
+                return false;
+            }
+
+            public override bool Walk(FromImportStatement node) {
+                for (int i = 0; i < node.Names.Count; ++i) {
+                    // TODO: Get the actual member type
+                    if (node.Names[i].Name == "*") {
+                        continue;
+                    }
+                    AddMember(node.Names[i].Name, PythonMemberType.Unknown);
                 }
                 return false;
             }

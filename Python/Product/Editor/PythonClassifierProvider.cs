@@ -16,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Windows.Media;
+using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Editor.Properties;
 using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudio.Language.StandardClassification;
@@ -33,7 +34,8 @@ namespace Microsoft.PythonTools.Editor {
     /// should then export the provider using MEF indicating the content type 
     /// which it is applicable to.
     /// </summary>
-    [Export(typeof(IClassifierProvider)), ContentType(ContentType.Name)]
+    [Export(typeof(IClassifierProvider))]
+    [ContentType(ContentType.Name)]
     internal class PythonClassifierProvider : IClassifierProvider {
         private Dictionary<TokenCategory, IClassificationType> _categoryMap;
         private IClassificationType _comment;
@@ -50,6 +52,9 @@ namespace Microsoft.PythonTools.Editor {
         /// </summary>
         [Import]
         public IClassificationTypeRegistryService _classificationRegistry = null; // Set via MEF
+
+        [Import]
+        public PythonLanguageServiceProvider _languageService = null; // Set via MEF
 
         #region Python Classification Type Definitions
 
@@ -84,21 +89,12 @@ namespace Microsoft.PythonTools.Editor {
 
         #endregion
 
-        #region IDlrClassifierProvider
-
         public IClassifier GetClassifier(ITextBuffer buffer) {
             if (_categoryMap == null) {
                 _categoryMap = FillCategoryMap(_classificationRegistry);
             }
 
-            PythonClassifier res;
-            if (!buffer.Properties.TryGetProperty<PythonClassifier>(typeof(PythonClassifier), out res) &&
-                buffer.ContentType.IsOfType(ContentType.Name)) {
-                res = new PythonClassifier(this, buffer);
-                buffer.Properties.AddProperty(typeof(PythonClassifier), res);
-            }
-
-            return res;
+            return buffer.Properties.GetOrCreateSingletonProperty(() => new PythonClassifier(this, buffer));
         }
 
         public IClassificationType Comment {
@@ -128,8 +124,6 @@ namespace Microsoft.PythonTools.Editor {
         public IClassificationType CommaClassification {
             get { return _commaClassification; }
         }
-
-        #endregion
 
         internal Dictionary<TokenCategory, IClassificationType> CategoryMap {
             get { return _categoryMap; }

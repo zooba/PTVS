@@ -17,6 +17,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -49,16 +50,14 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
 
         public void AugmentCompletionSession(ICompletionSession session, IList<CompletionSet> completionSets) {
             var textBuffer = _textBuffer;
+            PythonLanguageService langService;
+            if (!textBuffer.Properties.TryGetProperty(typeof(PythonLanguageService), out langService)) {
+                return;
+            }
+
             var snapshot = textBuffer.CurrentSnapshot;
             var span = GetApplicableSpan(session, snapshot);
             
-            var config = textBuffer.Properties.GetProperty<InterpreterConfiguration>(typeof(InterpreterConfiguration));
-            var langService = _provider._langServiceProvider.GetServiceAsync(
-                config,
-                _provider._fileContextProvider,
-                CancellationToken.None
-            ).GetAwaiter().GetResult();
-
             var names = langService.GetImportableModulesAsync("", "", CancellationToken.None).GetAwaiter().GetResult();
             var completions = names.Select(n => new DynamicallyVisibleCompletion(n.Key));
 

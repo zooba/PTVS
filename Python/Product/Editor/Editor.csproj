@@ -55,6 +55,7 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.VisualStudio.Threading, Version=14.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="PresentationCore" />
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
@@ -122,6 +123,9 @@
     <Compile Include="Intellisense\FuzzyCompletionSet.cs" />
     <Compile Include="Intellisense\FuzzyStringMatcher.cs" />
     <Compile Include="Intellisense\ReverseExpressionParser.cs" />
+    <Compile Include="Intellisense\TextBufferSourceDocument.cs" />
+    <Compile Include="TextSnapshotStream.cs" />
+    <Compile Include="TextViewStream.cs" />
     <Compile Include="IPythonEditorOptions.cs" />
     <Compile Include="LanguagePreferences.cs" />
     <None Include="PythonAnalysisClassifier.cs" />
@@ -135,7 +139,7 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-    <Compile Include="SmartIndentProvider.cs" />
+    <None Include="SmartIndentProvider.cs" />
     <Compile Include="TokenCache.cs" />
     <Compile Include="TokenExtensions.cs" />
   </ItemGroup>

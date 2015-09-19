@@ -13,7 +13,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
     }
 
     public sealed class StringLiteralDocument : ISourceDocument {
-        private readonly string _document;
+        private string _document;
         private readonly string _moniker;
 
         public StringLiteralDocument(string document, string moniker = "<string>") {
@@ -21,10 +21,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _moniker = moniker;
         }
 
+        public string Document {
+            get { return _document; }
+            set { _document = value; }
+        }
+
         public string Moniker {
-            get {
-                return _moniker;
-            }
+            get { return _moniker; }
         }
 
         public async Task<Stream> ReadAsync() {
