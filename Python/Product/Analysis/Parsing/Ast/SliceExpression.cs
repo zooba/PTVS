@@ -70,7 +70,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 _sliceStart.AppendCodeString(res, ast, format);
             }
             if (!this.IsIncompleteNode(ast)) {
-                res.Append(this.GetProceedingWhiteSpace(ast));
+                res.Append(this.GetPrecedingWhiteSpace(ast));
                 res.Append(':');
                 if (_sliceStop != null) {
                     _sliceStop.AppendCodeString(res, ast, format);
@@ -90,7 +90,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             if (_sliceStart != null) {
                 return _sliceStart.GetLeadingWhiteSpace(ast);
             }
-            return this.GetProceedingWhiteSpace(ast);
+            return this.GetPrecedingWhiteSpace(ast);
         }
 
         public override void SetLeadingWhiteSpace(PythonAst ast, string whiteSpace) {

@@ -52,11 +52,11 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         public void AddPreceedingWhiteSpace(PythonAst ast, string whiteSpace) {
-            ast.SetAttribute(this, NodeAttributes.PreceedingWhiteSpace, whiteSpace);
+            ast.SetAttribute(this, NodeAttributes.PrecedingWhiteSpace, whiteSpace);
         }
 
         internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            format.ReflowComment(res, this.GetProceedingWhiteSpaceDefaultNull(ast));
+            format.ReflowComment(res, this.GetPrecedingWhiteSpaceDefaultNull(ast));
             res.Append(this.GetVerbatimImage(ast) ?? _name);
         }
     }

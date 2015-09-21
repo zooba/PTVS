@@ -154,15 +154,15 @@ namespace AnalysisTests {
 
             var tokenizer = new Tokenizer(version, ErrorSink.Null, options: optionSet, indentationInconsistency: Severity.Ignore);
             tokenizer.Initialize(new StringReader(originalText));
-            Token token;
+            TokenWithSpan token;
             int prevOffset = 0;
 
             List<TokenWithSpan> tokens = new List<TokenWithSpan>();
-            while ((token = tokenizer.GetNextToken()) != null) {
-                tokens.Add(new TokenWithSpan(token, tokenizer.TokenSpan, tokenizer.PreceedingWhiteSpace));
+            while ((token = tokenizer.GetNextToken()).Token != null) {
+                tokens.Add(token);
 
-                output.Append(tokenizer.PreceedingWhiteSpace);
-                output.Append(token.VerbatimImage);
+                output.Append(token.LeadingWhitespace);
+                output.Append(token.Token.VerbatimImage);
 
                 const int contextSize = 50;
                 for (int i = prevOffset; i < originalText.Length && i < output.Length; i++) {
@@ -195,11 +195,11 @@ namespace AnalysisTests {
 
                 prevOffset = output.Length;
 
-                if (token.Kind == TokenKind.EndOfFile) {
+                if (token.Token.Kind == TokenKind.EndOfFile) {
                     break;
                 }
             }
-            output.Append(tokenizer.PreceedingWhiteSpace);
+            output.Append(token.LeadingWhitespace);
 
             Assert.AreEqual(originalText.Length, output.Length);
             return tokens;

@@ -42,7 +42,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             }
             bool isAltForm = this.IsAltForm(ast);
             if (isAltForm) {
-                res.Append(leadingWhiteSpace ?? this.GetProceedingWhiteSpace(ast));
+                res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpace(ast));
                 res.Append('(');
                 leadingWhiteSpace = null;
             }

@@ -90,7 +90,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 format.SpaceBeforeCallParen,
                 " ",
                 "",
-                this.GetProceedingWhiteSpaceDefaultNull(ast)
+                this.GetPrecedingWhiteSpaceDefaultNull(ast)
             ); 
 
             res.Append('(');

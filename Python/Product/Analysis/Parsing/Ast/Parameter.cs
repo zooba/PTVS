@@ -104,7 +104,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         public void AddPreceedingWhiteSpace(PythonAst ast, string whiteSpace) {
-            ast.SetAttribute(this, NodeAttributes.PreceedingWhiteSpace, whiteSpace);
+            ast.SetAttribute(this, NodeAttributes.PrecedingWhiteSpace, whiteSpace);
         }
 
         internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
@@ -124,14 +124,14 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             }
             switch (Kind) {
                 case ParameterKind.Dictionary:
-                    res.Append(leadingWhiteSpace ?? this.GetProceedingWhiteSpace(ast));
+                    res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpace(ast));
                     res.Append("**");
                     res.Append(this.GetSecondWhiteSpace(ast));
                     res.Append(this.GetVerbatimImage(ast) ?? _name);
                     AppendAnnotation(res, ast, format);
                     break;
                 case ParameterKind.List:
-                    res.Append(leadingWhiteSpace ?? this.GetProceedingWhiteSpace(ast));
+                    res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpace(ast));
                     res.Append('*');
                     res.Append(this.GetSecondWhiteSpace(ast));
                     res.Append(this.GetVerbatimImage(ast) ?? _name);
@@ -139,7 +139,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                     break;
                 case ParameterKind.Normal:
                     if (this.IsAltForm(ast)) {
-                        res.Append(leadingWhiteSpace ?? this.GetProceedingWhiteSpace(ast));
+                        res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpace(ast));
                         res.Append('(');
                         res.Append(this.GetThirdWhiteSpace(ast));
                         res.Append(this.GetVerbatimImage(ast) ?? _name);
@@ -148,13 +148,13 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                             res.Append(')');
                         }
                     } else {
-                        res.Append(leadingWhiteSpace ?? this.GetProceedingWhiteSpaceDefaultNull(ast));
+                        res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpaceDefaultNull(ast));
                         res.Append(this.GetVerbatimImage(ast) ?? _name);
                         AppendAnnotation(res, ast, format);
                     }
                     break;
                 case ParameterKind.KeywordOnly:
-                    res.Append(leadingWhiteSpace ?? this.GetProceedingWhiteSpace(ast));
+                    res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpace(ast));
                     res.Append(this.GetVerbatimImage(ast) ?? _name);
                     AppendAnnotation(res, ast, format);
                     break;

@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using System.Text;
 
@@ -54,6 +55,8 @@ namespace Microsoft.PythonTools.Parsing {
         private static object _currentName = new object();
 
         private FromFutureImportStage _fromFutureImportStage;
+
+        private Queue<TokenWithSpan> _tokenBuffer;
 
         // precalcuated strings for space indentation strings so we usually don't allocate.
         private static readonly string[] SpaceIndentation, TabIndentation;
@@ -149,7 +152,7 @@ namespace Microsoft.PythonTools.Parsing {
             }
         }
 
-        internal IndexSpan TokenSpan {
+        private IndexSpan TokenSpan {
             get {
                 return IndexSpan.FromPoints(_tokenStartIndex, _tokenEndIndex);
             }
@@ -212,42 +215,24 @@ namespace Microsoft.PythonTools.Parsing {
             }
 
             var t = GetNextToken();
-            var span = TokenSpan;
-            return new TokenInfo(t, span);
+            return new TokenInfo(t.Token, t.Span);
         }
 
-        internal void ReadAllTokens(
-            out List<Token[]> tokenLines,
-            out List<int> lineStarts,
-            out List<TokenInfo[]> tokenLineInfo,
-            out List<string[]> precedingWhitespace
-        ) {
-            tokenLines = new List<Token[]>();
+        internal void ReadAllTokens(out List<TokenWithSpan[]> tokenLines, out List<int> lineStarts) {
+            tokenLines = new List<TokenWithSpan[]>();
             lineStarts = new List<int> { 0 };
-            tokenLineInfo = new List<TokenInfo[]>();
-            precedingWhitespace = new List<string[]>();
 
-            var tokens = new List<Token>();
-            var tokenInfo = new List<TokenInfo>();
-            var whitespace = new List<string>();
-            Token t;
-            while ((t = GetNextToken()) != null) {
+            var tokens = new List<TokenWithSpan>();
+            TokenWithSpan t;
+            while ((t = GetNextToken()).Token != null) {
                 tokens.Add(t);
-                tokenInfo.Add(new TokenInfo(t, TokenSpan));
-                whitespace.Add(PreceedingWhiteSpace);
-                if (t.Kind == TokenKind.EndOfFile || t.Kind == TokenKind.NewLine) {
+                if (t.Token.Kind == TokenKind.EndOfFile || t.Token.Kind == TokenKind.NewLine) {
                     tokenLines.Add(tokens.ToArray());
                     tokens.Clear();
 
-                    tokenLineInfo.Add(tokenInfo.ToArray());
-                    tokenInfo.Clear();
-
                     lineStarts.Add(TokenSpan.End);
 
-                    precedingWhitespace.Add(whitespace.ToArray());
-                    whitespace.Clear();
-
-                    if (t.Kind == TokenKind.EndOfFile) {
+                    if (t.Token.Kind == TokenKind.EndOfFile) {
                         break;
                     }
                 }
@@ -319,7 +304,7 @@ namespace Microsoft.PythonTools.Parsing {
         /// Return the white space proceeding the last fetched token. Returns an empty string if
         /// the tokenizer was not created in verbatim mode.
         /// </summary>
-        public string PreceedingWhiteSpace {
+        private string PreceedingWhiteSpace {
             get {
                 if (!Verbatim) {
                     return "";
@@ -328,7 +313,33 @@ namespace Microsoft.PythonTools.Parsing {
             }
         }
 
-        public Token GetNextToken() {
+        public TokenWithSpan GetNextToken() {
+            if (_tokenBuffer != null) {
+                if (_tokenBuffer.Count > 0) {
+                    return _tokenBuffer.Dequeue();
+                }
+                _tokenBuffer = null;
+            }
+
+            var result = GetNextTokenNoBuffer();
+            if (result.Token.Kind == TokenKind.Comment) {
+                result = FindDedent(result);
+            }
+            return result;
+        }
+
+        private TokenWithSpan GetNextTokenNoBuffer() {
+            var token = Next();
+
+            var span = IndexSpan.FromPoints(_tokenStartIndex, _tokenEndIndex);
+            var whitespace = Verbatim ? _state.CurWhiteSpace.ToString() : string.Empty;
+
+            DumpToken(token);
+
+            return new TokenWithSpan(token, span, whitespace);
+        }
+
+        private Token Next() {
             if (Verbatim) {
                 _state.CurWhiteSpace.Clear();
                 if (_state.NextWhiteSpace.Length != 0) {
@@ -339,25 +350,16 @@ namespace Microsoft.PythonTools.Parsing {
                 }
             }
 
-            Token result;
-
             if (_state.PendingDedents != 0) {
                 if (_state.PendingDedents == -1) {
                     _state.PendingDedents = 0;
-                    result = Tokens.IndentToken;
+                    return Tokens.IndentToken;
                 } else {
                     _state.PendingDedents--;
-                    result = Tokens.DedentToken;
+                    return Tokens.DedentToken;
                 }
-            } else {
-                result = Next();
             }
 
-            DumpToken(result);
-            return result;
-        }
-
-        private Token Next() {
             bool at_beginning = AtBeginning;
 
             if (_state.IncompleteString != null && Peek() != EOF) {
@@ -492,6 +494,66 @@ namespace Microsoft.PythonTools.Parsing {
                         return BadChar(ch);
                 }
             }
+        }
+
+        private TokenWithSpan FindDedent(TokenWithSpan token) {
+            if (_tokenBuffer == null) {
+                _tokenBuffer = new Queue<TokenWithSpan>();
+            }
+
+            var buffer = new List<TokenWithSpan> { token };
+            List<TokenWithSpan> dedents = null;
+            List<TokenWithSpan> beforeDedents = null;
+
+            TokenWithSpan tws;
+            while ((tws = GetNextTokenNoBuffer()).Token != null) {
+                if (dedents == null) {
+                    var k = tws.Token.Kind;
+                    if (k == TokenKind.Dedent) {
+                        // Start collecting all the dedents
+                        dedents = new List<TokenWithSpan>();
+                    } else if (k == TokenKind.Comment && tws.LeadingWhitespace != token.LeadingWhitespace) {
+                        // Insert dedents before this token
+                        if (beforeDedents == null) {
+                            beforeDedents = buffer;
+                            buffer = new List<TokenWithSpan>();
+                            buffer.Add(tws);
+                        }
+                    } else if (k != TokenKind.NewLine && k != TokenKind.NLToken) {
+                        // Not a real dedent
+                        buffer.Add(tws);
+                        break;
+                    } else {
+                        buffer.Add(tws);
+                    }
+                }
+
+                if (dedents != null) {
+                    if (tws.Token.Kind != TokenKind.Dedent) {
+                        // No more dedents
+                        buffer.Add(tws);
+                        break;
+                    }
+
+                    dedents.Add(new TokenWithSpan(Tokens.DedentToken, new IndexSpan(token.Span.Start, 0), null));
+                }
+            }
+
+            if (beforeDedents != null) {
+                foreach (var t in beforeDedents) {
+                    _tokenBuffer.Enqueue(t);
+                }
+            }
+            if (dedents != null) {
+                foreach (var t in dedents) {
+                    _tokenBuffer.Enqueue(t);
+                }
+            }
+            foreach (var t in buffer) {
+                _tokenBuffer.Enqueue(t);
+            }
+            Debug.Assert(_tokenBuffer.Count > 0);
+            return _tokenBuffer.Count > 0 ? _tokenBuffer.Dequeue() : TokenWithSpan.Empty;
         }
 
         private Token NewLineKindToToken(NewLineKind nlKind, bool lastNewLine = false, bool lastLineJoin = false) {
@@ -2027,7 +2089,7 @@ namespace Microsoft.PythonTools.Parsing {
 
             public State(TokenizerOptions options) {
                 Indent = new int[MaxIndent]; // TODO
-                LastNewLine = true;
+                LastNewLine = false;
                 LastLineJoin = false;
                 BracketLevel = ParenLevel = BraceLevel = PendingDedents = IndentLevel = 0;
                 IndentFormat = null;

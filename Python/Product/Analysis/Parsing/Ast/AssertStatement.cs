@@ -44,7 +44,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            format.ReflowComment(res, this.GetProceedingWhiteSpace(ast));
+            format.ReflowComment(res, this.GetPrecedingWhiteSpace(ast));
             res.Append("assert");
             _test.AppendCodeString(res, ast, format);
             if (_message != null) {

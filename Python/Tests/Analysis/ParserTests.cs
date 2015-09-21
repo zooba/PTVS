@@ -38,7 +38,8 @@ namespace AnalysisTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
+            // Don't deploy test data because we read directly from the source.
+            PythonTestData.Deploy(includeTestData: false);
         }
 
         internal static readonly PythonLanguageVersion[] AllVersions = new[] { PythonLanguageVersion.V24, PythonLanguageVersion.V25, PythonLanguageVersion.V26, PythonLanguageVersion.V27, PythonLanguageVersion.V30, PythonLanguageVersion.V31, PythonLanguageVersion.V32, PythonLanguageVersion.V33, PythonLanguageVersion.V34, PythonLanguageVersion.V35 };
@@ -1321,7 +1322,7 @@ namespace AnalysisTests {
         public void GlobalStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFileNoErrors("GlobalStmt.py", version),
+                    ParseFile("GlobalStmt.py", version).Tree,
                     CheckSuite(
                         CheckFuncDef("f", NoParameters,
                             CheckSuite(
@@ -1338,7 +1339,7 @@ namespace AnalysisTests {
         public void NonlocalStmt() {
             foreach (var version in V3Versions) {
                 CheckAst(
-                    ParseFileNoErrors("NonlocalStmt.py", version),
+                    ParseFile("NonlocalStmt.py", version).Tree,
                     CheckSuite(
                         CheckFuncDef("g", NoParameters,
                             CheckSuite(
@@ -1772,7 +1773,7 @@ namespace AnalysisTests {
         public void FromImportStmtIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFileNoErrors("FromImportStmtIllegal.py", version),
+                    ParseFile("FromImportStmtIllegal.py", version).Tree,
                     CheckSuite(
                         CheckFromImport("", new[] { "fob" })
                     )
@@ -1788,10 +1789,9 @@ namespace AnalysisTests {
 
         [TestMethod, Priority(0)]
         public void FromImportStmtIncomplete() {
-
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFileNoErrors("FromImportStmtIncomplete.py", version),
+                    ParseFile("FromImportStmtIncomplete.py", version).Tree,
                     CheckSuite(
                         CheckFuncDef(
                             "f",
@@ -2222,7 +2222,7 @@ namespace AnalysisTests {
         public void AssignStmtIllegalV3() {
             foreach (var version in V3Versions) {
                 CheckAst(
-                    ParseFileNoErrors("AssignStmtIllegalV3.py", version),
+                    ParseFile("AssignStmtIllegalV3.py", version).Tree,
                     CheckSuite(
                         CheckAssignment(CheckTupleExpr(Fob, CheckStarExpr(Oar), CheckStarExpr(Baz)), CheckTupleExpr(One, Two, Three, Four))
                     )
@@ -2241,7 +2241,7 @@ namespace AnalysisTests {
         public void AssignStmtIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFileNoErrors("AssignStmtIllegal.py", version),
+                    ParseFile("AssignStmtIllegal.py", version).Tree,
                     CheckSuite(
                         CheckAssignment(CheckBinaryExpression(Fob, PythonOperator.Add, Oar), One),
                         CheckAssignment(CheckCallExpression(Fob), One),
@@ -2492,6 +2492,39 @@ namespace AnalysisTests {
             }
         }
 
+        [TestMethod, Priority(0)]
+        public void ParseComments() {
+            var version = PythonLanguageVersion.V35;
+            var tree = ParseFileNoErrors("Comments.py", version);
+            CheckAst(
+                tree,
+                CheckSuite(
+                    CheckComment("# Above", tree, CheckEmptyStmt()),
+                    CheckNameStmt("a"),
+                    CheckComment("# After", tree, CheckNameStmt("a")),
+                    CheckFuncDef("f",
+                        new[] { CheckComment("#param", tree, CheckParameter("a")) },
+                        CheckComment("#suite", tree, CheckSuite(
+                            CheckComment("#stmt", tree, CheckEmptyStmt()),
+                            CheckComment("#func", tree, CheckEmptyStmt()),
+                            // TODO: Fix tokenizer to handle dedented comments
+                            CheckComment("#notfunc", tree, CheckEmptyStmt())
+                        ))
+                    ),
+                    CheckNameStmt("a"),
+                    CheckComment("# Below", tree, CheckEmptyStmt()),
+                    CheckIfStmt(tests => {
+                        Assert.AreEqual(0, tests.Count);
+                        CheckSuite(
+                            CheckComment("#block", tree, CheckEmptyStmt()),
+                            CheckEmptyStmt()
+                        )(tests[0].Body);
+                    }),
+                    CheckComment("#eof", tree, CheckEmptyStmt())
+                )
+            );
+        }
+
         [TestMethod, Priority(0), Timeout(10 * 60 * 1000)]
         public async Task StdLib() {
             var tasks = new List<KeyValuePair<string, Task<string>>>();
@@ -2659,7 +2692,7 @@ namespace AnalysisTests {
 
         private static ParseResult ParseFile(string filename, PythonLanguageVersion version, Severity indentationInconsistencySeverity = Severity.Ignore) {
             return Parser.TokenizeAndParseAsync(
-                new FileSourceDocument(TestData.GetPath("TestData\\Grammar")),
+                new FileSourceDocument(PythonTestData.GetTestDataSourcePath("Grammar\\" + filename)),
                 version,
                 inconsistentIndentation: indentationInconsistencySeverity
             ).WaitAndUnwrapExceptions();
@@ -3651,6 +3684,14 @@ namespace AnalysisTests {
                 test(ifIter.Test);
             };
         }
+
+        private Action<T> CheckComment<T>(string comment, PythonAst tree, Action<T> checkNode) where T : Node {
+            return node => {
+                Assert.AreEqual(comment, node.GetComment(tree));
+                checkNode(node);
+            };
+        }
+
 
         private byte[] ToBytes(string str) {
             byte[] res = new byte[str.Length];

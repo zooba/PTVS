@@ -61,7 +61,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
 
         internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
             _trueExpr.AppendCodeString(res, ast, format);
-            res.Append(this.GetProceedingWhiteSpace(ast));
+            res.Append(this.GetPrecedingWhiteSpace(ast));
             res.Append("if");
             if (!ast.HasVerbatim) {
                 res.Append(' ');

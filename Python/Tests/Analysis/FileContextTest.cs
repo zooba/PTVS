@@ -17,23 +17,6 @@ using TestUtilities;
 namespace AnalysisTests {
     [TestClass]
     public class FileContextTest {
-        private class StringDocument : ISourceDocument {
-            private readonly byte[] _content;
-
-            public StringDocument(string moniker, string content) {
-                Moniker = moniker;
-                Content = content;
-                _content = Encoding.UTF8.GetBytes(content);
-            }
-
-            public string Moniker { get; set; }
-            public string Content { get; private set; }
-
-            public async Task<Stream> ReadAsync() {
-                return new MemoryStream(_content);
-            }
-        }
-
         [TestMethod]
         public void PathSet() {
             var pt = new PathSet<object>(@"C:\a");
@@ -173,8 +156,8 @@ namespace AnalysisTests {
         [TestMethod]
         public async Task ParseFiles() {
             var ct = CancellationToken.None;
-            var doc1 = new StringDocument(@"C:\Root\__init__.py", "x = 1");
-            var doc2 = new StringDocument(@"C:\Root\module.py", "y = 2");
+            var doc1 = new StringLiteralDocument(@"C:\Root\__init__.py", "x = 1");
+            var doc2 = new StringLiteralDocument(@"C:\Root\module.py", "y = 2");
             var lsp = new PythonLanguageServiceProvider();
 
             using (var service = await lsp.GetServiceAsync(PythonPaths.Python35.Configuration, null, ct))
@@ -188,8 +171,8 @@ namespace AnalysisTests {
 
                 Assert.IsNotNull(tree1, "No AST for doc1");
                 Assert.IsNotNull(tree2, "No AST for doc2");
-                Assert.AreEqual(doc1.Content, tree1.ToCodeString(tree1));
-                Assert.AreEqual(doc2.Content, tree2.ToCodeString(tree2));
+                Assert.AreEqual(doc1.Document, tree1.ToCodeString(tree1));
+                Assert.AreEqual(doc2.Document, tree2.ToCodeString(tree2));
             }
         }
 

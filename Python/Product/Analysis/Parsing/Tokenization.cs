@@ -10,10 +10,11 @@ namespace Microsoft.PythonTools.Parsing {
     public sealed class Tokenization {
         private static readonly TokenInfo[] EmptyTokenInfoArray = new TokenInfo[0];
 
-        private readonly Token[][] _tokens;
+        // Not RO as it may be cleared to reduce memory usage
+        private TokenWithSpan[][] _tokens;
+
         private readonly TokenInfo[][] _lines;
         private readonly int[] _lineStarts;
-        private readonly string[][] _precedingWhitespace;
         private readonly ErrorResult[] _errors;
         private readonly PythonLanguageVersion _languageVersion;
         private readonly TokenizerOptions _options;
@@ -61,17 +62,13 @@ namespace Microsoft.PythonTools.Parsing {
 
             tokenizer.Initialize(null, reader, SourceLocation.MinValue);
 
-            List<Token[]> tokens;
+            List<TokenWithSpan[]> tokens;
             List<int> lineStarts;
-            List<TokenInfo[]> tokenInfos;
-            List<string[]> precedingWhitespace;
-            tokenizer.ReadAllTokens(out tokens, out lineStarts, out tokenInfos, out precedingWhitespace);
+            tokenizer.ReadAllTokens(out tokens, out lineStarts);
 
             return new Tokenization(
                 tokens.ToArray(),
-                tokenInfos.ToArray(),
                 lineStarts.ToArray(),
-                precedingWhitespace.ToArray(),
                 errors.ToArray(),
                 languageVersion,
                 options
@@ -79,45 +76,49 @@ namespace Microsoft.PythonTools.Parsing {
         }
 
         private Tokenization(
-            Token[][] tokens,
-            TokenInfo[][] lines,
+            TokenWithSpan[][] tokens,
             int[] lineStarts,
-            string[][] precedingWhitespace,
             ErrorResult[] errors,
             PythonLanguageVersion languageVersion,
             TokenizerOptions options
         ) {
-            if (tokens != null) {
-                if (tokens.Length != lines.Length) {
-                    throw new ArgumentException("tokens and lines must be the same length");
-                }
-            }
             _tokens = tokens;
-            _lines = lines;
             _lineStarts = lineStarts;
-            _precedingWhitespace = precedingWhitespace;
             _errors = errors;
             _languageVersion = languageVersion;
             _options = options;
+
+            _lines = new TokenInfo[_tokens.Length][];
+            for (int i = 0; i < _tokens.Length; ++i) {
+                var line = _tokens[i];
+                var newLine = new TokenInfo[line.Length];
+                _lines[i] = newLine;
+                for (int j = 0; j < line.Length; ++j) {
+                    newLine[j] = new TokenInfo(line[j].Token, line[j].Span);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Removes raw token information from this tokenization. Once the token
+        /// images are no longer needed, calling this will reduce memory usage.
+        /// </summary>
+        internal void ClearRawTokens() {
+            _tokens = null;
         }
 
         internal IEnumerable<TokenWithSpan> RawTokens {
             get {
                 if (_tokens == null) {
-                    yield break;
+                    return Enumerable.Empty<TokenWithSpan>();
                 }
 
-                for (int i = 0; i < _tokens.Length; ++i) {
-                    var line = _tokens[i];
-                    var lineInfo = _lines[i];
-                    var whitespace = _precedingWhitespace[i];
-                    Debug.Assert(line.Length == lineInfo.Length);
-                    Debug.Assert(line.Length == whitespace.Length);
-                    for (int j = 0; j < line.Length && j < lineInfo.Length && j < whitespace.Length; ++j) {
-                        yield return new TokenWithSpan(line[j], lineInfo[j].Span, whitespace[j]);
-                    }
-                }
+                return _tokens.SelectMany(Identity);
             }
+        }
+
+        private static TokenWithSpan[] Identity(TokenWithSpan[] obj) {
+            return obj;
         }
 
         private static TokenInfo[] Identity(TokenInfo[] obj) {

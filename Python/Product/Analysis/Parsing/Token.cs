@@ -15,11 +15,11 @@
 using System;
 
 namespace Microsoft.PythonTools.Parsing {
-    internal struct TokenWithSpan {
+    public struct TokenWithSpan {
         public static readonly TokenWithSpan Empty = new TokenWithSpan();
 
-        public readonly Token Token;
-        public readonly IndexSpan Span;
+        public Token Token;
+        public IndexSpan Span;
         public string LeadingWhitespace;
 
         public TokenWithSpan(Token token, IndexSpan span, string leadingWhitespace) {
