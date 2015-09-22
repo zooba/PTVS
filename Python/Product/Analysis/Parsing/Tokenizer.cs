@@ -502,30 +502,59 @@ namespace Microsoft.PythonTools.Parsing {
             }
 
             var buffer = new List<TokenWithSpan> { token };
+            List<TokenWithSpan> indents = null;
             List<TokenWithSpan> dedents = null;
-            List<TokenWithSpan> beforeDedents = null;
+            List<TokenWithSpan> before = null;
+            string indentWhitespace = null;
+
+            var initialIndent = SourceLocation.FromIndex(_newLineLocations, token.Span.Start).Column;
 
             TokenWithSpan tws;
+            var lastK = token.Token.Kind;
             while ((tws = GetNextTokenNoBuffer()).Token != null) {
-                if (dedents == null) {
+                if (indents == null && dedents == null) {
                     var k = tws.Token.Kind;
                     if (k == TokenKind.Dedent) {
                         // Start collecting all the dedents
                         dedents = new List<TokenWithSpan>();
-                    } else if (k == TokenKind.Comment && tws.LeadingWhitespace != token.LeadingWhitespace) {
-                        // Insert dedents before this token
-                        if (beforeDedents == null) {
-                            beforeDedents = buffer;
-                            buffer = new List<TokenWithSpan>();
-                            buffer.Add(tws);
+                    } else if (k == TokenKind.Indent) {
+                        // Start collecting all the indents
+                        indents = new List<TokenWithSpan>();
+                    } else if (k == TokenKind.Comment) {
+                        if (lastK == TokenKind.NLToken || lastK == TokenKind.NewLine) {
+                            var newIndent = SourceLocation.FromIndex(_newLineLocations, tws.Span.Start).Column;
+
+                            // Insert indents/dedents before this token
+                            if (newIndent != initialIndent && before == null) {
+                                before = buffer;
+                                buffer = new List<TokenWithSpan>();
+                            }
                         }
-                    } else if (k != TokenKind.NewLine && k != TokenKind.NLToken) {
-                        // Not a real dedent
+                        buffer.Add(tws);
+                    } else if (k != TokenKind.NLToken) {
+                        // Not a real indent/dedent
                         buffer.Add(tws);
                         break;
                     } else {
                         buffer.Add(tws);
                     }
+                    lastK = k;
+                }
+
+                if (indents != null) {
+                    if (tws.Token.Kind != TokenKind.Indent) {
+                        // No more indents
+                        buffer.Add(new TokenWithSpan(tws.Token, tws.Span, indentWhitespace));
+                        break;
+                    }
+
+                    if (indentWhitespace == null) {
+                        indentWhitespace = tws.LeadingWhitespace;
+                    } else {
+                        indentWhitespace += tws.LeadingWhitespace ?? "";
+                    }
+
+                    indents.Add(new TokenWithSpan(tws.Token, tws.Span, null));
                 }
 
                 if (dedents != null) {
@@ -535,17 +564,24 @@ namespace Microsoft.PythonTools.Parsing {
                         break;
                     }
 
-                    dedents.Add(new TokenWithSpan(Tokens.DedentToken, new IndexSpan(token.Span.Start, 0), null));
+                    dedents.Add(tws);
                 }
             }
 
-            if (beforeDedents != null) {
-                foreach (var t in beforeDedents) {
+            if (before != null) {
+                foreach (var t in before) {
                     _tokenBuffer.Enqueue(t);
                 }
             }
             if (dedents != null) {
+                Debug.Assert(indents == null);
                 foreach (var t in dedents) {
+                    _tokenBuffer.Enqueue(t);
+                }
+            }
+            if (indents != null) {
+                Debug.Assert(dedents == null);
+                foreach (var t in indents) {
                     _tokenBuffer.Enqueue(t);
                 }
             }
@@ -607,17 +643,32 @@ namespace Microsoft.PythonTools.Parsing {
             MarkTokenEnd();
 
             var comment = GetTokenString();
+
             if (comment == Parser.ResetStateMarker) {
                 _state = new State(_options);
                 DiscardToken();
                 SeekRelative(+1);
                 return null;
             }
+
+            string newline = "";
+            if (GroupingLevel > 0) {
+                // Consume the newline
+                ch = NextChar();
+                var nl = ReadEolnOpt(ch);
+                if (nl == NewLineKind.None) {
+                    SeekRelative(-1);
+                } else {
+                    newline = nl.GetString();
+                    ch = Peek();
+                }
+            }
+
             if (_comments != null) {
                 _comments.Add(new KeyValuePair<IndexSpan, string>(TokenSpan, comment));
             }
 
-            return new CommentToken(GetTokenString());
+            return new CommentToken(comment, newline);
         }
 
         private Token ReadNameOrUnicodeString() {

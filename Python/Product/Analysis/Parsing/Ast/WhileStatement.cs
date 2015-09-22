@@ -61,12 +61,12 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            format.ReflowComment(res, this.GetPrecedingWhiteSpace(ast));
+            res.Append(this.GetPrecedingWhiteSpace(ast));
             res.Append("while");
             _test.AppendCodeString(res, ast, format);
             _body.AppendCodeString(res, ast, format);
             if (_else != null) {
-                format.ReflowComment(res, this.GetSecondWhiteSpaceDefaultNull(ast));
+                res.Append(this.GetSecondWhiteSpace(ast));
                 res.Append("else");
                 _else.AppendCodeString(res, ast, format);
             }

@@ -46,7 +46,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 if (String.IsNullOrWhiteSpace(this.GetSecondWhiteSpace(ast))) {
                     res.Append(format.SpacesWithinEmptyListExpression.Value ? " " : "");
                 } else {
-                    format.ReflowComment(res, this.GetSecondWhiteSpace(ast));
+                    res.Append(this.GetSecondWhiteSpace(ast));
                 }
                 res.Append(']');
             } else {
@@ -70,7 +70,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
 
         internal static void AppendItems(StringBuilder res, PythonAst ast, CodeFormattingOptions format, string start, string end, Node node, int itemCount, Action<int, StringBuilder> appendItem, string trailingWhiteSpace = null) {
             if (!String.IsNullOrEmpty(start)) {
-                format.ReflowComment(res, node.GetPrecedingWhiteSpace(ast));
+                res.Append(node.GetPrecedingWhiteSpace(ast));
                 res.Append(start);
             }
             var listWhiteSpace = node.GetListWhiteSpace(ast);

@@ -22,11 +22,11 @@ namespace AnalysisTests {
             PythonTestData.Deploy(includeTestData: false);
         }
 
-        private static Tokenization Tokenize(string text, PythonLanguageVersion version) {
+        private static Tokenization Tokenize(string text, PythonLanguageVersion version, bool verbatim = true) {
             return Tokenization.TokenizeAsync(
                 new StringLiteralDocument(text),
                 version,
-                TokenizerOptions.Verbatim,
+                verbatim ? TokenizerOptions.Verbatim : TokenizerOptions.None,
                 Severity.Ignore
             ).GetAwaiter().GetResult();
         }
@@ -84,6 +84,46 @@ d = a + x
                 Tokenize(@"# a=b+c 
 
 d=a   # c
+  #eof".Replace("\r\n", "\n"), PythonLanguageVersion.V35, verbatim: false),
+                "Comment://# a=b+c ", "NewLine://<newline>",
+                "NLToken://<NL>",
+                "Name://d", "Assign://=", "Name://a", "Comment://# c", "NewLine://<newline>",
+                "Comment://#eof", "EndOfFile://<eof>"
+            );
+
+            AssertTokens(
+                Tokenize(File.ReadAllText(PythonTestData.GetTestDataSourcePath("Grammar\\Comments.py")), PythonLanguageVersion.V35, verbatim: false),
+                "Comment://# Above", "NewLine://<newline>",
+                "Name://a", "NewLine://<newline>",
+                "NLToken://<NL>",
+                "Name://a", "Comment://# After", "NewLine://<newline>",
+                "NLToken://<NL>",
+                "KeywordDef://def", "Name://f", "LeftParenthesis://(",
+                "Name://a", "Comma://,", "Comment://#param",
+                "RightParenthesis://)", "Colon://:", "Comment://#suite", "NewLine://<newline>",
+                "Indent://<indent>", "KeywordPass://pass", "Comment://#stmt", "NewLine://<newline>",
+                "Comment://#func", "NLToken://<NL>",
+                "KeywordPass://pass", "NewLine://<newline>",
+                "Comment://#func", "NLToken://<NL>",
+                "Dedent://<dedent>", "Comment://#notfunc", "NLToken://<NL>",
+                "NLToken://<NL>",
+                "Name://a", "NewLine://<newline>",
+                "Comment://# Below", "NLToken://<NL>",
+                "NLToken://<NL>",
+                "KeywordIf://if", "KeywordTrue://True", "Colon://:", "NewLine://<newline>",
+                "Indent://<indent>", "Comment://#block", "NLToken://<NL>",
+                "KeywordPass://pass", "NewLine://<newline>",
+                "NLToken://<NL>",
+                "Dedent://<dedent>", "Comment://#eof", "EndOfFile://<eof>"
+            );
+        }
+
+        [TestMethod]
+        public void VerbatimCommentTokenization() {
+            AssertTokens(
+                Tokenize(@"# a=b+c 
+
+d=a   # c
   #eof".Replace("\r\n", "\n"), PythonLanguageVersion.V35),
                 "Comment://# a=b+c ", "NewLine://<newline>",
                 "NLToken://<NL>",
@@ -100,7 +140,7 @@ d=a   # c
                 "NLToken://<NL>",
                 "KeywordDef://def", "Name: //f", "LeftParenthesis://(",
                 "Name:\\r\\n    //a", "Comma://,", "Comment: //#param",
-                "RightParenthesis:\\r\\n//)", "Colon://:", "Comment: //#suite", "NewLine://<newline>",
+                "RightParenthesis://)", "Colon://:", "Comment: //#suite", "NewLine://<newline>",
                 "Indent:    //<indent>", "KeywordPass://pass", "Comment: //#stmt", "NewLine://<newline>",
                 "Comment://#func", "NLToken://<NL>",
                 "KeywordPass:    //pass", "NewLine://<newline>",
@@ -111,12 +151,11 @@ d=a   # c
                 "Comment://# Below", "NLToken://<NL>",
                 "NLToken://<NL>",
                 "KeywordIf://if", "KeywordTrue: //True", "Colon://:", "NewLine://<newline>",
-                "Comment:    //#block", "NLToken://<NL>",
-                "Indent:    //<indent>", "KeywordPass://pass", "NewLine://<newline>",
+                "Indent://<indent>", "Comment:    //#block", "NLToken://<NL>",
+                "KeywordPass:    //pass", "NewLine://<newline>",
                 "NLToken://<NL>",
                 "Dedent://<dedent>", "Comment://#eof", "EndOfFile://<eof>"
             );
         }
-        
     }
 }

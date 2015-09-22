@@ -125,6 +125,7 @@
     <Compile Include="LockedEnumerable.cs" />
     <Compile Include="ModulePath.cs" />
     <Compile Include="Parsing\Ast\AwaitExpression.cs" />
+    <Compile Include="Parsing\Ast\CommentStatement.cs" />
     <Compile Include="Parsing\CodeFormattingCategoryAttribute.cs" />
     <Compile Include="Parsing\CodeFormattingDefaultSettingAttribute.cs" />
     <Compile Include="Parsing\CodeFormattingDescriptionAttribute.cs" />

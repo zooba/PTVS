@@ -148,7 +148,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                             res.Append(')');
                         }
                     } else {
-                        res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpaceDefaultNull(ast));
+                        res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpaceDefaultEmpty(ast));
                         res.Append(this.GetVerbatimImage(ast) ?? _name);
                         AppendAnnotation(res, ast, format);
                     }

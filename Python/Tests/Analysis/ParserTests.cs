@@ -2499,28 +2499,29 @@ namespace AnalysisTests {
             CheckAst(
                 tree,
                 CheckSuite(
-                    CheckComment("# Above", tree, CheckEmptyStmt()),
+                    CheckCommentStatement("# Above"),
                     CheckNameStmt("a"),
                     CheckComment("# After", tree, CheckNameStmt("a")),
                     CheckFuncDef("f",
                         new[] { CheckComment("#param", tree, CheckParameter("a")) },
                         CheckComment("#suite", tree, CheckSuite(
                             CheckComment("#stmt", tree, CheckEmptyStmt()),
-                            CheckComment("#func", tree, CheckEmptyStmt()),
-                            // TODO: Fix tokenizer to handle dedented comments
-                            CheckComment("#notfunc", tree, CheckEmptyStmt())
+                            CheckCommentStatement("#func"),
+                            CheckEmptyStmt(),
+                            CheckCommentStatement("#func")
                         ))
                     ),
+                    CheckCommentStatement("#notfunc"),
                     CheckNameStmt("a"),
-                    CheckComment("# Below", tree, CheckEmptyStmt()),
+                    CheckCommentStatement("# Below"),
                     CheckIfStmt(tests => {
-                        Assert.AreEqual(0, tests.Count);
+                        Assert.AreEqual(1, tests.Count);
                         CheckSuite(
-                            CheckComment("#block", tree, CheckEmptyStmt()),
+                            CheckCommentStatement("#block"),
                             CheckEmptyStmt()
                         )(tests[0].Body);
                     }),
-                    CheckComment("#eof", tree, CheckEmptyStmt())
+                    CheckCommentStatement("#eof")
                 )
             );
         }
@@ -2721,10 +2722,9 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckSuite(params Action<Statement>[] statements) {
             return stmt => {
-                Assert.AreEqual(typeof(SuiteStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(SuiteStatement));
                 SuiteStatement suite = (SuiteStatement)stmt;
-                Assert.AreEqual(statements.Length, suite.Statements.Count);
-                for (int i = 0; i < suite.Statements.Count; i++) {
+                for (int i = 0; i < suite.Statements.Count && i < statements.Length; i++) {
                     try {
                         statements[i](suite.Statements[i]);
                     } catch (AssertFailedException e) {
@@ -2732,12 +2732,15 @@ namespace AnalysisTests {
                         throw new AssertFailedException(String.Format("Suite Item {0}: {1}", i, e.Message), e);
                     }
                 }
+
+                var extras = string.Join(Environment.NewLine, suite.Statements.Skip(statements.Length));
+                Assert.AreEqual(statements.Length, suite.Statements.Count, "Extra statements:" + Environment.NewLine + extras);
             };
         }
 
         private static Action<Statement> CheckForStmt(Action<Expression> left, Action<Expression> list, Action<Statement> body, Action<Statement> _else = null) {
             return stmt => {
-                Assert.AreEqual(typeof(ForStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ForStatement));
                 ForStatement forStmt = (ForStatement)stmt;
 
                 left(forStmt.Left);
@@ -2764,7 +2767,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckWhileStmt(Action<Expression> test, Action<Statement> body, Action<Statement> _else = null) {
             return stmt => {
-                Assert.AreEqual(typeof(WhileStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(WhileStatement));
                 var whileStmt = (WhileStatement)stmt;
 
                 test(whileStmt.Test);
@@ -2797,7 +2800,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckTryStmt(Action<Statement> body, Action<TryStatementHandler>[] handlers, Action<Statement> _else = null, Action<Statement> _finally = null) {
             return stmt => {
-                Assert.AreEqual(typeof(TryStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(TryStatement));
                 var tryStmt = (TryStatement)stmt;
 
                 body(tryStmt.Body);
@@ -2823,7 +2826,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckRaiseStmt(Action<Expression> exceptionType = null, Action<Expression> exceptionValue = null, Action<Expression> traceBack = null, Action<Expression> cause = null) {
             return stmt => {
-                Assert.AreEqual(typeof(RaiseStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(RaiseStatement));
                 var raiseStmt = (RaiseStatement)stmt;
 
                 if (exceptionType != null) {
@@ -2849,7 +2852,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckPrintStmt(Action<Expression>[] expressions, Action<Expression> destination = null, bool trailingComma = false) {
             return stmt => {
-                Assert.AreEqual(typeof(PrintStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(PrintStatement));
                 var printStmt = (PrintStatement)stmt;
 
                 Assert.AreEqual(expressions.Length, printStmt.Expressions.Count);
@@ -2870,7 +2873,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckAssertStmt(Action<Expression> test, Action<Expression> message = null) {
             return stmt => {
-                Assert.AreEqual(typeof(AssertStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(AssertStatement));
                 var assertStmt = (AssertStatement)stmt;
 
                 test(assertStmt.Test);
@@ -2902,7 +2905,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckIfStmt(Action<IList<IfStatementTest>> tests, Action<Statement> _else = null) {
             return stmt => {
-                Assert.AreEqual(typeof(IfStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(IfStatement));
                 var ifStmt = (IfStatement)stmt;
 
                 tests(ifStmt.Tests);
@@ -2928,7 +2931,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckFromImport(string fromName, string[] names, string[] asNames = null) {
             return stmt => {
-                Assert.AreEqual(typeof(FromImportStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(FromImportStatement));
                 var fiStmt = (FromImportStatement)stmt;
 
                 Assert.AreEqual(fiStmt.Root.MakeString(), fromName);
@@ -2954,7 +2957,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckImport(string[] names, string[] asNames = null) {
             return stmt => {
-                Assert.AreEqual(typeof(ImportStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ImportStatement));
                 var fiStmt = (ImportStatement)stmt;
 
                 Assert.AreEqual(names.Length, fiStmt.Names.Count);
@@ -2979,7 +2982,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckExprStmt(Action<Expression> expr) {
             return stmt => {
-                Assert.AreEqual(typeof(ExpressionStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ExpressionStatement));
                 ExpressionStatement exprStmt = (ExpressionStatement)stmt;
                 expr(exprStmt.Expression);
             };
@@ -2999,7 +3002,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckLambda(Action<Parameter>[] args, Action<Expression> body) {
             return expr => {
-                Assert.AreEqual(typeof(LambdaExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(LambdaExpression));
 
                 var lambda = (LambdaExpression)expr;
 
@@ -3009,7 +3012,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckReturnStmt(Action<Expression> retVal = null) {
             return stmt => {
-                Assert.AreEqual(typeof(ReturnStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ReturnStatement));
                 var retStmt = (ReturnStatement)stmt;
 
                 if (retVal != null) {
@@ -3022,7 +3025,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckFuncDef(string name, Action<Parameter>[] args, Action<Statement> body, Action<Expression>[] decorators = null, Action<Expression> returnAnnotation = null) {
             return stmt => {
-                Assert.AreEqual(typeof(FunctionDefinition), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(FunctionDefinition));
                 var funcDef = (FunctionDefinition)stmt;
 
                 if (name != null) {
@@ -3070,7 +3073,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckClassDef(string name, Action<Statement> body, Action<Arg>[] bases = null, Action<Expression>[] decorators = null) {
             return stmt => {
-                Assert.AreEqual(typeof(ClassDefinition), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ClassDefinition));
                 var classDef = (ClassDefinition)stmt;
 
                 if (name != null) {
@@ -3113,7 +3116,7 @@ namespace AnalysisTests {
 
         private static Action<Parameter> CheckSublistParameter(params string[] names) {
             return param => {
-                Assert.AreEqual(typeof(SublistParameter), param.GetType());
+                Assert.IsInstanceOfType(param, typeof(SublistParameter));
                 var sublistParam = (SublistParameter)param;
 
                 Assert.AreEqual(names.Length, sublistParam.Tuple.Items.Count);
@@ -3129,7 +3132,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckBinaryExpression(Action<Expression> lhs, PythonOperator op, Action<Expression> rhs) {
             return expr => {
-                Assert.AreEqual(typeof(BinaryExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(BinaryExpression));
                 BinaryExpression bin = (BinaryExpression)expr;
                 Assert.AreEqual(bin.Operator, op);
                 lhs(bin.Left);
@@ -3143,7 +3146,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckUnaryExpression(PythonOperator op, Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(UnaryExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(UnaryExpression));
                 var unary = (UnaryExpression)expr;
                 Assert.AreEqual(unary.Op, op);
                 value(unary.Expression);
@@ -3156,7 +3159,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckBackquoteExpr(Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(BackQuoteExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(BackQuoteExpression));
                 var bq = (BackQuoteExpression)expr;
                 value(bq.Expression);
             };
@@ -3171,7 +3174,7 @@ namespace AnalysisTests {
         }
         private static Action<Expression> CheckAndExpression(Action<Expression> lhs, Action<Expression> rhs) {
             return expr => {
-                Assert.AreEqual(typeof(AndExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(AndExpression));
                 AndExpression bin = (AndExpression)expr;
                 lhs(bin.Left);
                 rhs(bin.Right);
@@ -3180,7 +3183,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckOrExpression(Action<Expression> lhs, Action<Expression> rhs) {
             return expr => {
-                Assert.AreEqual(typeof(OrExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(OrExpression));
                 OrExpression bin = (OrExpression)expr;
                 lhs(bin.Left);
                 rhs(bin.Right);
@@ -3193,7 +3196,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckCallExpression(Action<Expression> target, params Action<Arg>[] args) {
             return expr => {
-                Assert.AreEqual(typeof(CallExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(CallExpression));
                 var call = (CallExpression)expr;
                 target(call.Target);
 
@@ -3210,7 +3213,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckSlice(Action<Expression> start, Action<Expression> stop, Action<Expression> step = null) {
             return expr => {
-                Assert.AreEqual(typeof(SliceExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(SliceExpression));
                 var slice = (SliceExpression)expr;
 
                 if (start != null) {
@@ -3266,7 +3269,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckNameExpr(string name) {
             return expr => {
-                Assert.AreEqual(typeof(NameExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(NameExpression));
                 var nameExpr = (NameExpression)expr;
                 Assert.AreEqual(nameExpr.Name, name);
             };
@@ -3304,7 +3307,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckIndexExpression(Action<Expression> target, Action<Expression> index) {
             return expr => {
-                Assert.AreEqual(typeof(IndexExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(IndexExpression));
                 var indexExpr = (IndexExpression)expr;
                 target(indexExpr.Target);
                 index(indexExpr.Index);
@@ -3317,7 +3320,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckDictionaryExpr(params Action<SliceExpression>[] items) {
             return expr => {
-                Assert.AreEqual(typeof(DictionaryExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(DictionaryExpression));
                 var dictExpr = (DictionaryExpression)expr;
                 Assert.AreEqual(items.Length, dictExpr.Items.Count);
 
@@ -3333,7 +3336,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckTupleExpr(params Action<Expression>[] items) {
             return expr => {
-                Assert.AreEqual(typeof(TupleExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(TupleExpression));
                 var tupleExpr = (TupleExpression)expr;
                 Assert.AreEqual(items.Length, tupleExpr.Items.Count);
 
@@ -3345,7 +3348,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckListExpr(params Action<Expression>[] items) {
             return expr => {
-                Assert.AreEqual(typeof(ListExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ListExpression));
                 var listExpr = (ListExpression)expr;
                 Assert.AreEqual(items.Length, listExpr.Items.Count);
 
@@ -3361,7 +3364,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckAssignment(Action<Expression>[] lhs, Action<Expression> rhs) {
             return expr => {
-                Assert.AreEqual(typeof(AssignmentStatement), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(AssignmentStatement));
                 var assign = (AssignmentStatement)expr;
 
                 Assert.AreEqual(assign.Left.Count, lhs.Length);
@@ -3374,37 +3377,37 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckErrorExpr() {
             return expr => {
-                Assert.AreEqual(typeof(ErrorExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ErrorExpression));
             };
         }
 
         private static Action<Statement> CheckErrorStmt() {
             return expr => {
-                Assert.AreEqual(typeof(ErrorStatement), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ErrorStatement));
             };
         }
 
         private static Action<Statement> CheckEmptyStmt() {
             return expr => {
-                Assert.AreEqual(typeof(EmptyStatement), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(EmptyStatement));
             };
         }
 
         private static Action<Statement> CheckBreakStmt() {
             return expr => {
-                Assert.AreEqual(typeof(BreakStatement), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(BreakStatement));
             };
         }
 
         private static Action<Statement> CheckContinueStmt() {
             return expr => {
-                Assert.AreEqual(typeof(ContinueStatement), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ContinueStatement));
             };
         }
 
         private static Action<Statement> CheckAssignment(Action<Expression> lhs, PythonOperator op, Action<Expression> rhs) {
             return stmt => {
-                Assert.AreEqual(typeof(AugmentedAssignStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(AugmentedAssignStatement));
                 var assign = (AugmentedAssignStatement)stmt;
 
                 Assert.AreEqual(assign.Operator, op);
@@ -3416,7 +3419,7 @@ namespace AnalysisTests {
 
         private Action<Statement> CheckExecStmt(Action<Expression> code, Action<Expression> globals = null, Action<Expression> locals = null) {
             return stmt => {
-                Assert.AreEqual(typeof(ExecStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ExecStatement));
                 var exec = (ExecStatement)stmt;
 
                 code(exec.Code);
@@ -3448,7 +3451,7 @@ namespace AnalysisTests {
 
         private Action<Statement> CheckWithStmt(Action<Expression>[] expr, Action<Expression>[] target, Action<Statement> body) {
             return stmt => {
-                Assert.AreEqual(typeof(WithStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(WithStatement));
                 var with = (WithStatement)stmt;
 
                 Assert.AreEqual(expr.Length, with.Items.Count);
@@ -3479,7 +3482,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckConstant(object value, string expectedRepr = null, PythonLanguageVersion ver = PythonLanguageVersion.V27) {
             return expr => {
-                Assert.AreEqual(typeof(ConstantExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ConstantExpression));
 
                 if (value is byte[]) {
                     Assert.AreEqual(typeof(AsciiString), ((ConstantExpression)expr).Value.GetType());
@@ -3502,7 +3505,7 @@ namespace AnalysisTests {
 
         private Action<Statement> CheckDelStmt(params Action<Expression>[] deletes) {
             return stmt => {
-                Assert.AreEqual(typeof(DelStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(DelStatement));
                 var del = (DelStatement)stmt;
 
                 Assert.AreEqual(deletes.Length, del.Expressions.Count);
@@ -3514,7 +3517,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckParenExpr(Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(ParenthesisExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ParenthesisExpression));
                 var paren = (ParenthesisExpression)expr;
 
                 value(paren.Expression);
@@ -3523,7 +3526,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckStarExpr(Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(StarredExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(StarredExpression));
                 var starred = (StarredExpression)expr;
 
                 value(starred.Expression);
@@ -3532,7 +3535,7 @@ namespace AnalysisTests {
 
         private Action<Statement> CheckGlobal(params string[] names) {
             return stmt => {
-                Assert.AreEqual(typeof(GlobalStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(GlobalStatement));
                 var global = (GlobalStatement)stmt;
 
                 Assert.AreEqual(names.Length, global.Names.Count);
@@ -3544,7 +3547,7 @@ namespace AnalysisTests {
 
         private Action<Statement> CheckNonlocal(params string[] names) {
             return stmt => {
-                Assert.AreEqual(typeof(NonlocalStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(NonlocalStatement));
                 var nonlocal = (NonlocalStatement)stmt;
 
                 Assert.AreEqual(names.Length, nonlocal.Names.Count);
@@ -3574,7 +3577,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckYieldExpr(Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(YieldExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(YieldExpression));
                 var yield = (YieldExpression)expr;
 
                 value(yield.Expression);
@@ -3587,7 +3590,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckYieldFromExpr(Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(YieldFromExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(YieldFromExpression));
                 var yield = (YieldFromExpression)expr;
 
                 value(yield.Expression);
@@ -3596,7 +3599,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckListComp(Action<Expression> item, params Action<ComprehensionIterator>[] iterators) {
             return expr => {
-                Assert.AreEqual(typeof(ListComprehension), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ListComprehension));
                 var listComp = (ListComprehension)expr;
 
                 Assert.AreEqual(iterators.Length, listComp.Iterators.Count);
@@ -3610,7 +3613,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckGeneratorComp(Action<Expression> item, params Action<ComprehensionIterator>[] iterators) {
             return expr => {
-                Assert.AreEqual(typeof(GeneratorExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(GeneratorExpression));
                 var listComp = (GeneratorExpression)expr;
 
                 Assert.AreEqual(iterators.Length, listComp.Iterators.Count);
@@ -3624,7 +3627,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckDictComp(Action<Expression> key, Action<Expression> value, params Action<ComprehensionIterator>[] iterators) {
             return expr => {
-                Assert.AreEqual(typeof(DictionaryComprehension), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(DictionaryComprehension));
                 var dictComp = (DictionaryComprehension)expr;
 
                 Assert.AreEqual(iterators.Length, dictComp.Iterators.Count);
@@ -3640,7 +3643,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckSetComp(Action<Expression> item, params Action<ComprehensionIterator>[] iterators) {
             return expr => {
-                Assert.AreEqual(typeof(SetComprehension), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(SetComprehension));
                 var setComp = (SetComprehension)expr;
 
                 Assert.AreEqual(iterators.Length, setComp.Iterators.Count);
@@ -3655,7 +3658,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckSetLiteral(params Action<Expression>[] values) {
             return expr => {
-                Assert.AreEqual(typeof(SetExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(SetExpression));
                 var setLiteral = (SetExpression)expr;
 
                 Assert.AreEqual(values.Length, setLiteral.Items.Count);
@@ -3668,7 +3671,7 @@ namespace AnalysisTests {
 
         private Action<ComprehensionIterator> CompFor(Action<Expression> lhs, Action<Expression> list) {
             return iter => {
-                Assert.AreEqual(typeof(ComprehensionFor), iter.GetType());
+                Assert.IsInstanceOfType(iter, typeof(ComprehensionFor));
                 var forIter = (ComprehensionFor)iter;
 
                 lhs(forIter.Left);
@@ -3678,10 +3681,17 @@ namespace AnalysisTests {
 
         private Action<ComprehensionIterator> CompIf(Action<Expression> test) {
             return iter => {
-                Assert.AreEqual(typeof(ComprehensionIf), iter.GetType());
+                Assert.IsInstanceOfType(iter, typeof(ComprehensionIf));
                 var ifIter = (ComprehensionIf)iter;
 
                 test(ifIter.Test);
+            };
+        }
+
+        private Action<Node> CheckCommentStatement(string comment) {
+            return node => {
+                Assert.IsInstanceOfType(node, typeof(CommentStatement));
+                Assert.AreEqual(comment, ((CommentStatement)node).Comment);
             };
         }
 

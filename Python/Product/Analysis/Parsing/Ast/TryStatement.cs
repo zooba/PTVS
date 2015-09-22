@@ -87,7 +87,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            format.ReflowComment(res, this.GetPrecedingWhiteSpace(ast));
+            res.Append(this.GetPrecedingWhiteSpace(ast));
             res.Append("try");
             _body.AppendCodeString(res, ast, format);
 
@@ -98,13 +98,13 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             }
 
             if (_else != null) {
-                format.ReflowComment(res, this.GetSecondWhiteSpace(ast));
+                res.Append(this.GetSecondWhiteSpace(ast));
                 res.Append("else");
                 _else.AppendCodeString(res, ast, format);
             }
 
             if (_finally != null) {
-                format.ReflowComment(res, this.GetThirdWhiteSpace(ast));
+                res.Append(this.GetThirdWhiteSpace(ast));
                 res.Append("finally");
                 _finally.AppendCodeString(res, ast, format);
             }
@@ -156,7 +156,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            format.ReflowComment(res, this.GetPrecedingWhiteSpace(ast));
+            res.Append(this.GetPrecedingWhiteSpace(ast));
             res.Append("except");
             if (_test != null) {
                 _test.AppendCodeString(res, ast, format);

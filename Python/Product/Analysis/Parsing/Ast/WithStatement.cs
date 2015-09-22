@@ -65,7 +65,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            format.ReflowComment(res, this.GetPrecedingWhiteSpace(ast));
+            res.Append(this.GetPrecedingWhiteSpace(ast));
             res.Append("with");
             var itemWhiteSpace = this.GetListWhiteSpace(ast);
             int whiteSpaceIndex = 0;

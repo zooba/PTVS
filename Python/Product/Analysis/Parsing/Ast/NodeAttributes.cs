@@ -15,87 +15,109 @@
 
 namespace Microsoft.PythonTools.Parsing.Ast {
     internal static class NodeAttributes {
-        /// <summary>
-        /// Value is a string which precedes a token in the node.
-        /// </summary>
-        public static readonly object PrecedingWhiteSpace = new object();
+#if DEBUG
+        class AttributeKey {
+            public readonly string Key;
+
+            public AttributeKey(string key) {
+                Key = key;
+            }
+
+            public override string ToString() {
+                return Key;
+            }
+        }
+
+        static object MakeKey(string key) {
+            return new AttributeKey(key);
+        }
+#else
+        static object MakeKey(string key) {
+            return new object();
+        }
+#endif
+
+            /// <summary>
+            /// Value is a string which precedes a token in the node.
+            /// </summary>
+            public static readonly object PrecedingWhiteSpace = MakeKey("PrecedingWhiteSpace");
         /// <summary>
         /// Value is a string which follows a token in the node.
         /// </summary>
-        public static readonly object TrailingWhiteSpace = new object();
+        public static readonly object TrailingWhiteSpace = MakeKey("TrailingWhiteSpace");
         /// <summary>
         /// Value is a string which precedes a second token in the node.
         /// </summary>
-        public static readonly object SecondPrecedingWhiteSpace = new object();
+        public static readonly object SecondPrecedingWhiteSpace = MakeKey("SecondPrecedingWhiteSpace");
 
         /// <summary>
         /// Value is a string which precedes a third token in the node.
         /// </summary>
-        public static readonly object ThirdPreceedingWhiteSpace = new object();
+        public static readonly object ThirdPreceedingWhiteSpace = MakeKey("ThirdPreceedingWhiteSpace");
 
         /// <summary>
         /// Value is a string which precedes a fourth token in the node.
         /// </summary>
-        public static readonly object FourthPrecedingWhiteSpace = new object();
+        public static readonly object FourthPrecedingWhiteSpace = MakeKey("FourthPrecedingWhiteSpace");
 
         /// <summary>
         /// Value is a string which precedes a fifth token in the node.
         /// </summary>
-        public static readonly object FifthPrecedingWhiteSpace = new object();
+        public static readonly object FifthPrecedingWhiteSpace = MakeKey("FifthPrecedingWhiteSpace");
 
         /// <summary>
         /// Value is an array of strings which precedes items in the node.
         /// </summary>
-        public static readonly object ListWhiteSpace = new object();
+        public static readonly object ListWhiteSpace = MakeKey("ListWhiteSpace");
 
         /// <summary>
         /// Value is an array of strings which precedes items names in the node.
         /// </summary>
-        public static readonly object NamesWhiteSpace = new object();
+        public static readonly object NamesWhiteSpace = MakeKey("NamesWhiteSpace");
 
         /// <summary>
         /// Value is a string which is the name as it appeared verbatim in the
         /// source code (for mangled name).
         /// </summary>
-        public static readonly object VerbatimImage = new object();
+        public static readonly object VerbatimImage = MakeKey("VerbatimImage");
 
         /// <summary>
         /// Value is a string which represents extra node specific verbatim text.
         /// </summary>
-        public static readonly object ExtraVerbatimText = new object();
+        public static readonly object ExtraVerbatimText = MakeKey("ExtraVerbatimText");
 
         /// <summary>
         /// The tuple expression was constructed without parenthesis.  The value
         /// doesn't matter, only the presence of the metadata indicates the
         /// value is set.
         /// </summary>
-        public static readonly object IsAltFormValue = new object();
+        public static readonly object IsAltFormValue = MakeKey("IsAltFormValue");
 
         /// <summary>
         /// Provides an array of strings which are used for verbatim names when
         /// multiple names are involved (e.g. del, global, import, etc...)
         /// </summary>
-        public static readonly object VerbatimNames = new object();
+        public static readonly object VerbatimNames = MakeKey("VerbatimNames");
 
         /// <summary>
         /// The node is missing a closing grouping (close paren, close brace,
         /// close bracket).
         /// </summary>
-        public static readonly object ErrorMissingCloseGrouping = new object();
+        public static readonly object ErrorMissingCloseGrouping = MakeKey("ErrorMissingCloseGrouping");
 
         /// <summary>
         /// The node is incomplete.  Where the node ends is on a node-by-node
         /// basis but it's well defined for each individual node.
         /// </summary>
-        public static readonly object ErrorIncompleteNode = new object();
+        public static readonly object ErrorIncompleteNode = MakeKey("ErrorIncompleteNode");
 
-        public static readonly object VariableReference = new object();
+        public static readonly object VariableReference = MakeKey("VariableReference");
 
-        public static readonly object Variable = new object();
+        public static readonly object Variable = MakeKey("Variable");
         /// <summary>
         /// Value is a string which follows a token in the node.
         /// </summary>
-        public static readonly object Comment = new object();
+        public static readonly object Comment = MakeKey("Comment");
 
         public static void AddVariableReference(this Node node, PythonAst ast, bool bindNames, object reference) {
             if (bindNames) {
@@ -113,12 +135,12 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             return GetWhiteSpace(node, ast, NodeAttributes.PrecedingWhiteSpace);
         }
 
-        public static string GetPrecedingWhiteSpaceDefaultNull(this Node node, PythonAst ast) {
-            return GetWhiteSpace(node, ast, NodeAttributes.PrecedingWhiteSpace, null);
+        public static string GetPrecedingWhiteSpaceDefaultEmpty(this Node node, PythonAst ast) {
+            return GetWhiteSpace(node, ast, NodeAttributes.PrecedingWhiteSpace, string.Empty);
         }
 
         public static string GetComment(this Node node, PythonAst ast) {
-            return GetWhiteSpace(node, ast, Comment);
+            return GetWhiteSpace(node, ast, Comment, null);
         }
 
         internal static string GetWhiteSpace(Node node, PythonAst ast, object kind, string defaultValue = " ") {

@@ -22,7 +22,8 @@ using Microsoft.PythonTools.Parsing;
 using Microsoft.PythonTools.Parsing.Ast;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.VisualStudioTools;
-using TestUtilities.Mocks;
+using TestUtilities;
+using TestUtilities.Python;
 
 namespace AnalysisTests {
     /// <summary>
@@ -30,6 +31,13 @@ namespace AnalysisTests {
     /// </summary>
     [TestClass]
     public class ParserRoundTripTest {
+        [ClassInitialize]
+        public static void DoDeployment(TestContext context) {
+            AssertListener.Initialize();
+            // Don't deploy test data because we read directly from the source.
+            PythonTestData.Deploy(includeTestData: false);
+        }
+
         [TestMethod, Priority(0)]
         public void TestCodeFormattingOptions() {
             /* Function Definitions */
@@ -1679,7 +1687,16 @@ class BaseSet(object):
                         Console.WriteLine("-----");
                     }
 
-                    Assert.AreEqual(expected[i], output[i], String.Format("Characters differ at {0}, got {1}, expected {2}", i, output[i], expected[i]));
+                    Assert.AreEqual(
+                        expected[i],
+                        output[i],
+                        string.Format(
+                            "Characters differ at {0}, got {1}, expected {2}",
+                            i,
+                            StringBuilderExtensions.FixChar(output[i]),
+                            StringBuilderExtensions.FixChar(expected[i])
+                        )
+                    );
                 }
             }
 

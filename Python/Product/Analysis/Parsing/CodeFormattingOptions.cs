@@ -13,6 +13,7 @@
  * ***************************************************************************/
 
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -282,6 +283,7 @@ namespace Microsoft.PythonTools.Parsing {
         internal void Append(StringBuilder res, bool? setting, string ifOn, string ifOff, string originalFormatting) {
             if (!String.IsNullOrWhiteSpace(originalFormatting) || setting == null) {
                 // there's a comment in the formatting, so we need to preserve it.
+                Debug.Assert(string.IsNullOrWhiteSpace(originalFormatting), "Comments should not appear in whitespace");
                 ReflowComment(res, originalFormatting);
             } else {
                 res.Append(setting.Value ? ifOn : ifOff);
@@ -289,20 +291,22 @@ namespace Microsoft.PythonTools.Parsing {
         }
 
         /// <summary>
-        /// Given the whitespace from the proceeding line gets the whitespace that should come for following lines.
+        /// Given the whitespace from the preceding line, gets the whitespace
+        /// that should come for following lines.
         /// 
-        /// This strips extra new lines and takes into account the code formatting new lines options.
+        /// This strips extra new lines and takes into account the code
+        /// formatting new lines options.
         /// </summary>
-        internal string GetNextLineProceedingText(string proceeding) {
+        internal string GetNextLinePrecedingText(string preceding) {
             int newLine;
-            var additionalProceeding = proceeding;
-            if ((newLine = additionalProceeding.LastIndexOfAny(new[] { '\r', '\n' })) == -1) {
-                additionalProceeding = (NewLineFormat ?? Environment.NewLine) + proceeding;
+            var additionalPreceding = preceding;
+            if ((newLine = additionalPreceding.LastIndexOfAny(new[] { '\r', '\n' })) == -1) {
+                additionalPreceding = (NewLineFormat ?? Environment.NewLine) + preceding;
             } else {
                 // we just want to capture the indentation, not multiple newlines.
-                additionalProceeding = (NewLineFormat ?? Environment.NewLine) + proceeding.Substring(newLine + 1);
+                additionalPreceding = (NewLineFormat ?? Environment.NewLine) + preceding.Substring(newLine + 1);
             }
-            return additionalProceeding;
+            return additionalPreceding;
         }
 
         internal void ReflowComment(StringBuilder res, string text) {
@@ -439,6 +443,7 @@ namespace Microsoft.PythonTools.Parsing {
                     curOffset = prefix.Length;
                 }
             }
+
             return newText.ToString();
         }
 

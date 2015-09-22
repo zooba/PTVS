@@ -1,4 +1,4 @@
-/* ****************************************************************************
+﻿/* ****************************************************************************
  *
  * Copyright (c) Microsoft Corporation. 
  *
@@ -15,8 +15,19 @@
 using System.Text;
 
 namespace Microsoft.PythonTools.Parsing.Ast {
-    public class BreakStatement : Statement {
-        public BreakStatement() {
+    /// <summary>
+    /// This node appears in the tree for a standalone comment. It does not have
+    /// any text - the comment is stored as an attribute of the AST.
+    /// </summary>
+    public sealed class CommentStatement : Statement {
+        private readonly string _comment;
+
+        public CommentStatement(string comment) {
+            _comment = comment ?? "";
+        }
+
+        public string Comment {
+            get { return _comment; }
         }
 
         public override void Walk(PythonWalker walker) {
@@ -26,8 +37,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append("break");            
+            format.ReflowComment(res, this.GetPrecedingWhiteSpace(ast) + _comment);
         }
     }
 }

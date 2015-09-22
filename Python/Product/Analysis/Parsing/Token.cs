@@ -181,24 +181,12 @@ namespace Microsoft.PythonTools.Parsing {
         }
     }
 
-    internal sealed class CommentToken : Token {
+    internal sealed class CommentToken : VerbatimToken {
         private readonly string _comment;
 
-        public CommentToken(string comment)
-            : base(TokenKind.Comment) {
+        public CommentToken(string comment, string newline)
+            : base(TokenKind.Comment, comment + newline, comment) {
             _comment = comment;
-        }
-
-        public string Comment {
-            get { return _comment; }
-        }
-
-        public override string Image {
-            get { return _comment; }
-        }
-
-        public override object Value {
-            get { return _comment; }
         }
     }
 

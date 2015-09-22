@@ -64,7 +64,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
 
             // propagate white space so we stay mostly the same...
             var itemWhiteSpace = this.GetListWhiteSpace(ast);
-            var colonWhiteSpace = this.GetPrecedingWhiteSpaceDefaultNull(ast);
+            var colonWhiteSpace = this.GetPrecedingWhiteSpaceDefaultEmpty(ast);
 
             if (itemWhiteSpace != null) {
                 // semi-colon list of statements, must end in a new line, but the original new line
@@ -83,62 +83,63 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             //  2. A set of semi-colon separated items
             //  3. A top-level group of statements in a top-level PythonAst node.
             var itemWhiteSpace = this.GetListWhiteSpace(ast);
-            var colonWhiteSpace = this.GetPrecedingWhiteSpaceDefaultNull(ast);
             if (this.IsAltForm(ast)) {
                 // suite statement in top-level PythonAst, we have no colons or other delimiters
                 foreach (var statement in _statements) {
                     statement.AppendCodeString(res, ast, format);
                 }
-            } else if (itemWhiteSpace != null) {
-                if (format.BreakMultipleStatementsPerLine) {
-                    string leadingWhiteSpace = "";
-                    for (int i = 0; i < _statements.Length; i++) {
-                        if (i == 0) {
-                            StringBuilder tmp = new StringBuilder();
-                            _statements[i].AppendCodeString(tmp, ast, format);  
-                            var stmt = tmp.ToString();
-                            res.Append(stmt);
+                return;
+            }
 
-                            // figure out the whitespace needed for the next statement based upon the current statement
-                            for (int curChar = 0; curChar < stmt.Length; curChar++) {
-                                if (!char.IsWhiteSpace(stmt[curChar])) {
-                                    leadingWhiteSpace = format.GetNextLineProceedingText(stmt.Substring(0, curChar));
-                                    break;
-                                }
-                            }
-                        } else {
-                            _statements[i].AppendCodeString(res, ast, format, leadingWhiteSpace);
-                        }
-                    }
-                } else {
-                    // form 2, semi-colon seperated list.
-                    for (int i = 0; i < _statements.Length; i++) {
-                        if (i > 0) {
-                            if (i - 1 < itemWhiteSpace.Length) {
-                                res.Append(itemWhiteSpace[i - 1]);
-                            }
-                            res.Append(';');
-                        }
-                        _statements[i].AppendCodeString(res, ast, format);
-                    }
-                }
-
-                if (itemWhiteSpace != null && itemWhiteSpace.Length == _statements.Length && _statements.Length != 0) {
-                    // trailing semi-colon
-                    if (!format.RemoveTrailingSemicolons) {
-                        res.Append(itemWhiteSpace[itemWhiteSpace.Length - 1]);
-                        res.Append(";");
-                    }
-                }
-            } else {
-                // 3rd form, suite statement as the body of a class/function, we include the colon.
-                if (colonWhiteSpace != null) {
-                    res.Append(colonWhiteSpace);
-                }
+            if (itemWhiteSpace == null) {
+                // 3rd form, suite statement as the body of a class/function, we
+                // include the colon.
+                res.Append(this.GetPrecedingWhiteSpaceDefaultEmpty(ast));
                 res.Append(':');
-                
+                format.ReflowComment(res, this.GetComment(ast));
+
                 foreach (var statement in _statements) {
                     statement.AppendCodeString(res, ast, format);
+                }
+                return;
+            }
+
+            if (format.BreakMultipleStatementsPerLine && _statements.Length > 1) {
+                string leadingWhiteSpace = "";
+                StringBuilder tmp = new StringBuilder();
+                _statements[0].AppendCodeString(tmp, ast, format);
+                var stmt = tmp.ToString();
+                res.Append(stmt);
+
+                // figure out the whitespace needed for the next statement based upon the current statement
+                for (int curChar = 0; curChar < stmt.Length; curChar++) {
+                    if (!char.IsWhiteSpace(stmt[curChar])) {
+                        leadingWhiteSpace = format.GetNextLinePrecedingText(stmt.Substring(0, curChar));
+                        break;
+                    }
+                }
+
+                for (int i = 1; i < _statements.Length; i++) {
+                    _statements[i].AppendCodeString(res, ast, format, leadingWhiteSpace);
+                }
+            } else {
+                // form 2, semi-colon seperated list.
+                for (int i = 0; i < _statements.Length; i++) {
+                    if (i > 0) {
+                        if (i - 1 < itemWhiteSpace.Length) {
+                            res.Append(itemWhiteSpace[i - 1]);
+                        }
+                        res.Append(';');
+                    }
+                    _statements[i].AppendCodeString(res, ast, format);
+                }
+            }
+
+            if (itemWhiteSpace.Length == _statements.Length && _statements.Length != 0) {
+                // trailing semi-colon
+                if (!format.RemoveTrailingSemicolons) {
+                    res.Append(itemWhiteSpace[itemWhiteSpace.Length - 1]);
+                    res.Append(";");
                 }
             }
         }

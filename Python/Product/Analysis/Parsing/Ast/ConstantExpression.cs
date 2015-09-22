@@ -65,7 +65,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                     res.Append(verbatimPieces[i]);
                 }
             } else {
-                format.ReflowComment(res, this.GetPrecedingWhiteSpaceDefaultNull(ast));
+                res.Append(this.GetPrecedingWhiteSpaceDefaultEmpty(ast));
                 res.Append(this.GetExtraVerbatimText(ast) ?? GetConstantRepr(ast.LanguageVersion));
             }
         }

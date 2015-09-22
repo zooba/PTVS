@@ -45,13 +45,13 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             if (Decorators != null) {
                 for (int i = 0, curWhiteSpace = 0; i < Decorators.Count; i++) {
                     if (decorateWhiteSpace != null) {
-                        format.ReflowComment(res, decorateWhiteSpace[curWhiteSpace++]);
+                        res.Append(decorateWhiteSpace[curWhiteSpace++]);
                     }
                     res.Append('@');
                     if (Decorators[i] != null) {
                         Decorators[i].AppendCodeString(res, ast, format);
                         if (decorateWhiteSpace != null) {
-                            format.ReflowComment(res, decorateWhiteSpace[curWhiteSpace++]);
+                            res.Append(decorateWhiteSpace[curWhiteSpace++]);
                         } else {
                             res.Append(Environment.NewLine);
                         }

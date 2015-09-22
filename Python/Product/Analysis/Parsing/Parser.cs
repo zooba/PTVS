@@ -102,7 +102,9 @@ namespace Microsoft.PythonTools.Parsing {
             );
 
             var parser = new Parser(tokenization, parserOptions);
-            return parser.ParseTopExpression();
+            var result = parser.ParseTopExpression();
+            tokenization.ClearRawTokens();
+            return result;
         }
 
         public static async Task<ParseResult> TokenizeAndParseAsync(
@@ -120,7 +122,9 @@ namespace Microsoft.PythonTools.Parsing {
             );
 
             var parser = new Parser(tokenization, parserOptions);
-            return parser.ParseFile();
+            var result = parser.ParseFile();
+            tokenization.ClearRawTokens();
+            return result;
         }
 
         #endregion
@@ -472,15 +476,23 @@ namespace Microsoft.PythonTools.Parsing {
         //simple_stmt: small_stmt (';' small_stmt)* [';'] Newline
         private Statement ParseSimpleStmt() {
             Statement s;
-            if (PeekKind(TokenKind.Comment)) {
-                s = new EmptyStatement();
-                var p = Peek();
-                s.SetLoc(p.Span.Start, p.Span.Start);
-            } else {
-                s = ParseSmallStmt();
+            string newline = null;
+
+            if (MaybeEat(TokenKind.Comment)) {
+                // Create a node to attach the comment to.
+                s = new CommentStatement(_token.Token.Image);
+                s.SetLoc(_token.Span);
+                if (_verbatim) {
+                    AddPrecedingWhiteSpace(s, _token.LeadingWhitespace);
+                }
+                if (!MaybeEat(TokenKind.NewLine)) {
+                    MaybeEat(TokenKind.NLToken);
+                }
+                return s;
             }
 
-            string newline = null;
+            s = ParseSmallStmt();
+
             if (MaybeEat(TokenKind.Semicolon)) {
                 var itemWhiteSpace = MakeWhiteSpaceList();
                 if (itemWhiteSpace != null) {
@@ -501,7 +513,7 @@ namespace Microsoft.PythonTools.Parsing {
                         // implies a new line
                         break;
                     } else if (MaybeEat(TokenKind.Comment)) {
-                        AddTrailingComment(l[l.Count - 1], _token.Token.Image);
+                        AddTrailingComment(l[l.Count - 1], _token.Token.VerbatimImage);
                     } else if (!MaybeEat(TokenKind.Semicolon)) {
                         EatNewLine(out newline);
                         break;
@@ -522,7 +534,7 @@ namespace Microsoft.PythonTools.Parsing {
                 }
                 return ret;
             } else if (MaybeEat(TokenKind.Comment)) {
-                AddTrailingComment(s, _token.Token.Image);
+                AddTrailingComment(s, _token.Token.VerbatimImage);
                 if (MaybeEatNewLine(out newline) && _verbatim) {
                     DeferWhitespace(newline);
                 }
@@ -2055,8 +2067,8 @@ namespace Microsoft.PythonTools.Parsing {
                 }
 
                 if (MaybeEat(TokenKind.Comment)) {
-                    // Comment may be before or after the comma
-                    AddTrailingComment(parameter, _token.Token.Image);
+                    // Comment before the comma is a Comment
+                    AddTrailingComment(parameter, _token.Token.VerbatimImage);
                 }
 
                 if (!MaybeEat(TokenKind.Comma)) {
@@ -2069,8 +2081,9 @@ namespace Microsoft.PythonTools.Parsing {
                 }
 
                 if (MaybeEat(TokenKind.Comment)) {
-                    // Comment may be before or after the comma
-                    AddTrailingComment(parameter, _token.Token.Image);
+                    // Comment after the comma is whitespace
+                    DeferWhitespace(_token.LeadingWhitespace);
+                    DeferWhitespace(_token.Token.VerbatimImage);
                 }
             }
 
@@ -2700,7 +2713,7 @@ namespace Microsoft.PythonTools.Parsing {
             string colonComment = null;
 
             if (MaybeEat(TokenKind.Comment)) {
-                colonComment = _token.Token.Image;
+                colonComment = _token.Token.VerbatimImage;
             }
 
             var cur = Peek();
@@ -2753,13 +2766,6 @@ namespace Microsoft.PythonTools.Parsing {
                         }
                         break;
                     }
-                    if (PeekKind(TokenKind.Comment) && PeekKind(TokenKind.Dedent, 2)) {
-                        EatPeek(2);
-                        if (_verbatim) {
-                            DeferWhitespace(_token.LeadingWhitespace);
-                        }
-                        break;
-                    }
                     if (PeekKind(TokenKind.EndOfFile)) {
                         ReportSyntaxError("unexpected end of file");
                         break; // error handling
@@ -2782,6 +2788,7 @@ namespace Microsoft.PythonTools.Parsing {
                 AddPrecedingWhiteSpace(ret, colonWhiteSpace);
             }
             if (colonComment != null) {
+                // Comment on a suite appears after the colon
                 AddTrailingComment(ret, colonComment);
             }
             return ret;
@@ -3316,6 +3323,11 @@ namespace Microsoft.PythonTools.Parsing {
             try {
                 _allowIncomplete = true;
                 while (true) {
+                    string comment = null;
+                    if (MaybeEat(TokenKind.Comment)) {
+                        comment = _token.Token.VerbatimImage;
+                    }
+
                     switch (PeekKind()) {
                         case TokenKind.LeftParenthesis:
                             if (!allowGeneratorExpression) return ret;
@@ -3388,6 +3400,9 @@ namespace Microsoft.PythonTools.Parsing {
                             Next();
                             break;
                         default:
+                            if (!string.IsNullOrEmpty(comment)) {
+                                AddTrailingComment(ret, comment);
+                            }
                             return ret;
                     }
                 }
@@ -3559,6 +3574,12 @@ namespace Microsoft.PythonTools.Parsing {
                 } else {
                     a = new Arg(e);
                     a.SetLoc(e.StartIndex, e.EndIndex);
+                }
+
+                //  Is there a comment?
+                //
+                if (MaybeEat(TokenKind.Comment)) {
+                    DeferWhitespace(_token.Token.Image);
                 }
 
                 //  Was this all?
@@ -4617,11 +4638,10 @@ namespace Microsoft.PythonTools.Parsing {
         /// when we're parsing in verbatim mode.
         /// </summary>
         private bool MaybeEatNewLine() {
-            string curWhiteSpace = "";
             string newWhiteSpace;
             if (MaybeEatNewLine(out newWhiteSpace)) {
                 if (_verbatim) {
-                    DeferWhitespace(curWhiteSpace + newWhiteSpace);
+                    DeferWhitespace(newWhiteSpace);
                 }
                 return true;
             }

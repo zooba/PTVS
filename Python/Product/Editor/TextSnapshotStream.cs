@@ -10,7 +10,6 @@ namespace Microsoft.PythonTools.Editor {
     class TextSnapshotStream : Stream {
         private readonly IEnumerator<ITextSnapshotLine> _lines;
         private readonly Encoding _encoding;
-        private readonly string _bufferSeparator;
         private MemoryStream _buffer;
 
         private long _position;

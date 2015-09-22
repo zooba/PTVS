@@ -70,7 +70,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
 
         internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
             _target.AppendCodeString(res, ast, format);
-            res.Append(this.GetPrecedingWhiteSpaceDefaultNull(ast));
+            res.Append(this.GetPrecedingWhiteSpaceDefaultEmpty(ast));
             res.Append('.');
             if (!this.IsIncompleteNode(ast)) {
                 res.Append(this.GetSecondWhiteSpaceDefaultNull(ast));
