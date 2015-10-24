@@ -1,17 +1,18 @@
-/* ****************************************************************************
- *
- * Copyright (c) Microsoft Corporation. 
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- *
- * ***************************************************************************/
+﻿/* ****************************************************************************
+*
+* Copyright (c) Microsoft Corporation. 
+*
+* This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
+* copy of the license can be found in the License.html file at the root of this distribution. If 
+* you cannot locate the Apache License, Version 2.0, please send an email to 
+* vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
+* by the terms of the Apache License, Version 2.0.
+*
+* You must not remove this notice, or any other, from this software.
+*
+* ***************************************************************************/
 
+extern alias analysis;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -20,9 +21,11 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
+using analysis::Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Parsing;
 using Microsoft.PythonTools.Parsing.Ast;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.VisualStudioTools;
 using TestUtilities;
 using TestUtilities.Python;
 
@@ -35,7 +38,8 @@ namespace AnalysisTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
+            // Don't deploy test data because we read directly from the source.
+            PythonTestData.Deploy(includeTestData: false);
         }
 
         internal static readonly PythonLanguageVersion[] AllVersions = new[] { PythonLanguageVersion.V24, PythonLanguageVersion.V25, PythonLanguageVersion.V26, PythonLanguageVersion.V27, PythonLanguageVersion.V30, PythonLanguageVersion.V31, PythonLanguageVersion.V32, PythonLanguageVersion.V33, PythonLanguageVersion.V34, PythonLanguageVersion.V35 };
@@ -527,7 +531,7 @@ namespace AnalysisTests {
         public void Literals() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("Literals.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("Literals.py", version),
                     CheckSuite(
                         CheckStrOrBytesStmt(version, "abc"),
                         CheckStrOrBytesStmt(version, "raw string"),
@@ -563,7 +567,7 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("LiteralsV2.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("LiteralsV2.py", version),
                     CheckSuite(
                         CheckConstantStmtAndRepr((BigInteger)1000, "1000L", version),
                         CheckConstantStmtAndRepr("unicode string", "u'unicode string'", version),
@@ -647,7 +651,7 @@ namespace AnalysisTests {
                     new ErrorInfo("invalid token", 573, 32, 5, 574, 32, 6)
                 );
                 CheckAst(
-                    ParseFile("LiteralsV3.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("LiteralsV3.py", version),
                     CheckSuite(
                         CheckConstantStmtAndRepr(true, "True", version),
                         CheckConstantStmtAndRepr(false, "False", version),
@@ -687,7 +691,7 @@ namespace AnalysisTests {
         public void Literals26() {
             foreach (var version in V26AndUp) {
                 CheckAst(
-                    ParseFile("Literals26.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("Literals26.py", version),
                     CheckSuite(
                         CheckConstantStmt(464),
                         CheckConstantStmt(4)
@@ -708,7 +712,7 @@ namespace AnalysisTests {
         public void Keywords25() {
             foreach (var version in V24_V25Versions) {
                 CheckAst(
-                    ParseFile("Keywords25.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("Keywords25.py", version),
                     CheckSuite(
                         CheckAssignment(CheckNameExpr("with"), One),
                         CheckAssignment(CheckNameExpr("as"), Two)
@@ -732,7 +736,7 @@ namespace AnalysisTests {
         public void Keywords2x() {
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("Keywords2x.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("Keywords2x.py", version),
                     CheckSuite(
                         CheckAssignment(CheckNameExpr("True"), One),
                         CheckAssignment(CheckNameExpr("False"), Zero)
@@ -753,7 +757,7 @@ namespace AnalysisTests {
         public void Keywords30() {
             foreach (var version in V3Versions) {
                 CheckAst(
-                    ParseFile("Keywords30.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("Keywords30.py", version),
                     CheckSuite(
                         CheckAssignment(Fob, CheckConstant(true)),
                         CheckAssignment(Oar, CheckConstant(false))
@@ -763,7 +767,7 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 CheckAst(
-                     ParseFile("Keywords30.py", ErrorSink.Null, version),
+                     ParseFileNoErrors("Keywords30.py", version),
                      CheckSuite(
                          CheckAssignment(Fob, CheckNameExpr("True")),
                          CheckAssignment(Oar, CheckNameExpr("False"))
@@ -777,7 +781,7 @@ namespace AnalysisTests {
             foreach (var version in AllVersions) {
 
                 CheckAst(
-                    ParseFile("BinaryOperators.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("BinaryOperators.py", version),
                     CheckSuite(
                         CheckBinaryStmt(One, PythonOperator.Add, Two),
                         CheckBinaryStmt(One, PythonOperator.Subtract, Two),
@@ -812,7 +816,7 @@ namespace AnalysisTests {
         public void BinaryOperatorsV2() {
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("BinaryOperatorsV2.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("BinaryOperatorsV2.py", version),
                     CheckSuite(
                         CheckBinaryStmt(One, PythonOperator.NotEqual, Two)
                     )
@@ -831,7 +835,7 @@ namespace AnalysisTests {
         public void MatMulOperator() {
             foreach (var version in V35AndUp) {
                 CheckAst(
-                    ParseFile("MatMulOperator.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("MatMulOperator.py", version),
                     CheckSuite(
                         CheckBinaryStmt(One, PythonOperator.MatMultiply, Two)
                     )
@@ -849,7 +853,7 @@ namespace AnalysisTests {
         public void GroupingRecovery() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("GroupingRecovery.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("GroupingRecovery.py", version),
                     CheckSuite(
                         CheckAssignment(Fob, CheckParenExpr(CheckErrorExpr())),
                         CheckFuncDef("f", new Action<Parameter>[] {
@@ -867,7 +871,7 @@ namespace AnalysisTests {
         public void UnaryOperators() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("UnaryOperators.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("UnaryOperators.py", version),
                     CheckSuite(
                         CheckUnaryStmt(PythonOperator.Negate, One),
                         CheckUnaryStmt(PythonOperator.Invert, One),
@@ -882,7 +886,7 @@ namespace AnalysisTests {
         public void StringPlus() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("StringPlus.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("StringPlus.py", version),
                     CheckSuite(
                         CheckStrOrBytesStmt(version, "hello again")
                     )
@@ -894,7 +898,7 @@ namespace AnalysisTests {
         public void BytesPlus() {
             foreach (var version in V26AndUp) {
                 CheckAst(
-                    ParseFile("BytesPlus.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("BytesPlus.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckConstant(ToBytes("hello again")))
                     )
@@ -913,7 +917,7 @@ namespace AnalysisTests {
         public void UnicodePlus() {
             foreach (var version in V2Versions.Concat(V33AndUp)) {
                 CheckAst(
-                    ParseFile("UnicodePlus.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("UnicodePlus.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckConstant("hello again"))
                     )
@@ -933,7 +937,7 @@ namespace AnalysisTests {
         public void RawBytes() {
             foreach (var version in V33AndUp) {
                 CheckAst(
-                    ParseFile("RawBytes.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("RawBytes.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckConstant(ToBytes("\\fob"))),
                         CheckExprStmt(CheckConstant(ToBytes("\\fob"))),
@@ -981,7 +985,7 @@ namespace AnalysisTests {
         public void Delimiters() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("Delimiters.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("Delimiters.py", version),
                     CheckSuite(
                         CheckCallStmt(One, PositionalArg(Two)),
                         CheckIndexStmt(One, Two),
@@ -1016,7 +1020,7 @@ namespace AnalysisTests {
         public void DelimitersV2() {
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("DelimitersV2.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("DelimitersV2.py", version),
                     CheckSuite(
                         CheckBackquoteStmt(Fob)
                     )
@@ -1040,7 +1044,7 @@ namespace AnalysisTests {
         public void ForStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("ForStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("ForStmt.py", version),
                     CheckSuite(
                         CheckForStmt(Fob, Oar, CheckSuite(Pass)),
                         CheckForStmt(CheckTupleExpr(Fob, Oar), Baz, CheckSuite(Pass)),
@@ -1058,7 +1062,7 @@ namespace AnalysisTests {
         public void WithStmt() {
             foreach (var version in V26AndUp) {
                 CheckAst(
-                    ParseFile("WithStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("WithStmt.py", version),
                     CheckSuite(
                         CheckWithStmt(Fob, CheckSuite(Pass)),
                         CheckWithStmt(Fob, Oar, CheckSuite(Pass)),
@@ -1097,7 +1101,7 @@ namespace AnalysisTests {
         public void Semicolon() {
             foreach (var version in V26AndUp) {
                 CheckAst(
-                    ParseFile("Semicolon.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("Semicolon.py", version),
                     CheckSuite(
                         CheckSuite(
                             CheckConstantStmt(1),
@@ -1118,7 +1122,7 @@ namespace AnalysisTests {
         public void DelStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("DelStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("DelStmt.py", version),
                     CheckSuite(
                         CheckDelStmt(Fob),
                         CheckDelStmt(Fob, Oar),
@@ -1136,7 +1140,7 @@ namespace AnalysisTests {
         public void IndexExpr() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("IndexExpr.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("IndexExpr.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckIndexExpression(Fob, CheckConstant(.2)))
                     )
@@ -1159,7 +1163,7 @@ namespace AnalysisTests {
         public void YieldStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("YieldStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("YieldStmt.py", version),
                     CheckSuite(
                         CheckFuncDef("f", NoParameters,
                             CheckSuite(
@@ -1176,7 +1180,7 @@ namespace AnalysisTests {
         public void YieldExpr() {
             foreach (var version in V25AndUp) {
                 CheckAst(
-                    ParseFile("YieldExpr.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("YieldExpr.py", version),
                     CheckSuite(
                         CheckFuncDef("f", NoParameters, CheckSuite(
                             CheckYieldStmt(None)
@@ -1222,7 +1226,7 @@ namespace AnalysisTests {
         public void YieldFromStmt() {
             foreach (var version in V33AndUp) {
                 CheckAst(
-                    ParseFile("YieldFromStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("YieldFromStmt.py", version),
                     CheckSuite(
                         CheckFuncDef("f", NoParameters,
                             CheckSuite(
@@ -1238,7 +1242,7 @@ namespace AnalysisTests {
         public void YieldFromExpr() {
             foreach (var version in V33AndUp) {
                 CheckAst(
-                    ParseFile("YieldFromExpr.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("YieldFromExpr.py", version),
                     CheckSuite(
                         CheckFuncDef("f", NoParameters,
                             CheckSuite(
@@ -1291,7 +1295,7 @@ namespace AnalysisTests {
         public void ImportStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("ImportStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("ImportStmt.py", version),
                     CheckSuite(
                         CheckImport(new[] { "sys" }),
                         CheckImport(new[] { "sys", "fob" }),
@@ -1318,7 +1322,7 @@ namespace AnalysisTests {
         public void GlobalStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("GlobalStmt.py", ErrorSink.Null, version),
+                    ParseFile("GlobalStmt.py", version).Tree,
                     CheckSuite(
                         CheckFuncDef("f", NoParameters,
                             CheckSuite(
@@ -1335,7 +1339,7 @@ namespace AnalysisTests {
         public void NonlocalStmt() {
             foreach (var version in V3Versions) {
                 CheckAst(
-                    ParseFile("NonlocalStmt.py", ErrorSink.Null, version),
+                    ParseFile("NonlocalStmt.py", version).Tree,
                     CheckSuite(
                         CheckFuncDef("g", NoParameters,
                             CheckSuite(
@@ -1427,7 +1431,7 @@ namespace AnalysisTests {
         public void WhileStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("WhileStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("WhileStmt.py", version),
                     CheckSuite(
                         CheckWhileStmt(One, CheckSuite(Pass)),
                         CheckWhileStmt(One, CheckSuite(Pass), CheckSuite(Pass))
@@ -1440,7 +1444,7 @@ namespace AnalysisTests {
         public void TryStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("TryStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("TryStmt.py", version),
                     CheckSuite(
                         CheckTryStmt(
                             CheckSuite(Pass),
@@ -1482,7 +1486,7 @@ namespace AnalysisTests {
 
         private void TryStmtV3(PythonLanguageVersion version) {
             CheckAst(
-                ParseFile("TryStmtV3.py", ErrorSink.Null, version),
+                ParseFileNoErrors("TryStmtV3.py", version),
                 CheckSuite(
                     CheckTryStmt(
                         CheckSuite(Pass),
@@ -1494,7 +1498,7 @@ namespace AnalysisTests {
 
         private void TryStmtV2(PythonLanguageVersion version) {
             CheckAst(
-                ParseFile("TryStmtV2.py", ErrorSink.Null, version),
+                ParseFileNoErrors("TryStmtV2.py", version),
                 CheckSuite(
                     CheckTryStmt(
                         CheckSuite(Pass),
@@ -1508,7 +1512,7 @@ namespace AnalysisTests {
         public void RaiseStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("RaiseStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("RaiseStmt.py", version),
                     CheckSuite(
                         CheckRaiseStmt(),
                         CheckRaiseStmt(Fob)
@@ -1518,7 +1522,7 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("RaiseStmtV2.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("RaiseStmtV2.py", version),
                     CheckSuite(
                         CheckRaiseStmt(Fob, Oar),
                         CheckRaiseStmt(Fob, Oar, Baz)
@@ -1533,7 +1537,7 @@ namespace AnalysisTests {
 
             foreach (var version in V3Versions) {
                 CheckAst(
-                    ParseFile("RaiseStmtV3.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("RaiseStmtV3.py", version),
                     CheckSuite(
                         CheckRaiseStmt(Fob, cause: Oar)
                     )
@@ -1551,7 +1555,7 @@ namespace AnalysisTests {
         public void PrintStmt() {
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("PrintStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("PrintStmt.py", version),
                     CheckSuite(
                         CheckPrintStmt(new Action<Expression>[0]),
                         CheckPrintStmt(new[] { One }),
@@ -1586,7 +1590,7 @@ namespace AnalysisTests {
         public void AssertStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("AssertStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("AssertStmt.py", version),
                     CheckSuite(
                         CheckAssertStmt(One),
                         CheckAssertStmt(One, Fob)
@@ -1599,7 +1603,7 @@ namespace AnalysisTests {
         public void ListComp() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("ListComp.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("ListComp.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckListComp(Fob, CompFor(Fob, Oar))),
                         CheckExprStmt(CheckListComp(Fob, CompFor(Fob, Oar), CompIf(Baz))),
@@ -1613,7 +1617,7 @@ namespace AnalysisTests {
         public void ListComp2x() {
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("ListComp2x.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("ListComp2x.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckListComp(Fob, CompFor(Fob, CheckTupleExpr(Oar, Baz))))
                     )
@@ -1632,7 +1636,7 @@ namespace AnalysisTests {
         public void GenComp() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("GenComp.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("GenComp.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckGeneratorComp(Fob, CompFor(Fob, Oar))),
                         CheckExprStmt(CheckGeneratorComp(Fob, CompFor(Fob, Oar), CompIf(Baz))),
@@ -1647,7 +1651,7 @@ namespace AnalysisTests {
         public void DictComp() {
             foreach (var version in V27AndUp) {
                 CheckAst(
-                    ParseFile("DictComp.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("DictComp.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckDictComp(Fob, Oar, CompFor(CheckTupleExpr(Fob, Oar), Baz))),
                         CheckExprStmt(CheckDictComp(Fob, Oar, CompFor(CheckTupleExpr(Fob, Oar), Baz), CompIf(Quox))),
@@ -1669,7 +1673,7 @@ namespace AnalysisTests {
         public void SetComp() {
             foreach (var version in V27AndUp) {
                 CheckAst(
-                    ParseFile("SetComp.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("SetComp.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckSetComp(Fob, CompFor(Fob, Baz))),
                         CheckExprStmt(CheckSetComp(Fob, CompFor(Fob, Baz), CompIf(Quox))),
@@ -1691,7 +1695,7 @@ namespace AnalysisTests {
         public void SetLiteral() {
             foreach (var version in V27AndUp) {
                 CheckAst(
-                    ParseFile("SetLiteral.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("SetLiteral.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckSetLiteral(One)),
                         CheckExprStmt(CheckSetLiteral(One, Two))
@@ -1711,7 +1715,7 @@ namespace AnalysisTests {
         public void IfStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("IfStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("IfStmt.py", version),
                     CheckSuite(
                         CheckIfStmt(IfTests(IfTest(One, CheckSuite(Pass)))),
                         CheckIfStmt(IfTests(IfTest(One, CheckSuite(Pass)), IfTest(Two, CheckSuite(Pass)))),
@@ -1726,7 +1730,7 @@ namespace AnalysisTests {
 
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("FromImportStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("FromImportStmt.py", version),
                     CheckSuite(
                         CheckFromImport("sys", new[] { "winver" }),
                         CheckFromImport("sys", new[] { "winver" }, new[] { "baz" }),
@@ -1743,7 +1747,7 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("FromImportStmtV2.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("FromImportStmtV2.py", version),
                     CheckSuite(
                         CheckFuncDef("f", NoParameters,
                             CheckSuite(CheckFromImport("sys", new[] { "*" }))
@@ -1769,7 +1773,7 @@ namespace AnalysisTests {
         public void FromImportStmtIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("FromImportStmtIllegal.py", ErrorSink.Null, version),
+                    ParseFile("FromImportStmtIllegal.py", version).Tree,
                     CheckSuite(
                         CheckFromImport("", new[] { "fob" })
                     )
@@ -1785,10 +1789,9 @@ namespace AnalysisTests {
 
         [TestMethod, Priority(0)]
         public void FromImportStmtIncomplete() {
-
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("FromImportStmtIncomplete.py", ErrorSink.Null, version),
+                    ParseFile("FromImportStmtIncomplete.py", version).Tree,
                     CheckSuite(
                         CheckFuncDef(
                             "f",
@@ -1812,7 +1815,7 @@ namespace AnalysisTests {
         public void DecoratorsFuncDef() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("DecoratorsFuncDef.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("DecoratorsFuncDef.py", version),
                     CheckSuite(
                         CheckFuncDef("f", NoParameters, CheckSuite(Pass), new[] { Fob }),
                         CheckFuncDef("f", NoParameters, CheckSuite(Pass), new[] { CheckMemberExpr(Fob, "oar") }),
@@ -1842,7 +1845,7 @@ namespace AnalysisTests {
         public void DecoratorsClassDef() {
             foreach (var version in V26AndUp) {
                 CheckAst(
-                    ParseFile("DecoratorsClassDef.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("DecoratorsClassDef.py", version),
                     CheckSuite(
                         CheckClassDef("C", CheckSuite(Pass), decorators: new[] { Fob }),
                         CheckClassDef("C", CheckSuite(Pass), decorators: new[] { CheckMemberExpr(Fob, "oar") }),
@@ -1867,7 +1870,7 @@ namespace AnalysisTests {
         public void DecoratorsIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("DecoratorsIllegal.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("DecoratorsIllegal.py", version),
                     CheckSuite(
                         CheckErrorStmt(),
                         CheckAssignment(Fob, One)
@@ -1887,7 +1890,7 @@ namespace AnalysisTests {
         public void Calls() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("Calls.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("Calls.py", version),
                     CheckSuite(
                         CheckCallStmt(Fob),
                         CheckCallStmt(Fob, PositionalArg(One)),
@@ -1906,7 +1909,7 @@ namespace AnalysisTests {
         public void CallsIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("CallsIllegal.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("CallsIllegal.py", version),
                     CheckSuite(
                         CheckCallStmt(Fob, NamedArg("oar", One), NamedArg("oar", Two)),
                         CheckCallStmt(Fob, NamedArg(null, Two))
@@ -1927,7 +1930,7 @@ namespace AnalysisTests {
         public void LambdaExpr() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("LambdaExpr.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("LambdaExpr.py", version),
                     CheckSuite(
                         CheckLambdaStmt(new[] { CheckParameter("x") }, One),
                         CheckLambdaStmt(new[] { CheckParameter("x", ParameterKind.List) }, One),
@@ -1941,7 +1944,7 @@ namespace AnalysisTests {
         public void FuncDef() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("FuncDef.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("FuncDef.py", version),
                     CheckSuite(
                         CheckFuncDef("f", NoParameters, CheckSuite(Pass)),
                         CheckFuncDef("f", new[] { CheckParameter("a") }, CheckSuite(Pass)),
@@ -1961,7 +1964,7 @@ namespace AnalysisTests {
         public void FuncDefV2() {
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("FuncDefV2.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("FuncDefV2.py", version),
                     CheckSuite(
                         CheckFuncDef("f", new[] { CheckParameter("a"), CheckSublistParameter("b", "c"), CheckParameter("d") }, CheckSuite(Pass))
                     )
@@ -1979,7 +1982,7 @@ namespace AnalysisTests {
         public void FuncDefV3() {
             foreach (var version in V3Versions) {
                 CheckAst(
-                    ParseFile("FuncDefV3.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("FuncDefV3.py", version),
                     CheckSuite(
                         CheckFuncDef("f", new[] { CheckParameter("a", ParameterKind.List), CheckParameter("x", ParameterKind.KeywordOnly) }, CheckSuite(Pass)),
                         CheckFuncDef("f", new[] { CheckParameter("a", ParameterKind.List), CheckParameter("x", ParameterKind.KeywordOnly, defaultValue: One) }, CheckSuite(Pass)),
@@ -2076,7 +2079,7 @@ namespace AnalysisTests {
         public void ClassDef() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("ClassDef.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("ClassDef.py", version),
                     CheckSuite(
                         CheckClassDef("C", CheckSuite(Pass)),
                         CheckClassDef("C", CheckSuite(Pass), new[] { CheckArg("object") }),
@@ -2101,7 +2104,7 @@ namespace AnalysisTests {
         public void ClassDef3x() {
             foreach (var version in V3Versions) {
                 CheckAst(
-                    ParseFile("ClassDef3x.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("ClassDef3x.py", version),
                     CheckSuite(
                         CheckClassDef("C", CheckSuite(Pass), new[] { CheckNamedArg("metaclass", One) }),
                         CheckClassDef("C", CheckSuite(Pass), new[] { CheckArg("object"), CheckNamedArg("metaclass", One) }),
@@ -2135,7 +2138,7 @@ namespace AnalysisTests {
         public void AssignStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("AssignStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("AssignStmt.py", version),
                     CheckSuite(
                         CheckAssignment(CheckIndexExpression(Fob, One), Two),
                         CheckAssignment(CheckMemberExpr(Fob, "oar"), One),
@@ -2156,7 +2159,7 @@ namespace AnalysisTests {
         public void AssignStmt2x() {
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("AssignStmt2x.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("AssignStmt2x.py", version),
                     CheckSuite(
                         CheckAssignment(Fob, CheckUnaryExpression(PythonOperator.Negate, CheckBinaryExpression(CheckConstant((BigInteger)2), PythonOperator.Power, CheckConstant(31))))
                     )
@@ -2169,7 +2172,7 @@ namespace AnalysisTests {
         public void AssignStmt25() {
             foreach (var version in V25AndUp) {
                 CheckAst(
-                    ParseFile("AssignStmt25.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("AssignStmt25.py", version),
                     CheckSuite(
                         CheckFuncDef(
                             "f",
@@ -2195,7 +2198,7 @@ namespace AnalysisTests {
         public void AssignStmtV3() {
             foreach (var version in V3Versions) {
                 CheckAst(
-                    ParseFile("AssignStmtV3.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("AssignStmtV3.py", version),
                     CheckSuite(
                         CheckAssignment(CheckTupleExpr(CheckStarExpr(Fob), Oar, Baz), CheckTupleExpr(One, Two, Three, Four)),
                         CheckAssignment(CheckTupleExpr(Fob, CheckStarExpr(Oar), Baz), CheckTupleExpr(One, Two, Three, Four)),
@@ -2219,7 +2222,7 @@ namespace AnalysisTests {
         public void AssignStmtIllegalV3() {
             foreach (var version in V3Versions) {
                 CheckAst(
-                    ParseFile("AssignStmtIllegalV3.py", ErrorSink.Null, version),
+                    ParseFile("AssignStmtIllegalV3.py", version).Tree,
                     CheckSuite(
                         CheckAssignment(CheckTupleExpr(Fob, CheckStarExpr(Oar), CheckStarExpr(Baz)), CheckTupleExpr(One, Two, Three, Four))
                     )
@@ -2238,7 +2241,7 @@ namespace AnalysisTests {
         public void AssignStmtIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("AssignStmtIllegal.py", ErrorSink.Null, version),
+                    ParseFile("AssignStmtIllegal.py", version).Tree,
                     CheckSuite(
                         CheckAssignment(CheckBinaryExpression(Fob, PythonOperator.Add, Oar), One),
                         CheckAssignment(CheckCallExpression(Fob), One),
@@ -2273,7 +2276,7 @@ namespace AnalysisTests {
             var AwaitFob = CheckAwaitExpression(Fob);
             foreach (var version in V35AndUp) {
                 CheckAst(
-                    ParseFile("AwaitStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("AwaitStmt.py", version),
                     CheckSuite(CheckCoroutineDef(CheckFuncDef("quox", NoParameters, CheckSuite(
                         CheckExprStmt(AwaitFob),
                         CheckExprStmt(CheckAwaitExpression(CheckCallExpression(Fob))),
@@ -2345,7 +2348,7 @@ namespace AnalysisTests {
         public void AwaitStmtIllegal() {
             //foreach (var version in V35AndUp) {
             //    CheckAst(
-            //        ParseFile("AwaitStmtIllegal.py", ErrorSink.Null, version),
+            //        ParseFileNoErrors("AwaitStmtIllegal.py", version),
             //        CheckSuite(
             //        )
             //    );
@@ -2368,7 +2371,7 @@ namespace AnalysisTests {
         public void ConditionalExpr() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFile("ConditionalExpr.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("ConditionalExpr.py", version),
                     CheckSuite(
                         CheckExprStmt(CheckConditionalExpression(One, Two, Three)),
                         CheckExprStmt(CheckConditionalExpression(One, Two, Three)),
@@ -2384,7 +2387,7 @@ namespace AnalysisTests {
         public void ExecStmt() {
             foreach (var version in V2Versions) {
                 CheckAst(
-                    ParseFile("ExecStmt.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("ExecStmt.py", version),
                     CheckSuite(
                         CheckExecStmt(Fob),
                         CheckExecStmt(Fob, Oar),
@@ -2413,7 +2416,7 @@ namespace AnalysisTests {
         public void EllipsisExpr() {
             foreach (var version in V3Versions) {
                 CheckAst(
-                    ParseFile("Ellipsis.py", ErrorSink.Null, version),
+                    ParseFileNoErrors("Ellipsis.py", version),
                     CheckSuite(
                         CheckCallStmt(Fob, PositionalArg(Ellipsis)),
                         CheckBinaryStmt(One, PythonOperator.Add, Ellipsis)
@@ -2489,11 +2492,45 @@ namespace AnalysisTests {
             }
         }
 
+        [TestMethod, Priority(0)]
+        public void ParseComments() {
+            var version = PythonLanguageVersion.V35;
+            var tree = ParseFileNoErrors("Comments.py", version);
+            CheckAst(
+                tree,
+                CheckSuite(
+                    CheckCommentStatement("# Above"),
+                    CheckNameStmt("a"),
+                    CheckComment("# After", tree, CheckNameStmt("a")),
+                    CheckFuncDef("f",
+                        new[] { CheckComment("#param", tree, CheckParameter("a")) },
+                        CheckComment("#suite", tree, CheckSuite(
+                            CheckComment("#stmt", tree, CheckEmptyStmt()),
+                            CheckCommentStatement("#func"),
+                            CheckEmptyStmt(),
+                            CheckCommentStatement("#func")
+                        ))
+                    ),
+                    CheckCommentStatement("#notfunc"),
+                    CheckNameStmt("a"),
+                    CheckCommentStatement("# Below"),
+                    CheckIfStmt(tests => {
+                        Assert.AreEqual(1, tests.Count);
+                        CheckSuite(
+                            CheckCommentStatement("#block"),
+                            CheckEmptyStmt()
+                        )(tests[0].Body);
+                    }),
+                    CheckCommentStatement("#eof")
+                )
+            );
+        }
+
         [TestMethod, Priority(0), Timeout(10 * 60 * 1000)]
         public async Task StdLib() {
             var tasks = new List<KeyValuePair<string, Task<string>>>();
 
-            foreach (var curVersion in PythonPaths.Versions) {
+            foreach (var curVersion in new[] { PythonPaths.Python35 }) { // PythonPaths.Versions) {
                 Console.WriteLine("Starting: {0}", curVersion);
                 tasks.Add(new KeyValuePair<string, Task<string>>(
                     curVersion.ToString(),
@@ -2535,20 +2572,20 @@ namespace AnalysisTests {
                     "proxy_base.py",        // included in Qt port to Py3k but installed in 2.x distributions
                     "test_pep3131.py"       // we need to update to support this.
                 });
-            var errorSink = new CollectingErrorSink();
             var errors = new Dictionary<string, List<ErrorResult>>();
             foreach (var file in files) {
                 string filename = Path.GetFileName(file);
                 if (skippedFiles.Contains(filename) || filename.StartsWith("badsyntax_") || filename.StartsWith("bad_coding") || file.IndexOf("\\lib2to3\\tests\\") != -1) {
                     continue;
                 }
-                using (var parser = Parser.CreateParser(new StreamReader(file), curVersion.Version, new ParserOptions() { ErrorSink = errorSink })) {
-                    var ast = parser.ParseFile();
-                }
+                var result = Parser.TokenizeAndParseAsync(
+                    new FileSourceDocument(file),
+                    curVersion.Version
+                ).WaitAndUnwrapExceptions();
 
-                if (errorSink.Errors.Count != 0) {
-                    var fileErrors = errorSink.Errors.ToList();
-                    if (curVersion.Configuration.Version == new Version(3, 5)) {
+                if (result.Errors.Count != 0) {
+                    var fileErrors = result.Errors.ToList();
+                    if (curVersion.Configuration.Version == PythonLanguageVersion.V35) {
                         // TODO: https://github.com/Microsoft/PTVS/issues/337
                         fileErrors.RemoveAll(e => {
                             return e.Message == "non-keyword arg after keyword arg";
@@ -2557,7 +2594,6 @@ namespace AnalysisTests {
 
                     if (fileErrors.Any()) {
                         errors["\"" + file + "\""] = fileErrors;
-                        errorSink = new CollectingErrorSink();
                     }
                 }
             }
@@ -2595,67 +2631,72 @@ namespace AnalysisTests {
         }
 
         private void ParseErrors(string filename, PythonLanguageVersion version, Severity indentationInconsistencySeverity, params ErrorInfo[] errors) {
-            var sink = new CollectingErrorSink();
-            ParseFile(filename, sink, version, indentationInconsistencySeverity);
+            var result = ParseFile(filename, version, indentationInconsistencySeverity);
 
             StringBuilder foundErrors = new StringBuilder();
-            for (int i = 0; i < sink.Errors.Count; i++) {
+            foreach(var error in result.Errors) {
+                var start = result.Tree.IndexToLocation(error.Span.Start);
+                var end = result.Tree.IndexToLocation(error.Span.End);
+
                 foundErrors.AppendFormat("new ErrorInfo(\"{0}\", {1}, {2}, {3}, {4}, {5}, {6})," + Environment.NewLine,
-                    sink.Errors[i].Message,
-                    sink.Errors[i].Span.Start.Index,
-                    sink.Errors[i].Span.Start.Line,
-                    sink.Errors[i].Span.Start.Column,
-                    sink.Errors[i].Span.End.Index,
-                    sink.Errors[i].Span.End.Line,
-                    sink.Errors[i].Span.End.Column
+                    error.Message,
+                    error.Span.Start,
+                    start.Line,
+                    start.Column,
+                    error.Span.End,
+                    end.Line,
+                    end.Column
                 );
             }
 
             string finalErrors = foundErrors.ToString();
             Console.WriteLine(finalErrors);
-            Assert.AreEqual(errors.Length, sink.Errors.Count, "Version: " + version + Environment.NewLine + "Unexpected errors: " + Environment.NewLine + finalErrors);
+            Assert.AreEqual(errors.Length, result.Errors.Count, "Version: " + version + Environment.NewLine + "Unexpected errors: " + Environment.NewLine + finalErrors);
 
-            for (int i = 0; i < errors.Length; i++) {
-                if (sink.Errors[i].Message != errors[i].Message) {
-                    Assert.Fail("Wrong msg for error {0}: expected {1}, got {2}", i, errors[i].Message, sink.Errors[i].Message);
+            int i = 0;
+            foreach(var e in errors.Zip(result.Errors, Tuple.Create)) {
+                if (e.Item1.Message != e.Item2.Message) {
+                    Assert.Fail("Wrong msg for error {0}: expected {1}, got {2}", i, e.Item1.Message, e.Item2.Message);
                 }
-                if (sink.Errors[i].Span != errors[i].Span) {
+                if (e.Item1.Span.Start.Index != e.Item2.Span.Start || e.Item1.Span.End.Index != e.Item2.Span.End) {
+                    var start = result.Tree.IndexToLocation(e.Item2.Span.Start);
+                    var end = result.Tree.IndexToLocation(e.Item2.Span.End);
+
                     Assert.Fail("Wrong span for error {0}: expected ({1}, {2}, {3} - {4}, {5}, {6}), got ({7}, {8}, {9}, {10}, {11}, {12})",
                         i,
-                        errors[i].Span.Start.Index,
-                        errors[i].Span.Start.Line,
-                        errors[i].Span.Start.Column,
-                        errors[i].Span.End.Index,
-                        errors[i].Span.End.Line,
-                        errors[i].Span.End.Column,
-                        sink.Errors[i].Span.Start.Index,
-                        sink.Errors[i].Span.Start.Line,
-                        sink.Errors[i].Span.Start.Column,
-                        sink.Errors[i].Span.End.Index,
-                        sink.Errors[i].Span.End.Line,
-                        sink.Errors[i].Span.End.Column
+                        e.Item1.Span.Start.Index,
+                        e.Item1.Span.Start.Line,
+                        e.Item1.Span.Start.Column,
+                        e.Item1.Span.End.Index,
+                        e.Item1.Span.End.Line,
+                        e.Item1.Span.End.Column,
+                        e.Item2.Span.Start,
+                        start.Line,
+                        start.Column,
+                        e.Item2.Span.End,
+                        end.Line,
+                        end.Column
                     );
                 }
+                i += 1;
             }
         }
 
         private static PythonAst ParseFileNoErrors(string filename, PythonLanguageVersion version, Severity indentationInconsistencySeverity = Severity.Ignore) {
-            var errorSink = new CollectingErrorSink();
-            var ast = ParseFile(filename, errorSink, version, indentationInconsistencySeverity);
-            foreach (var warn in errorSink.Warnings) {
-                Trace.TraceInformation("WARN: {0} {1}", warn.Span, warn.Message);
-            }
-            foreach (var err in errorSink.Errors) {
+            var result = ParseFile(filename, version, indentationInconsistencySeverity);
+            foreach (var err in result.Errors) {
                 Trace.TraceInformation("ERR:  {0} {1}", err.Span, err.Message);
             }
-            Assert.AreEqual(0, errorSink.Warnings.Count + errorSink.Errors.Count, "Parse errors occurred");
-            return ast;
+            Assert.AreEqual(0, result.Errors.Count, "Parse errors occurred");
+            return result.Tree;
         }
 
-        private static PythonAst ParseFile(string filename, ErrorSink errorSink, PythonLanguageVersion version, Severity indentationInconsistencySeverity = Severity.Ignore) {
-            var parser = Parser.CreateParser(TestData.Read(Path.Combine("TestData\\Grammar", filename)), version, new ParserOptions() { ErrorSink = errorSink, IndentationInconsistencySeverity = indentationInconsistencySeverity });
-            var ast = parser.ParseFile();
-            return ast;
+        private static ParseResult ParseFile(string filename, PythonLanguageVersion version, Severity indentationInconsistencySeverity = Severity.Ignore) {
+            return Parser.TokenizeAndParseAsync(
+                new FileSourceDocument(PythonTestData.GetTestDataSourcePath("Grammar\\" + filename)),
+                version,
+                inconsistentIndentation: indentationInconsistencySeverity
+            ).WaitAndUnwrapExceptions();
         }
 
         private void CheckAst(PythonAst ast, Action<Statement> checkBody) {
@@ -2681,10 +2722,9 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckSuite(params Action<Statement>[] statements) {
             return stmt => {
-                Assert.AreEqual(typeof(SuiteStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(SuiteStatement));
                 SuiteStatement suite = (SuiteStatement)stmt;
-                Assert.AreEqual(statements.Length, suite.Statements.Count);
-                for (int i = 0; i < suite.Statements.Count; i++) {
+                for (int i = 0; i < suite.Statements.Count && i < statements.Length; i++) {
                     try {
                         statements[i](suite.Statements[i]);
                     } catch (AssertFailedException e) {
@@ -2692,12 +2732,15 @@ namespace AnalysisTests {
                         throw new AssertFailedException(String.Format("Suite Item {0}: {1}", i, e.Message), e);
                     }
                 }
+
+                var extras = string.Join(Environment.NewLine, suite.Statements.Skip(statements.Length));
+                Assert.AreEqual(statements.Length, suite.Statements.Count, "Extra statements:" + Environment.NewLine + extras);
             };
         }
 
         private static Action<Statement> CheckForStmt(Action<Expression> left, Action<Expression> list, Action<Statement> body, Action<Statement> _else = null) {
             return stmt => {
-                Assert.AreEqual(typeof(ForStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ForStatement));
                 ForStatement forStmt = (ForStatement)stmt;
 
                 left(forStmt.Left);
@@ -2724,7 +2767,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckWhileStmt(Action<Expression> test, Action<Statement> body, Action<Statement> _else = null) {
             return stmt => {
-                Assert.AreEqual(typeof(WhileStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(WhileStatement));
                 var whileStmt = (WhileStatement)stmt;
 
                 test(whileStmt.Test);
@@ -2757,7 +2800,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckTryStmt(Action<Statement> body, Action<TryStatementHandler>[] handlers, Action<Statement> _else = null, Action<Statement> _finally = null) {
             return stmt => {
-                Assert.AreEqual(typeof(TryStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(TryStatement));
                 var tryStmt = (TryStatement)stmt;
 
                 body(tryStmt.Body);
@@ -2783,7 +2826,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckRaiseStmt(Action<Expression> exceptionType = null, Action<Expression> exceptionValue = null, Action<Expression> traceBack = null, Action<Expression> cause = null) {
             return stmt => {
-                Assert.AreEqual(typeof(RaiseStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(RaiseStatement));
                 var raiseStmt = (RaiseStatement)stmt;
 
                 if (exceptionType != null) {
@@ -2809,7 +2852,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckPrintStmt(Action<Expression>[] expressions, Action<Expression> destination = null, bool trailingComma = false) {
             return stmt => {
-                Assert.AreEqual(typeof(PrintStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(PrintStatement));
                 var printStmt = (PrintStatement)stmt;
 
                 Assert.AreEqual(expressions.Length, printStmt.Expressions.Count);
@@ -2830,7 +2873,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckAssertStmt(Action<Expression> test, Action<Expression> message = null) {
             return stmt => {
-                Assert.AreEqual(typeof(AssertStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(AssertStatement));
                 var assertStmt = (AssertStatement)stmt;
 
                 test(assertStmt.Test);
@@ -2862,7 +2905,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckIfStmt(Action<IList<IfStatementTest>> tests, Action<Statement> _else = null) {
             return stmt => {
-                Assert.AreEqual(typeof(IfStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(IfStatement));
                 var ifStmt = (IfStatement)stmt;
 
                 tests(ifStmt.Tests);
@@ -2888,7 +2931,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckFromImport(string fromName, string[] names, string[] asNames = null) {
             return stmt => {
-                Assert.AreEqual(typeof(FromImportStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(FromImportStatement));
                 var fiStmt = (FromImportStatement)stmt;
 
                 Assert.AreEqual(fiStmt.Root.MakeString(), fromName);
@@ -2914,7 +2957,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckImport(string[] names, string[] asNames = null) {
             return stmt => {
-                Assert.AreEqual(typeof(ImportStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ImportStatement));
                 var fiStmt = (ImportStatement)stmt;
 
                 Assert.AreEqual(names.Length, fiStmt.Names.Count);
@@ -2939,7 +2982,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckExprStmt(Action<Expression> expr) {
             return stmt => {
-                Assert.AreEqual(typeof(ExpressionStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ExpressionStatement));
                 ExpressionStatement exprStmt = (ExpressionStatement)stmt;
                 expr(exprStmt.Expression);
             };
@@ -2959,7 +3002,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckLambda(Action<Parameter>[] args, Action<Expression> body) {
             return expr => {
-                Assert.AreEqual(typeof(LambdaExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(LambdaExpression));
 
                 var lambda = (LambdaExpression)expr;
 
@@ -2969,7 +3012,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckReturnStmt(Action<Expression> retVal = null) {
             return stmt => {
-                Assert.AreEqual(typeof(ReturnStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ReturnStatement));
                 var retStmt = (ReturnStatement)stmt;
 
                 if (retVal != null) {
@@ -2982,7 +3025,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckFuncDef(string name, Action<Parameter>[] args, Action<Statement> body, Action<Expression>[] decorators = null, Action<Expression> returnAnnotation = null) {
             return stmt => {
-                Assert.AreEqual(typeof(FunctionDefinition), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(FunctionDefinition));
                 var funcDef = (FunctionDefinition)stmt;
 
                 if (name != null) {
@@ -3030,7 +3073,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckClassDef(string name, Action<Statement> body, Action<Arg>[] bases = null, Action<Expression>[] decorators = null) {
             return stmt => {
-                Assert.AreEqual(typeof(ClassDefinition), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ClassDefinition));
                 var classDef = (ClassDefinition)stmt;
 
                 if (name != null) {
@@ -3073,7 +3116,7 @@ namespace AnalysisTests {
 
         private static Action<Parameter> CheckSublistParameter(params string[] names) {
             return param => {
-                Assert.AreEqual(typeof(SublistParameter), param.GetType());
+                Assert.IsInstanceOfType(param, typeof(SublistParameter));
                 var sublistParam = (SublistParameter)param;
 
                 Assert.AreEqual(names.Length, sublistParam.Tuple.Items.Count);
@@ -3089,7 +3132,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckBinaryExpression(Action<Expression> lhs, PythonOperator op, Action<Expression> rhs) {
             return expr => {
-                Assert.AreEqual(typeof(BinaryExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(BinaryExpression));
                 BinaryExpression bin = (BinaryExpression)expr;
                 Assert.AreEqual(bin.Operator, op);
                 lhs(bin.Left);
@@ -3103,7 +3146,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckUnaryExpression(PythonOperator op, Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(UnaryExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(UnaryExpression));
                 var unary = (UnaryExpression)expr;
                 Assert.AreEqual(unary.Op, op);
                 value(unary.Expression);
@@ -3116,7 +3159,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckBackquoteExpr(Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(BackQuoteExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(BackQuoteExpression));
                 var bq = (BackQuoteExpression)expr;
                 value(bq.Expression);
             };
@@ -3131,7 +3174,7 @@ namespace AnalysisTests {
         }
         private static Action<Expression> CheckAndExpression(Action<Expression> lhs, Action<Expression> rhs) {
             return expr => {
-                Assert.AreEqual(typeof(AndExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(AndExpression));
                 AndExpression bin = (AndExpression)expr;
                 lhs(bin.Left);
                 rhs(bin.Right);
@@ -3140,7 +3183,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckOrExpression(Action<Expression> lhs, Action<Expression> rhs) {
             return expr => {
-                Assert.AreEqual(typeof(OrExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(OrExpression));
                 OrExpression bin = (OrExpression)expr;
                 lhs(bin.Left);
                 rhs(bin.Right);
@@ -3153,7 +3196,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckCallExpression(Action<Expression> target, params Action<Arg>[] args) {
             return expr => {
-                Assert.AreEqual(typeof(CallExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(CallExpression));
                 var call = (CallExpression)expr;
                 target(call.Target);
 
@@ -3170,7 +3213,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckSlice(Action<Expression> start, Action<Expression> stop, Action<Expression> step = null) {
             return expr => {
-                Assert.AreEqual(typeof(SliceExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(SliceExpression));
                 var slice = (SliceExpression)expr;
 
                 if (start != null) {
@@ -3226,7 +3269,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckNameExpr(string name) {
             return expr => {
-                Assert.AreEqual(typeof(NameExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(NameExpression));
                 var nameExpr = (NameExpression)expr;
                 Assert.AreEqual(nameExpr.Name, name);
             };
@@ -3264,7 +3307,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckIndexExpression(Action<Expression> target, Action<Expression> index) {
             return expr => {
-                Assert.AreEqual(typeof(IndexExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(IndexExpression));
                 var indexExpr = (IndexExpression)expr;
                 target(indexExpr.Target);
                 index(indexExpr.Index);
@@ -3277,7 +3320,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckDictionaryExpr(params Action<SliceExpression>[] items) {
             return expr => {
-                Assert.AreEqual(typeof(DictionaryExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(DictionaryExpression));
                 var dictExpr = (DictionaryExpression)expr;
                 Assert.AreEqual(items.Length, dictExpr.Items.Count);
 
@@ -3293,7 +3336,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckTupleExpr(params Action<Expression>[] items) {
             return expr => {
-                Assert.AreEqual(typeof(TupleExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(TupleExpression));
                 var tupleExpr = (TupleExpression)expr;
                 Assert.AreEqual(items.Length, tupleExpr.Items.Count);
 
@@ -3305,7 +3348,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckListExpr(params Action<Expression>[] items) {
             return expr => {
-                Assert.AreEqual(typeof(ListExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ListExpression));
                 var listExpr = (ListExpression)expr;
                 Assert.AreEqual(items.Length, listExpr.Items.Count);
 
@@ -3321,7 +3364,7 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckAssignment(Action<Expression>[] lhs, Action<Expression> rhs) {
             return expr => {
-                Assert.AreEqual(typeof(AssignmentStatement), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(AssignmentStatement));
                 var assign = (AssignmentStatement)expr;
 
                 Assert.AreEqual(assign.Left.Count, lhs.Length);
@@ -3334,37 +3377,37 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckErrorExpr() {
             return expr => {
-                Assert.AreEqual(typeof(ErrorExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ErrorExpression));
             };
         }
 
         private static Action<Statement> CheckErrorStmt() {
             return expr => {
-                Assert.AreEqual(typeof(ErrorStatement), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ErrorStatement));
             };
         }
 
         private static Action<Statement> CheckEmptyStmt() {
             return expr => {
-                Assert.AreEqual(typeof(EmptyStatement), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(EmptyStatement));
             };
         }
 
         private static Action<Statement> CheckBreakStmt() {
             return expr => {
-                Assert.AreEqual(typeof(BreakStatement), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(BreakStatement));
             };
         }
 
         private static Action<Statement> CheckContinueStmt() {
             return expr => {
-                Assert.AreEqual(typeof(ContinueStatement), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ContinueStatement));
             };
         }
 
         private static Action<Statement> CheckAssignment(Action<Expression> lhs, PythonOperator op, Action<Expression> rhs) {
             return stmt => {
-                Assert.AreEqual(typeof(AugmentedAssignStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(AugmentedAssignStatement));
                 var assign = (AugmentedAssignStatement)stmt;
 
                 Assert.AreEqual(assign.Operator, op);
@@ -3376,7 +3419,7 @@ namespace AnalysisTests {
 
         private Action<Statement> CheckExecStmt(Action<Expression> code, Action<Expression> globals = null, Action<Expression> locals = null) {
             return stmt => {
-                Assert.AreEqual(typeof(ExecStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(ExecStatement));
                 var exec = (ExecStatement)stmt;
 
                 code(exec.Code);
@@ -3408,7 +3451,7 @@ namespace AnalysisTests {
 
         private Action<Statement> CheckWithStmt(Action<Expression>[] expr, Action<Expression>[] target, Action<Statement> body) {
             return stmt => {
-                Assert.AreEqual(typeof(WithStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(WithStatement));
                 var with = (WithStatement)stmt;
 
                 Assert.AreEqual(expr.Length, with.Items.Count);
@@ -3439,7 +3482,7 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckConstant(object value, string expectedRepr = null, PythonLanguageVersion ver = PythonLanguageVersion.V27) {
             return expr => {
-                Assert.AreEqual(typeof(ConstantExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ConstantExpression));
 
                 if (value is byte[]) {
                     Assert.AreEqual(typeof(AsciiString), ((ConstantExpression)expr).Value.GetType());
@@ -3462,7 +3505,7 @@ namespace AnalysisTests {
 
         private Action<Statement> CheckDelStmt(params Action<Expression>[] deletes) {
             return stmt => {
-                Assert.AreEqual(typeof(DelStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(DelStatement));
                 var del = (DelStatement)stmt;
 
                 Assert.AreEqual(deletes.Length, del.Expressions.Count);
@@ -3474,7 +3517,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckParenExpr(Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(ParenthesisExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ParenthesisExpression));
                 var paren = (ParenthesisExpression)expr;
 
                 value(paren.Expression);
@@ -3483,7 +3526,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckStarExpr(Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(StarredExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(StarredExpression));
                 var starred = (StarredExpression)expr;
 
                 value(starred.Expression);
@@ -3492,7 +3535,7 @@ namespace AnalysisTests {
 
         private Action<Statement> CheckGlobal(params string[] names) {
             return stmt => {
-                Assert.AreEqual(typeof(GlobalStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(GlobalStatement));
                 var global = (GlobalStatement)stmt;
 
                 Assert.AreEqual(names.Length, global.Names.Count);
@@ -3504,7 +3547,7 @@ namespace AnalysisTests {
 
         private Action<Statement> CheckNonlocal(params string[] names) {
             return stmt => {
-                Assert.AreEqual(typeof(NonlocalStatement), stmt.GetType());
+                Assert.IsInstanceOfType(stmt, typeof(NonlocalStatement));
                 var nonlocal = (NonlocalStatement)stmt;
 
                 Assert.AreEqual(names.Length, nonlocal.Names.Count);
@@ -3534,7 +3577,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckYieldExpr(Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(YieldExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(YieldExpression));
                 var yield = (YieldExpression)expr;
 
                 value(yield.Expression);
@@ -3547,7 +3590,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckYieldFromExpr(Action<Expression> value) {
             return expr => {
-                Assert.AreEqual(typeof(YieldFromExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(YieldFromExpression));
                 var yield = (YieldFromExpression)expr;
 
                 value(yield.Expression);
@@ -3556,7 +3599,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckListComp(Action<Expression> item, params Action<ComprehensionIterator>[] iterators) {
             return expr => {
-                Assert.AreEqual(typeof(ListComprehension), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(ListComprehension));
                 var listComp = (ListComprehension)expr;
 
                 Assert.AreEqual(iterators.Length, listComp.Iterators.Count);
@@ -3570,7 +3613,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckGeneratorComp(Action<Expression> item, params Action<ComprehensionIterator>[] iterators) {
             return expr => {
-                Assert.AreEqual(typeof(GeneratorExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(GeneratorExpression));
                 var listComp = (GeneratorExpression)expr;
 
                 Assert.AreEqual(iterators.Length, listComp.Iterators.Count);
@@ -3584,7 +3627,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckDictComp(Action<Expression> key, Action<Expression> value, params Action<ComprehensionIterator>[] iterators) {
             return expr => {
-                Assert.AreEqual(typeof(DictionaryComprehension), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(DictionaryComprehension));
                 var dictComp = (DictionaryComprehension)expr;
 
                 Assert.AreEqual(iterators.Length, dictComp.Iterators.Count);
@@ -3600,7 +3643,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckSetComp(Action<Expression> item, params Action<ComprehensionIterator>[] iterators) {
             return expr => {
-                Assert.AreEqual(typeof(SetComprehension), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(SetComprehension));
                 var setComp = (SetComprehension)expr;
 
                 Assert.AreEqual(iterators.Length, setComp.Iterators.Count);
@@ -3615,7 +3658,7 @@ namespace AnalysisTests {
 
         private Action<Expression> CheckSetLiteral(params Action<Expression>[] values) {
             return expr => {
-                Assert.AreEqual(typeof(SetExpression), expr.GetType());
+                Assert.IsInstanceOfType(expr, typeof(SetExpression));
                 var setLiteral = (SetExpression)expr;
 
                 Assert.AreEqual(values.Length, setLiteral.Items.Count);
@@ -3628,7 +3671,7 @@ namespace AnalysisTests {
 
         private Action<ComprehensionIterator> CompFor(Action<Expression> lhs, Action<Expression> list) {
             return iter => {
-                Assert.AreEqual(typeof(ComprehensionFor), iter.GetType());
+                Assert.IsInstanceOfType(iter, typeof(ComprehensionFor));
                 var forIter = (ComprehensionFor)iter;
 
                 lhs(forIter.Left);
@@ -3638,12 +3681,27 @@ namespace AnalysisTests {
 
         private Action<ComprehensionIterator> CompIf(Action<Expression> test) {
             return iter => {
-                Assert.AreEqual(typeof(ComprehensionIf), iter.GetType());
+                Assert.IsInstanceOfType(iter, typeof(ComprehensionIf));
                 var ifIter = (ComprehensionIf)iter;
 
                 test(ifIter.Test);
             };
         }
+
+        private Action<Node> CheckCommentStatement(string comment) {
+            return node => {
+                Assert.IsInstanceOfType(node, typeof(CommentStatement));
+                Assert.AreEqual(comment, ((CommentStatement)node).Comment);
+            };
+        }
+
+        private Action<T> CheckComment<T>(string comment, PythonAst tree, Action<T> checkNode) where T : Node {
+            return node => {
+                Assert.AreEqual(comment, node.GetComment(tree));
+                checkNode(node);
+            };
+        }
+
 
         private byte[] ToBytes(string str) {
             byte[] res = new byte[str.Length];

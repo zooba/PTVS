@@ -18,6 +18,7 @@ using System.Linq;
 using System.Reflection;
 using Microsoft.PythonTools;
 using Microsoft.PythonTools.Interpreter;
+using Microsoft.PythonTools.Parsing;
 
 namespace TestUtilities.Python {
     public class MockInterpreterOptionsService : IInterpreterOptionsService {
@@ -27,7 +28,7 @@ namespace TestUtilities.Python {
 
         public MockInterpreterOptionsService() {
             _providers = new List<IPythonInterpreterFactoryProvider>();
-            _noInterpretersValue = new MockPythonInterpreterFactory(Guid.NewGuid(), "No Interpreters", new InterpreterConfiguration(new Version(2, 7)));
+            _noInterpretersValue = new MockPythonInterpreterFactory(Guid.NewGuid(), "No Interpreters", new InterpreterConfiguration { Version= Microsoft.PythonTools.Parsing.PythonLanguageVersion.V27 });
         }
 
         public void AddProvider(IPythonInterpreterFactoryProvider provider) {
@@ -76,7 +77,7 @@ namespace TestUtilities.Python {
         }
 
         public IPythonInterpreterFactory FindInterpreter(Guid id, Version version) {
-            return InterpretersOrDefault.FirstOrDefault(f => f.Id == id && f.Configuration.Version == version);
+            return InterpretersOrDefault.FirstOrDefault(f => f.Id == id && f.Configuration.Version.ToVersion() == version);
         }
 
         public IPythonInterpreterFactory FindInterpreter(Guid id, string version) {

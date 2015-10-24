@@ -20,6 +20,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.PythonTools.Analysis;
+using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudioTools;
 using MSBuild = Microsoft.Build.Evaluation;
 
@@ -220,7 +221,7 @@ namespace Microsoft.PythonTools.Interpreter {
                 if (hasError) {
                     fact = new NotFoundInterpreterFactory(
                         id,
-                        ver,
+                        ver.ToLanguageVersion(),
                         string.Format("{0} (unavailable)", description),
                         Directory.Exists(dir) ? dir : null
                     );
@@ -229,7 +230,7 @@ namespace Microsoft.PythonTools.Interpreter {
                     fact = new DerivedInterpreterFactory(
                         baseInterp,
                         new InterpreterFactoryCreationOptions {
-                            LanguageVersion = baseInterp.Configuration.Version,
+                            LanguageVersion = baseInterp.Configuration.Version.ToVersion(),
                             Id = id,
                             Description = description,
                             InterpreterPath = path,
@@ -296,7 +297,7 @@ namespace Microsoft.PythonTools.Interpreter {
                 var fact = _service.FindInterpreter(id, ver);
                 if (fact == null) {
                     owned = true;
-                    fact = new NotFoundInterpreterFactory(id, ver);
+                    fact = new NotFoundInterpreterFactory(id, ver.ToLanguageVersion());
                 }
 
                 var existing = FindInterpreter(id, ver);
@@ -384,7 +385,7 @@ namespace Microsoft.PythonTools.Interpreter {
                     baseInterp,
                     new InterpreterFactoryCreationOptions {
                         Id = id,
-                        LanguageVersion = baseInterp.Configuration.Version,
+                        LanguageVersion = baseInterp.Configuration.Version.ToVersion(),
                         Description = description,
                         InterpreterPath = options.InterpreterPath,
                         WindowInterpreterPath = options.WindowInterpreterPath,
@@ -417,7 +418,7 @@ namespace Microsoft.PythonTools.Interpreter {
             return id;
         }
 
-        private static void MigrateOldDerivedInterpreterFactoryDatabase(Guid id, Version version, string prefixPath) {
+        private static void MigrateOldDerivedInterpreterFactoryDatabase(Guid id, PythonLanguageVersion version, string prefixPath) {
             var newPath = Path.Combine(prefixPath, ".ptvs");
             var oldPath = Path.Combine(newPath, id.ToString(), version.ToString());
             if (Directory.Exists(oldPath)) {
@@ -485,14 +486,14 @@ namespace Microsoft.PythonTools.Interpreter {
                         { DescriptionKey, derived.Description },
                         { InterpreterPathKey, CommonUtils.GetRelativeFilePath(rootPath, derived.Configuration.InterpreterPath) },
                         { WindowsPathKey, CommonUtils.GetRelativeFilePath(rootPath, derived.Configuration.WindowsInterpreterPath) },
-                        { LibraryPathKey, CommonUtils.GetRelativeDirectoryPath(rootPath, derived.Configuration.LibraryPath) },
+                        { LibraryPathKey, CommonUtils.GetRelativeDirectoryPath(rootPath, derived.Configuration.SysPath[0]) },
                         { PathEnvVarKey, derived.Configuration.PathEnvironmentVariable },
                         { ArchitectureKey, derived.Configuration.Architecture.ToString() }
                     }).FirstOrDefault();
-            } else if (_service.FindInterpreter(factory.Id, factory.Configuration.Version) != null) {
+            } else if (_service.FindInterpreter(factory.Id, factory.Configuration.Version.ToVersion()) != null) {
                 // The interpreter exists globally, so add a reference.
                 item = _project.AddItem(InterpreterReferenceItem,
-                    string.Format("{0:B}\\{1}", factory.Id, factory.Configuration.Version)
+                    string.Format("{0:B}\\{1}", factory.Id, factory.Configuration.Version.ToVersion())
                     ).FirstOrDefault();
             } else {
                 // Can't find the interpreter anywhere else, so add its
@@ -508,7 +509,7 @@ namespace Microsoft.PythonTools.Interpreter {
                         { DescriptionKey, factory.Description },
                         { InterpreterPathKey, CommonUtils.GetRelativeFilePath(rootPath, factory.Configuration.InterpreterPath) },
                         { WindowsPathKey, CommonUtils.GetRelativeFilePath(rootPath, factory.Configuration.WindowsInterpreterPath) },
-                        { LibraryPathKey, CommonUtils.GetRelativeDirectoryPath(rootPath, factory.Configuration.LibraryPath) },
+                        { LibraryPathKey, CommonUtils.GetRelativeDirectoryPath(rootPath, factory.Configuration.SysPath[0]) },
                         { PathEnvVarKey, factory.Configuration.PathEnvironmentVariable },
                         { ArchitectureKey, factory.Configuration.Architecture.ToString() }
                     }).FirstOrDefault();
@@ -558,7 +559,7 @@ namespace Microsoft.PythonTools.Interpreter {
                         Guid.TryParse(match.Groups["id"].Value, out itemId) &&
                         Version.TryParse(match.Groups["version"].Value, out itemVer) &&
                         factory.Id == itemId &&
-                        factory.Configuration.Version == itemVer) {
+                        factory.Configuration.Version == itemVer.ToLanguageVersion()) {
                         _project.RemoveItem(item);
                         _project.MarkDirty();
                         break;
@@ -685,7 +686,7 @@ namespace Microsoft.PythonTools.Interpreter {
             lock (_factoriesLock) {
                 if (_factories != null) {
                     foreach (var fact in _factories.Keys) {
-                        if (fact.Id == id && (version.Major == 0 || fact.Configuration.Version == version)) {
+                        if (fact.Id == id && (version.Major == 0 || fact.Configuration.Version == version.ToLanguageVersion())) {
                             return fact;
                         }
                     }
@@ -816,19 +817,22 @@ namespace Microsoft.PythonTools.Interpreter {
         internal class NotFoundInterpreterFactory : IPythonInterpreterFactory {
             public NotFoundInterpreterFactory(
                 Guid id,
-                Version version,
+                PythonLanguageVersion version,
                 string description = null,
                 string prefixPath = null
             ) {
                 Id = id;
                 Configuration = new InterpreterConfiguration(
+                    id.ToString(),
+                    description,
                     prefixPath,
                     null,
                     null,
                     null,
                     null,
                     ProcessorArchitecture.None,
-                    version
+                    version,
+                    InterpreterUIMode.Normal
                 );
                 Description = string.IsNullOrEmpty(description) ? string.Format("Unknown Python {0}", version) : description;
             }

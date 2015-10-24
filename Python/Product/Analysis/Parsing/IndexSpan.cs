@@ -16,16 +16,23 @@ using System;
 
 namespace Microsoft.PythonTools.Parsing {
     /// <summary>
-    /// This structure represents an immutable integer interval that describes a range of values, from Start to End. 
+    /// This structure represents an immutable integer interval that describes a
+    /// range of values, from Start to End. 
     /// 
     /// It is closed on the left and open on the right: [Start .. End). 
     /// </summary>
-    internal struct IndexSpan : IEquatable<IndexSpan> {
+    public struct IndexSpan : IEquatable<IndexSpan> {
+        public static readonly IndexSpan Empty = new IndexSpan(0, 0);
+
         private readonly int _start, _length;
 
         public IndexSpan(int start, int length) {
             _start = start;
             _length = length;
+        }
+
+        public static IndexSpan FromPoints(int start, int end) {
+            return new IndexSpan(start, end - start);
         }
 
         public int Start {
@@ -65,12 +72,12 @@ namespace Microsoft.PythonTools.Parsing {
             return !self.Equals(other);
         }
 
-        #region IEquatable<IndexSpan> Members
-
         public bool Equals(IndexSpan other) {
             return _length == other._length && _start == other._start;
         }
 
-        #endregion
+        public override string ToString() {
+            return string.Format("[{0}, {1})", _start, _start + _length);
+        }
     }
 }

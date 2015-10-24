@@ -206,11 +206,11 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         internal void ReportSyntaxWarning(string message, Node node) {
-            _errorSink.Add(message, _ast._lineLocations, node.StartIndex, node.EndIndex, ErrorCodes.SyntaxError, Severity.Warning);
+            _errorSink.Add(message, IndexSpan.FromPoints(node.StartIndex, node.EndIndex), ErrorCodes.SyntaxError, Severity.Warning);
         }
 
         internal void ReportSyntaxError(string message, Node node) {
-            _errorSink.Add(message, _ast._lineLocations, node.StartIndex, node.EndIndex, ErrorCodes.SyntaxError, Severity.FatalError);
+            _errorSink.Add(message, IndexSpan.FromPoints(node.StartIndex, node.EndIndex), ErrorCodes.SyntaxError, Severity.FatalError);
         }
 
         #region AstBinder Overrides

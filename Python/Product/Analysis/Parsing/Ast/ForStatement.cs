@@ -80,7 +80,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            format.ReflowComment(res, this.GetProceedingWhiteSpace(ast));
+            res.Append(this.GetPrecedingWhiteSpace(ast));
             res.Append("for");
             _left.AppendCodeString(res, ast, format);
             if (!this.IsIncompleteNode(ast)) {
@@ -89,7 +89,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 _list.AppendCodeString(res, ast, format);
                 _body.AppendCodeString(res, ast, format);   // colon is handled by suite statements...
                 if (_else != null) {
-                    format.ReflowComment(res, this.GetThirdWhiteSpace(ast));
+                    res.Append(this.GetThirdWhiteSpace(ast));
                     res.Append("else");
                     _else.AppendCodeString(res, ast, format);
                 }

@@ -1,25 +1,29 @@
-/* ****************************************************************************
- *
- * Copyright (c) Microsoft Corporation. 
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- *
- * ***************************************************************************/
+﻿/* ****************************************************************************
+*
+* Copyright (c) Microsoft Corporation. 
+*
+* This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
+* copy of the license can be found in the License.html file at the root of this distribution. If 
+* you cannot locate the Apache License, Version 2.0, please send an email to 
+* vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
+* by the terms of the Apache License, Version 2.0.
+*
+* You must not remove this notice, or any other, from this software.
+*
+* ***************************************************************************/
 
+extern alias analysis;
 using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using analysis::Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Parsing;
 using Microsoft.PythonTools.Parsing.Ast;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using TestUtilities.Mocks;
+using Microsoft.VisualStudioTools;
+using TestUtilities;
+using TestUtilities.Python;
 
 namespace AnalysisTests {
     /// <summary>
@@ -27,6 +31,13 @@ namespace AnalysisTests {
     /// </summary>
     [TestClass]
     public class ParserRoundTripTest {
+        [ClassInitialize]
+        public static void DoDeployment(TestContext context) {
+            AssertListener.Initialize();
+            // Don't deploy test data because we read directly from the source.
+            PythonTestData.Deploy(includeTestData: false);
+        }
+
         [TestMethod, Priority(0)]
         public void TestCodeFormattingOptions() {
             /* Function Definitions */
@@ -421,12 +432,11 @@ def f ( ):
                 foreach (var testCase in _commentInsertionSnippets) {
                     Console.WriteLine(testCase);
 
-                    var parser = Parser.CreateParser(
-                        new StringReader(testCase.Replace("[INSERT]", "# comment here")), 
-                        PythonLanguageVersion.V27, 
-                        new ParserOptions() { Verbatim = true }
-                    );
-                    var ast = parser.ParseFile();
+                    var ast = Parser.TokenizeAndParseAsync(
+                        new StringLiteralDocument(testCase.Replace("[INSERT]", "# comment here")), 
+                        PythonLanguageVersion.V27,
+                        TokenizerOptions.Verbatim
+                    ).WaitAndUnwrapExceptions().Tree;
                     var newCode = ast.ToCodeString(ast, options);
                     Console.WriteLine(newCode);
                     Assert.IsTrue(newCode.IndexOf("# comment here") != -1);
@@ -442,13 +452,12 @@ def f ( ):
             var code = @"x = 100
 \";
 
-            var parser = Parser.CreateParser(
-                new StringReader(code),
+            var ast = Parser.TokenizeAndParseAsync(
+                new StringLiteralDocument(code),
                 PythonLanguageVersion.V27,
-                new ParserOptions() { Verbatim = true }
-            );
+                TokenizerOptions.Verbatim
+            ).WaitAndUnwrapExceptions().Tree;
 
-            var ast = parser.ParseFile();
             var newCode = ast.ToCodeString(ast);
             Assert.AreEqual(code, newCode);
         }
@@ -463,13 +472,12 @@ def f ( ):
         b:
             print('hi')";
 
-            var parser = Parser.CreateParser(
-                new StringReader(code),
+            var ast = Parser.TokenizeAndParseAsync(
+                new StringLiteralDocument(code),
                 PythonLanguageVersion.V27,
-                new ParserOptions() { Verbatim = true }
-            );
+                TokenizerOptions.Verbatim
+            ).WaitAndUnwrapExceptions().Tree;
 
-            var ast = parser.ParseFile();
             var newCode = ast.ToCodeString(ast, new CodeFormattingOptions() { WrapComments = true, WrappingWidth = 20 });
             Assert.AreEqual(newCode, code);
         }
@@ -482,13 +490,12 @@ def f ( ):
             var code = @"def f(): # fob
     pass";
 
-            var parser = Parser.CreateParser(
-                new StringReader(code),
+            var ast = Parser.TokenizeAndParseAsync(
+                new StringLiteralDocument(code),
                 PythonLanguageVersion.V27,
-                new ParserOptions() { Verbatim = true }
-            );
+                TokenizerOptions.Verbatim
+            ).WaitAndUnwrapExceptions().Tree;
 
-            var ast = parser.ParseFile();
             var newCode = ast.ToCodeString(ast, new CodeFormattingOptions() { WrapComments = true, WrappingWidth = 20 });
             Assert.AreEqual(newCode, code);
         }
@@ -548,8 +555,11 @@ def f ( ):
                     string code = preceedingText + exprText;
                     Console.WriteLine(code);
 
-                    var parser = Parser.CreateParser(new StringReader(code), testCase.Version, new ParserOptions() { Verbatim = true });
-                    var ast = parser.ParseFile();
+                    var ast = Parser.TokenizeAndParseAsync(
+                        new StringLiteralDocument(code),
+                        testCase.Version,
+                        TokenizerOptions.Verbatim
+                    ).WaitAndUnwrapExceptions().Tree;
                     Statement stmt = ((SuiteStatement)ast.Body).Statements[0];
                     if (stmt is ExpressionStatement) {
                         var expr = ((ExpressionStatement)stmt).Expression;
@@ -1616,8 +1626,11 @@ class BaseSet(object):
                 expected = originalText;
                 hadExpected = false;
             }
-            var parser = Parser.CreateParser(new StringReader(originalText), version, new ParserOptions() { Verbatim = true });
-            var ast = parser.ParseFile();
+            var ast = Parser.TokenizeAndParseAsync(
+                new StringLiteralDocument(originalText),
+                version,
+                TokenizerOptions.Verbatim
+            ).WaitAndUnwrapExceptions().Tree;
 
             string output;
             try {
@@ -1674,7 +1687,16 @@ class BaseSet(object):
                         Console.WriteLine("-----");
                     }
 
-                    Assert.AreEqual(expected[i], output[i], String.Format("Characters differ at {0}, got {1}, expected {2}", i, output[i], expected[i]));
+                    Assert.AreEqual(
+                        expected[i],
+                        output[i],
+                        string.Format(
+                            "Characters differ at {0}, got {1}, expected {2}",
+                            i,
+                            StringBuilderExtensions.FixChar(output[i]),
+                            StringBuilderExtensions.FixChar(expected[i])
+                        )
+                    );
                 }
             }
 

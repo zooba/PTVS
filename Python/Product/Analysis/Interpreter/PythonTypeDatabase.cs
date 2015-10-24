@@ -24,6 +24,7 @@ using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Interpreter.Default;
+using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudioTools;
 using Microsoft.VisualStudioTools.Project;
 
@@ -105,7 +106,7 @@ namespace Microsoft.PythonTools.Interpreter {
         /// <summary>
         /// Gets the Python version associated with this database.
         /// </summary>
-        public Version LanguageVersion {
+        public PythonLanguageVersion LanguageVersion {
             get {
                 return _factory.Configuration.Version;
             }
@@ -316,7 +317,7 @@ namespace Microsoft.PythonTools.Interpreter {
                     if (!Guid.TryParse(columns[interpreterGuidIndex], out interpGuid) ||            // corrupt data
                         interpGuid != interpreter.Id ||                         // not our interpreter
                         !Version.TryParse(columns[interpreterVersionIndex], out interpVersion) ||     // corrupt data
-                        interpVersion != interpreter.Configuration.Version ||
+                        interpVersion.ToLanguageVersion() != interpreter.Configuration.Version ||
                         String.Compare(columns[extensionModuleFilenameIndex], extensionModuleFilename, StringComparison.OrdinalIgnoreCase) != 0) {   // not our interpreter
 
                         // nope, but remember the line for when we re-write out the DB.
@@ -387,7 +388,7 @@ namespace Microsoft.PythonTools.Interpreter {
         public static async Task<int> GenerateAsync(PythonTypeDatabaseCreationRequest request) {
             var fact = request.Factory;
             var evt = request.OnExit;
-            if (fact == null || !Directory.Exists(fact.Configuration.LibraryPath)) {
+            if (fact == null || !Directory.Exists(fact.Configuration.PrefixPath)) {
                 if (evt != null) {
                     evt(NotSupportedExitCode);
                 }
@@ -413,7 +414,7 @@ namespace Microsoft.PythonTools.Interpreter {
                 "/version", fact.Configuration.Version.ToString(),
                 "/python", fact.Configuration.InterpreterPath,
                 request.DetectLibraryPath ? null : "/library",
-                request.DetectLibraryPath ? null : fact.Configuration.LibraryPath,
+                request.DetectLibraryPath ? null : fact.Configuration.SysPath[0],
                 "/outdir", outPath,
                 "/basedb", baseDb,
                 (request.SkipUnchanged ? null : "/all"),  // null will be filtered out; empty strings are quoted
@@ -813,7 +814,7 @@ namespace Microsoft.PythonTools.Interpreter {
         /// </returns>
         /// <remarks>Added in 2.2</remarks>
         public static IEnumerable<List<ModulePath>> GetDatabaseExpectedModules(
-            Version languageVersion,
+            PythonLanguageVersion languageVersion,
             IEnumerable<PythonLibraryPath> searchPaths
         ) {
             var requireInitPy = ModulePath.PythonVersionRequiresInitPyFiles(languageVersion);

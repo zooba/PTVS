@@ -15,30 +15,24 @@
 using System;
 
 namespace Microsoft.PythonTools.Parsing {
-    internal struct TokenWithSpan {
+    public struct TokenWithSpan {
         public static readonly TokenWithSpan Empty = new TokenWithSpan();
 
-        private readonly Token _token;
-        private readonly IndexSpan _span;
+        public Token Token;
+        public IndexSpan Span;
+        public string LeadingWhitespace;
 
-        public TokenWithSpan(Token token, IndexSpan span) {
-            _token = token;
-            _span = span;
+        public TokenWithSpan(Token token, IndexSpan span, string leadingWhitespace) {
+            Token = token;
+            Span = span;
+            LeadingWhitespace = leadingWhitespace;
         }
-
-        public IndexSpan Span {
-            get { return _span; }
-        }
-
-        public Token Token {
-            get { return _token; }
-        }
-
     }
 
     /// <summary>
     /// Summary description for Token.
     /// </summary>
+    [Serializable]
     public abstract class Token {
         private readonly TokenKind _kind;
 
@@ -187,24 +181,12 @@ namespace Microsoft.PythonTools.Parsing {
         }
     }
 
-    internal sealed class CommentToken : Token {
+    internal sealed class CommentToken : VerbatimToken {
         private readonly string _comment;
 
-        public CommentToken(string comment)
-            : base(TokenKind.Comment) {
+        public CommentToken(string comment, string newline)
+            : base(TokenKind.Comment, comment + newline, comment) {
             _comment = comment;
-        }
-
-        public string Comment {
-            get { return _comment; }
-        }
-
-        public override string Image {
-            get { return _comment; }
-        }
-
-        public override object Value {
-            get { return _comment; }
         }
     }
 

@@ -25,6 +25,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudio.Settings;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -169,7 +170,7 @@ namespace Microsoft.PythonTools.Interpreter {
             }
 
             // May have removed the default interpreter, so select a new default
-            if (FindInterpreter(DefaultInterpreter.Id, DefaultInterpreter.Configuration.Version) == null) {
+            if (FindInterpreter(DefaultInterpreter.Id, DefaultInterpreter.Configuration.Version.ToVersion()) == null) {
                 DefaultInterpreter = Interpreters.LastOrDefault(fact => fact.CanBeAutoDefault());
             }
 
@@ -410,7 +411,7 @@ namespace Microsoft.PythonTools.Interpreter {
         }
 
         private static bool AreEqual(IPythonInterpreterFactory factory, Guid id, Version version) {
-            return factory != null && factory.Id.Equals(id) && (factory.Configuration.Version == null || factory.Configuration.Version.Equals(version));
+            return factory != null && factory.Id.Equals(id) && (factory.Configuration.Version == PythonLanguageVersion.None || factory.Configuration.Version.Equals(version));
         }
 
         private void LoadDefaultInterpreter(bool suppressChangeEvent = false) {

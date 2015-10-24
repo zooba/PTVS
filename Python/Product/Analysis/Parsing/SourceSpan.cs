@@ -13,6 +13,7 @@
  * ***************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace Microsoft.PythonTools.Parsing {
@@ -34,6 +35,20 @@ namespace Microsoft.PythonTools.Parsing {
             ValidateLocations(start, end);
             this._start = start;
             this._end = end;
+        }
+
+        public static SourceSpan FromIndexSpan(Tokenization tokenization, IndexSpan span) {
+            return new SourceSpan(
+                SourceLocation.FromIndex(tokenization, span.Start),
+                SourceLocation.FromIndex(tokenization, span.End)
+            );
+        }
+
+        internal static SourceSpan FromIndexSpan(IReadOnlyList<int> lineLocations, IndexSpan span) {
+            return new SourceSpan(
+                SourceLocation.FromIndex(lineLocations, span.Start),
+                SourceLocation.FromIndex(lineLocations, span.End)
+            );
         }
 
         private static void ValidateLocations(SourceLocation start, SourceLocation end) {

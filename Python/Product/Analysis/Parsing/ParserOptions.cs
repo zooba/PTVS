@@ -17,15 +17,6 @@ using System;
 namespace Microsoft.PythonTools.Parsing {
     public sealed class ParserOptions {
         internal static ParserOptions Default = new ParserOptions();
-        public ParserOptions() {
-            ErrorSink = ErrorSink.Null;
-        }
-
-        public ErrorSink ErrorSink { get; set; }
-
-        public Severity IndentationInconsistencySeverity { set; get; }
-
-        public bool Verbatim { get; set; }
 
         /// <summary>
         /// True if references to variables should be bound in the AST.  The root node must be

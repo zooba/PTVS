@@ -293,9 +293,11 @@ namespace TestUtilities {
         public InterpreterConfiguration Configuration {
             get {
                 return new InterpreterConfiguration(
-                    PrefixPath, InterpreterPath, null, LibPath, "PYTHONPATH",
+                    Id.ToString("B"), GetType().Name,
+                    PrefixPath, InterpreterPath, null, new[] { LibPath }, "PYTHONPATH",
                     Isx64 ? ProcessorArchitecture.Amd64 : ProcessorArchitecture.X86,
-                    Version.ToVersion()
+                    Version,
+                    InterpreterUIMode.Normal
                 );
             }
         }

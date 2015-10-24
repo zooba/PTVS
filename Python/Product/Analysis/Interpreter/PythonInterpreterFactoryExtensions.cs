@@ -18,6 +18,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
+using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudioTools;
 using Microsoft.VisualStudioTools.Project;
 

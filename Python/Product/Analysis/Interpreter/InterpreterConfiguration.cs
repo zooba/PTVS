@@ -13,30 +13,68 @@
  * ***************************************************************************/
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using Microsoft.PythonTools.Parsing;
+using Microsoft.Win32;
 
 namespace Microsoft.PythonTools.Interpreter {
-    public sealed class InterpreterConfiguration {
-        readonly string _prefixPath;
-        readonly string _interpreterPath;
-        readonly string _windowsInterpreterPath;
-        readonly string _libraryPath;
-        readonly string _pathEnvironmentVariable;
-        readonly ProcessorArchitecture _architecture;
-        readonly Version _version;
-        readonly InterpreterUIMode _uiMode;
+    public sealed class InterpreterConfiguration : IEquatable<InterpreterConfiguration> {
+        private const string DescriptionKey = "Description";
+        private const string PrefixPathKey = "PrefixPath";
+        private const string InterpreterPathKey = "InterpreterPath";
+        private const string WindowsPathKey = "WindowsInterpreterPath";
+        private const string SysPathKey = "SysPath";
+        private const string ArchitectureKey = "Architecture";
+        private const string VersionKey = "Version";
+        private const string PathEnvVarKey = "PathEnvironmentVariable";
 
-        /// <summary>
-        /// Creates a blank configuration with the specified language version.
-        /// This is intended for use in placeholder implementations of
-        /// <see cref="IPythonInterpreterFactory"/> for when a known interpreter
-        /// is unavailable.
-        /// </summary>
-        public InterpreterConfiguration(Version version) {
-            _version = version;
+        private string _key;
+        private string _name;
+        private string _prefixPath;
+        private string _interpreterPath;
+        private string _windowsInterpreterPath;
+        private string[] _sysPath;
+        private string _pathEnvironmentVariable;
+        private ProcessorArchitecture _architecture;
+        private PythonLanguageVersion _version;
+        private InterpreterUIMode _uiMode;
+
+        private static string AsString(ProcessorArchitecture arch) {
+            if (arch == ProcessorArchitecture.Amd64) {
+                return "x64";
+            } else if (arch == ProcessorArchitecture.Arm) {
+                return "ARM";
+            }
+            return "x86";
         }
+
+        private static string AsString(PythonLanguageVersion version) {
+            return version.ToString();
+        }
+
+        private static ProcessorArchitecture AsArchitecture(string str) {
+            if (str == "x64") {
+                return ProcessorArchitecture.Amd64;
+            } else if (str == "ARM") {
+                return ProcessorArchitecture.Arm;
+            }
+            return ProcessorArchitecture.X86;
+        }
+
+        private static PythonLanguageVersion AsVersion(string str) {
+            try {
+                return (PythonLanguageVersion)Enum.Parse(typeof(PythonLanguageVersion), str, true);
+            } catch (FormatException) {
+            } catch (InvalidCastException) {
+            }
+            return PythonLanguageVersion.None;
+        }
+
+        public InterpreterConfiguration() { }
 
         /// <summary>
         /// <para>Constructs a new interpreter configuration based on the
@@ -49,45 +87,23 @@ namespace Microsoft.PythonTools.Interpreter {
         /// prefixPath plus "Lib".</para>
         /// </summary>
         public InterpreterConfiguration(
+            string key,
+            string name,
             string prefixPath,
             string path,
             string winPath,
-            string libraryPath,
+            IEnumerable<string> sysPath,
             string pathVar,
             ProcessorArchitecture arch,
-            Version version
-        ) : this(prefixPath, path, winPath, libraryPath, pathVar, arch, version, InterpreterUIMode.Normal) {
-        }
-        /// <summary>
-        /// <para>Constructs a new interpreter configuration based on the
-        /// provided values.</para>
-        /// <para>No validation is performed on the parameters.</para>
-        /// <para>If winPath is null or empty,
-        /// <see cref="WindowsInterpreterPath"/> will be set to path.</para>
-        /// <para>If libraryPath is null or empty and prefixPath is a valid
-        /// file system path, <see cref="LibraryPath"/> will be set to
-        /// prefixPath plus "Lib".</para>
-        /// </summary>
-        public InterpreterConfiguration(
-            string prefixPath,
-            string path,
-            string winPath,
-            string libraryPath,
-            string pathVar,
-            ProcessorArchitecture arch,
-            Version version,
+            PythonLanguageVersion version,
             InterpreterUIMode uiMode
         ) {
+            _key = key;
+            _name = name;
             _prefixPath = prefixPath;
             _interpreterPath = path;
             _windowsInterpreterPath = string.IsNullOrEmpty(winPath) ? path : winPath;
-            _libraryPath = libraryPath;
-            if (string.IsNullOrEmpty(_libraryPath) && !string.IsNullOrEmpty(_prefixPath)) {
-                try {
-                    _libraryPath = Path.Combine(_prefixPath, "Lib");
-                } catch (ArgumentException) {
-                }
-            }
+            _sysPath = sysPath.ToArray();
             _pathEnvironmentVariable = pathVar;
             _architecture = arch;
             _version = version;
@@ -96,12 +112,23 @@ namespace Microsoft.PythonTools.Interpreter {
             _uiMode = uiMode;
         }
 
+        public string Name {
+            get { return _name; }
+            set { _name = value; }
+        }
+
+        public string Key {
+            get { return _key; }
+            set { _key = value; }
+        }
+
         /// <summary>
         /// Returns the prefix path of the Python installation. All files
         /// related to the installation should be underneath this path.
         /// </summary>
         public string PrefixPath {
             get { return _prefixPath; }
+            set { _prefixPath = value; }
         }
 
         /// <summary>
@@ -110,6 +137,7 @@ namespace Microsoft.PythonTools.Interpreter {
         /// </summary>
         public string InterpreterPath {
             get { return _interpreterPath; }
+            set { _interpreterPath = value; }
         }
 
         /// <summary>
@@ -118,15 +146,15 @@ namespace Microsoft.PythonTools.Interpreter {
         /// </summary>
         public string WindowsInterpreterPath {
             get { return _windowsInterpreterPath; }
+            set { _windowsInterpreterPath = value; }
         }
 
         /// <summary>
-        /// The path to the standard library associated with this interpreter.
-        /// This may be null if the interpreter does not support standard
-        /// library analysis.
+        /// The paths to the standard library associated with this interpreter.
         /// </summary>
-        public string LibraryPath {
-            get { return _libraryPath; }
+        public IReadOnlyList<string> SysPath {
+            get { return _sysPath; }
+            set { _sysPath = value.ToArray(); }
         }
 
         /// <summary>
@@ -134,6 +162,7 @@ namespace Microsoft.PythonTools.Interpreter {
         /// </summary>
         public string PathEnvironmentVariable {
             get { return _pathEnvironmentVariable; }
+            set { _pathEnvironmentVariable = value; }
         }
 
         /// <summary>
@@ -141,13 +170,15 @@ namespace Microsoft.PythonTools.Interpreter {
         /// </summary>
         public ProcessorArchitecture Architecture {
             get { return _architecture; }
+            set { _architecture = value; }
         }
 
         /// <summary>
         /// The language version of the interpreter (e.g. 2.7).
         /// </summary>
-        public Version Version {
+        public PythonLanguageVersion Version {
             get { return _version; }
+            set { _version = value; }
         }
 
         /// <summary>
@@ -158,35 +189,70 @@ namespace Microsoft.PythonTools.Interpreter {
         /// </remarks>
         public InterpreterUIMode UIMode {
             get { return _uiMode; }
+            set { _uiMode = value; }
+        }
+
+
+        public void SaveToRegistry(RegistryKey interpretersKey) {
+            using (var key = interpretersKey.CreateSubKey(Key, true)) {
+                key.SetValue(DescriptionKey, Name);
+                key.SetValue(PrefixPathKey, PrefixPath);
+                key.SetValue(InterpreterPathKey, InterpreterPath);
+                key.SetValue(WindowsPathKey, WindowsInterpreterPath);
+                key.SetValue(SysPathKey, string.Join(";", SysPath));
+                key.SetValue(ArchitectureKey, AsString(Architecture));
+                key.SetValue(VersionKey, AsString(Version));
+            }
+        }
+
+        public void LoadFromRegistry(RegistryKey interpretersKey) {
+            using (var key = interpretersKey.OpenSubKey(Key)) {
+                if (key == null) {
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(Name)) {
+                    Name = key.GetValue(DescriptionKey) as string;
+                }
+                if (string.IsNullOrEmpty(PrefixPath)) {
+                    PrefixPath = key.GetValue(PrefixPathKey) as string;
+                }
+                if (string.IsNullOrEmpty(InterpreterPath)) {
+                    InterpreterPath = key.GetValue(InterpreterPathKey) as string;
+                }
+                if (string.IsNullOrEmpty(WindowsInterpreterPath)) {
+                    WindowsInterpreterPath = key.GetValue(WindowsPathKey) as string;
+                }
+                if (SysPath.Count == 0) {
+                    SysPath = (key.GetValue(SysPathKey) as string ?? "").Split(';');
+                }
+                if (Architecture == ProcessorArchitecture.None) {
+                    Architecture = AsArchitecture(key.GetValue(ArchitectureKey) as string);
+                }
+                if (Version == PythonLanguageVersion.None) {
+                    Version = AsVersion(key.GetValue(VersionKey) as string);
+                }
+            }
+        }
+
+        public static IEnumerable<InterpreterConfiguration> LoadAllFromRegistry(RegistryKey interpretersKey) {
+            foreach (var keyName in interpretersKey.GetSubKeyNames()) {
+                var c = new InterpreterConfiguration { Key = keyName };
+                c.LoadFromRegistry(interpretersKey);
+                yield return c;
+            }
         }
 
         public override bool Equals(object obj) {
-            var other = obj as InterpreterConfiguration;
-            if (other == null) {
-                return false;
-            }
-
-            var cmp = StringComparer.OrdinalIgnoreCase;
-            return cmp.Equals(PrefixPath, other.PrefixPath) &&
-                cmp.Equals(InterpreterPath, other.InterpreterPath) &&
-                cmp.Equals(WindowsInterpreterPath, other.WindowsInterpreterPath) &&
-                cmp.Equals(LibraryPath, other.LibraryPath) &&
-                cmp.Equals(PathEnvironmentVariable, other.PathEnvironmentVariable) &&
-                Architecture == other.Architecture &&
-                Version == other.Version &&
-                UIMode == other.UIMode;
+            return Equals(obj as InterpreterConfiguration);
         }
 
         public override int GetHashCode() {
-            var cmp = StringComparer.OrdinalIgnoreCase;
-            return cmp.GetHashCode(PrefixPath) ^
-                cmp.GetHashCode(InterpreterPath) ^
-                cmp.GetHashCode(WindowsInterpreterPath) ^
-                cmp.GetHashCode(LibraryPath) ^
-                cmp.GetHashCode(PathEnvironmentVariable) ^
-                Architecture.GetHashCode() ^
-                Version.GetHashCode() ^
-                UIMode.GetHashCode();
+            return Name.GetHashCode();
+        }
+
+        public bool Equals(InterpreterConfiguration other) {
+            return other != null && Name == other.Name;
         }
     }
 }

@@ -1,22 +1,24 @@
-/* ****************************************************************************
- *
- * Copyright (c) Microsoft Corporation. 
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- *
- * ***************************************************************************/
+﻿/* ****************************************************************************
+*
+* Copyright (c) Microsoft Corporation. 
+*
+* This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
+* copy of the license can be found in the License.html file at the root of this distribution. If 
+* you cannot locate the Apache License, Version 2.0, please send an email to 
+* vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
+* by the terms of the Apache License, Version 2.0.
+*
+* You must not remove this notice, or any other, from this software.
+*
+* ***************************************************************************/
 
+extern alias analysis;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using analysis::Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Values;
 using Microsoft.PythonTools.Interpreter;
@@ -501,7 +503,7 @@ x = unittest.skipIf(False)
                 var fullname = Path.Combine(codeFolder, modules[i].Filename);
                 File.WriteAllText(fullname, modules[i].Code);
                 entries[i] = state.AddModule(modules[i].ModuleName, fullname);
-                Prepare(entries[i], new StringReader(modules[i].Code), version);
+                Prepare(entries[i], new StringLiteralDocument(modules[i].Code), version);
             }
 
             for (int i = 0; i < modules.Length; i++) {
@@ -547,7 +549,7 @@ x = unittest.skipIf(False)
 
             public IPythonProjectEntry NewModule(string name, string code) {
                 var entry = Analyzer.AddModule(name, name + ".py");
-                Prepare(entry, new StringReader(code), PythonLanguageVersion.V27);
+                Prepare(entry, new StringLiteralDocument(code), PythonLanguageVersion.V27);
                 entry.Analyze(CancellationToken.None);
                 return entry;
             }

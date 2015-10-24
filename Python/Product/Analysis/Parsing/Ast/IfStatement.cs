@@ -51,7 +51,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             var itemWhiteSpace = this.GetListWhiteSpace(ast);
             for (int i = 0; i < _tests.Length; i++) {
                 if (itemWhiteSpace != null) {
-                    format.ReflowComment(res, itemWhiteSpace[i]);
+                    res.Append(itemWhiteSpace[i]);
                 }
 
                 if (i == 0) {
@@ -63,7 +63,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             }
 
             if (_else != null) {
-                format.ReflowComment(res, this.GetProceedingWhiteSpace(ast));
+                res.Append(this.GetPrecedingWhiteSpace(ast));
                 res.Append("else");
                 _else.AppendCodeString(res, ast, format);
             }

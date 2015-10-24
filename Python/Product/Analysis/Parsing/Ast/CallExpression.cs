@@ -90,8 +90,8 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 format.SpaceBeforeCallParen,
                 " ",
                 "",
-                this.GetProceedingWhiteSpaceDefaultNull(ast)
-            ); 
+                this.GetPrecedingWhiteSpaceDefaultEmpty(ast)
+            );
 
             res.Append('(');
 

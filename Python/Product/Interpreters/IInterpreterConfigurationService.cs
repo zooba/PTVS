@@ -1,0 +1,114 @@
+﻿/* ****************************************************************************
+ *
+ * Copyright (c) Microsoft Corporation. 
+ *
+ * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
+ * copy of the license can be found in the License.html file at the root of this distribution. If 
+ * you cannot locate the Apache License, Version 2.0, please send an email to 
+ * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
+ * by the terms of the Apache License, Version 2.0.
+ *
+ * You must not remove this notice, or any other, from this software.
+ *
+ * ***************************************************************************/
+
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+namespace Microsoft.PythonTools.Interpreter {
+    /// <summary>
+    /// Provides information about the available interpreters and the current
+    /// default. Instances of this service should be obtained using MEF.
+    /// </summary>
+    public interface IInterpreterConfigurationService {
+        /// <summary>
+        /// Returns a sequence of available interpreters. The sequence is sorted
+        /// and should not be re-sorted if it will be displayed to users.
+        /// </summary>
+        IEnumerable<InterpreterConfiguration> Interpreters { get; }
+
+        /// <summary>
+        /// Returns an interpreter matching the provided configuration, if one
+        /// is available. Otherwise, return null. This is used to replace a
+        /// partial configuration with a known configuration.
+        /// </summary>
+        InterpreterConfiguration FindInterpreter(InterpreterConfiguration config);
+
+        /// <summary>
+        /// Returns an interpreter matching the provided key, if one is
+        /// available. Otherwise, return null.
+        /// </summary>
+        InterpreterConfiguration FindInterpreter(string key);
+
+        /// <summary>
+        /// Gets the set of known providers.
+        /// </summary>
+        IEnumerable<IInterpreterConfigurationProvider> KnownProviders { get; }
+
+        /// <summary>
+        /// Raised when the set of interpreters changes. This is not raised when
+        /// the set is first initialized.
+        /// </summary>
+        event EventHandler InterpretersChanged;
+
+        /// <summary>
+        /// Called to suppress the <see cref="InterpretersChanged"/> event while
+        /// making changes to the registry. If the event is triggered while
+        /// suppressed, it will not be raised until suppression is lifted.
+        /// 
+        /// <see cref="EndSuppressInterpretersChangedEvent"/> must be called
+        /// once for every call to this function.
+        /// </summary>
+        void BeginSuppressInterpretersChangedEvent();
+
+        /// <summary>
+        /// Lifts the suppression of the <see cref="InterpretersChanged"/> event
+        /// initiated by <see cref="BeginSuppressInterpretersChangedEvent"/>.
+        /// 
+        /// This must be called once for every call to
+        /// <see cref="BeginSuppressInterpretersChangedEvent"/>.
+        /// </summary>
+        void EndSuppressInterpretersChangedEvent();
+
+        /// <summary>
+        /// Gets or sets the default interpreter.
+        /// </summary>
+        InterpreterConfiguration DefaultInterpreter { get; set; }
+
+        /// <summary>
+        /// Raised when the default interpreter is set to a new value.
+        /// </summary>
+        event EventHandler DefaultInterpreterChanged;
+
+        /// <summary>
+        /// Marks the factory as locked. Future calls to LockInterpreterAsync
+        /// with the same moniker will block until
+        /// <see cref="UnlockInterpreter"/> is called. Each call
+        /// to LockInterpreterAsync must have a matching call to
+        /// <see cref="UnlockInterpreter"/>.
+        /// </summary>
+        /// <returns>
+        /// A cookie representing the current lock. This must be passed to
+        /// <see cref="UnlockInterpreter"/>.
+        /// </returns>
+        /// <remarks>New in 2.1</remarks>
+        Task<object> LockInterpreterAsync(InterpreterConfiguration config, object moniker, TimeSpan timeout);
+
+        /// <summary>
+        /// Returns true if the factory is locked.
+        /// </summary>
+        /// <remarks>New in 2.1</remarks>
+        bool IsInterpreterLocked(InterpreterConfiguration config, object moniker);
+
+        /// <summary>
+        /// Unlocks the factory.
+        /// </summary>
+        /// <returns>
+        /// <c>True</c> if there is nobody waiting on the same moniker and
+        /// factory.
+        /// </returns>
+        /// <remarks>New in 2.1</remarks>
+        bool UnlockInterpreter(object cookie);
+    }
+}

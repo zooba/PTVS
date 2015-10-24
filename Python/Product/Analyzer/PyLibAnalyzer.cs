@@ -39,7 +39,7 @@ namespace Microsoft.PythonTools.Analysis {
             @"\Analysis\StandardLibrary";
 
         private readonly Guid _id;
-        private readonly Version _version;
+        private readonly PythonLanguageVersion _version;
         private readonly string _interpreter;
         private readonly List<PythonLibraryPath> _library;
         private readonly string _outDir;
@@ -192,7 +192,7 @@ namespace Microsoft.PythonTools.Analysis {
 
         public PyLibAnalyzer(
             Guid id,
-            Version langVersion,
+            PythonLanguageVersion langVersion,
             string interpreter,
             IEnumerable<PythonLibraryPath> library,
             List<string> baseDb,
@@ -412,7 +412,7 @@ namespace Microsoft.PythonTools.Analysis {
 
             return new PyLibAnalyzer(
                 id,
-                version,
+                version.ToLanguageVersion(),
                 interpreter,
                 library,
                 baseDb,
@@ -780,7 +780,7 @@ namespace Microsoft.PythonTools.Analysis {
             // Ignoring case because these will become file paths, even though
             // they are case-sensitive module names.
             var builtinNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            builtinNames.Add(_version.Major == 3 ? BuiltinName3x : BuiltinName2x);
+            builtinNames.Add(_version.Is3x() ? BuiltinName3x : BuiltinName2x);
             using (var output = ProcessOutput.RunHiddenAndCapture(
                 _interpreter,
                 "-E", "-S",
@@ -1068,7 +1068,7 @@ namespace Microsoft.PythonTools.Analysis {
             return false;
         }
 
-        internal Task Analyze() {
+        internal async Task Analyze() {
             if (_updater != null) {
                 _updater.UpdateStatus(_progressOffset, _progressTotal, "Starting analysis");
             }
@@ -1125,7 +1125,7 @@ namespace Microsoft.PythonTools.Analysis {
                 }
 
                 using (var factory = InterpreterFactoryCreator.CreateAnalysisInterpreterFactory(
-                    _version,
+                    _version.ToVersion(),
                     null,
                     new[] { _outDir, outDir }.Concat(_baseDb.Skip(1)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
                 ))
@@ -1194,15 +1194,17 @@ namespace Microsoft.PythonTools.Analysis {
                         }
                         try {
                             var sourceUnit = new FileStream(item.SourceFile, FileMode.Open, FileAccess.Read, FileShare.Read);
-                            var errors = new CollectingErrorSink();
-                            var opts = new ParserOptions() { BindReferences = true, ErrorSink = errors };
-
+                            var result = await Parser.TokenizeAndParseAsync(new FileSourceDocument(item.SourceFile), _version);
+                            item.Tree = result.Tree;
+                            
                             TraceInformation("Parsing \"{0}\" (\"{1}\")", item.ModuleName, item.SourceFile);
-                            item.Tree = Parser.CreateParser(sourceUnit, _version.ToLanguageVersion(), opts).ParseFile();
-                            if (errors.Errors.Any() || errors.Warnings.Any()) {
+
+                            if (result.Errors.Any()) {
                                 TraceWarning("File \"{0}\" contained parse errors", item.SourceFile);
-                                TraceInformation(string.Join(Environment.NewLine, errors.Errors.Concat(errors.Warnings)
-                                    .Select(er => string.Format("{0} {1}", er.Span, er.Message))));
+                                TraceInformation(string.Join(
+                                    Environment.NewLine,
+                                    result.Errors.Select(er => string.Format("{0} {1}", er.Span, er.Message))
+                                ));
                             }
                         } catch (Exception ex) {
                             TraceError("Error parsing \"{0}\" \"{1}\"{2}{3}", item.ModuleName, item.SourceFile, Environment.NewLine, ex.ToString());
@@ -1260,10 +1262,6 @@ namespace Microsoft.PythonTools.Analysis {
                     AnalysisLog.Flush();
                 }
             }
-
-            // Lets us have an awaitable function, even though it doesn't need
-            // to be async yet. This helps keep the interfaces consistent.
-            return Task.FromResult<object>(null);
         }
 
         internal Task Epilogue() {

@@ -65,7 +65,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 format.SpaceBeforeIndexBracket,
                 " ",
                 "",
-                this.GetProceedingWhiteSpace(ast)
+                this.GetPrecedingWhiteSpace(ast)
             );
 
             res.Append('[');

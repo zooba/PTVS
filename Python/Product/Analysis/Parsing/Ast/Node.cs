@@ -72,7 +72,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         public static void CopyLeadingWhiteSpace(PythonAst parentNode, Node fromNode, Node toNode) {
-            parentNode.SetAttribute(toNode, NodeAttributes.PreceedingWhiteSpace, fromNode.GetLeadingWhiteSpace(parentNode));
+            parentNode.SetAttribute(toNode, NodeAttributes.PrecedingWhiteSpace, fromNode.GetLeadingWhiteSpace(parentNode));
         }
 
         /// <summary>
@@ -82,7 +82,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         /// New in 1.1.
         /// </summary>
         public virtual string GetLeadingWhiteSpace(PythonAst ast) {
-            return this.GetProceedingWhiteSpaceDefaultNull(ast) ?? "";
+            return this.GetPrecedingWhiteSpaceDefaultEmpty(ast);
         }
 
         /// <summary>
@@ -92,7 +92,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         /// <param name="ast"></param>
         /// <param name="whiteSpace"></param>
         public virtual void SetLeadingWhiteSpace(PythonAst ast, string whiteSpace) {
-            ast.SetAttribute(this, NodeAttributes.PreceedingWhiteSpace, whiteSpace);
+            ast.SetAttribute(this, NodeAttributes.PrecedingWhiteSpace, whiteSpace);
         }
 
         /// <summary>

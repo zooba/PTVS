@@ -112,7 +112,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 format.SpacesAroundBinaryOperators,
                 " ",
                 Char.IsLetter(op1[0]) ? " " : "",   // spaces required for is not, not in, etc...
-                node.GetProceedingWhiteSpace(ast)
+                node.GetPrecedingWhiteSpace(ast)
             );
 
             if (op2 == null) {

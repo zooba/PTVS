@@ -1,21 +1,23 @@
-/* ****************************************************************************
- *
- * Copyright (c) Microsoft Corporation. 
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- *
- * ***************************************************************************/
+﻿/* ****************************************************************************
+*
+* Copyright (c) Microsoft Corporation. 
+*
+* This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
+* copy of the license can be found in the License.html file at the root of this distribution. If 
+* you cannot locate the Apache License, Version 2.0, please send an email to 
+* vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
+* by the terms of the Apache License, Version 2.0.
+*
+* You must not remove this notice, or any other, from this software.
+*
+* ***************************************************************************/
 
+extern alias analysis;
 using System;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using analysis::Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Interpreter.Default;
@@ -73,12 +75,12 @@ namespace AnalysisTests {
             _functionMembers = functionType.GetMemberNames(DefaultContext).ToArray();
         }
 
-        public static TextReader GetSourceUnit(string text, string name) {
-            return new StringReader(text);
+        public static ISourceDocument GetSourceDocument(string text, string name) {
+            return new StringLiteralDocument(text, name);
         }
 
-        public static TextReader GetSourceUnit(string text) {
-            return GetSourceUnit(text, "fob");
+        public static ISourceDocument GetSourceUnit(string text) {
+            return new StringLiteralDocument(text, "fob");
         }
 
         protected virtual AnalysisLimits GetLimits() {
@@ -130,7 +132,7 @@ namespace AnalysisTests {
             string[] analysisDirs = null,
             CancellationToken cancel = default(CancellationToken)
         ) {
-            var sourceUnit = GetSourceUnit(text, "fob");
+            var sourceUnit = GetSourceDocument(text, "fob");
             var state = CreateAnalyzer(version, analysisDirs);
             var entry = state.AddModule("fob", "fob", null);
             Prepare(entry, sourceUnit, version);
@@ -139,10 +141,9 @@ namespace AnalysisTests {
             return entry.Analysis;
         }
 
-        public static void Prepare(IPythonProjectEntry entry, TextReader sourceUnit, PythonLanguageVersion version = PythonLanguageVersion.V27) {
-            using (var parser = Parser.CreateParser(sourceUnit, version, new ParserOptions() { BindReferences = true })) {
-                entry.UpdateTree(parser.ParseFile(), null);
-            }
+        public static void Prepare(IPythonProjectEntry entry, ISourceDocument document, PythonLanguageVersion version = PythonLanguageVersion.V27) {
+            var options = new ParserOptions { BindReferences = true };
+            entry.UpdateTree(Parser.TokenizeAndParseAsync(document, version, parserOptions: options).WaitAndUnwrapExceptions().Tree, null);
         }
 
         #region IDisposable Members

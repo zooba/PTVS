@@ -15,6 +15,7 @@
 using System.Collections.Generic;
 using System.IO;
 using Microsoft.PythonTools.Analysis;
+using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Parsing;
 
@@ -25,9 +26,14 @@ namespace TestUtilities.Python {
         }
 
         public static void Parse(this IPythonProjectEntry entry, PythonLanguageVersion version, string code) {
-            using (var parser = Parser.CreateParser(new StringReader(code), version)) {
-                entry.UpdateTree(parser.ParseFile(), null);
-            }
+            var tokenization = Tokenization.TokenizeAsync(
+                new StringLiteralDocument(code),
+                version,
+                TokenizerOptions.None,
+                Severity.Ignore
+            ).GetAwaiter().GetResult();
+            var parser = new Parser(tokenization, null);
+            entry.UpdateTree(parser.ParseFile().Tree, null);
         }
 
         public static void ParseFormat(this IPythonProjectEntry entry, PythonLanguageVersion version, string format, params object[] args) {

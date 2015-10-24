@@ -391,36 +391,39 @@ namespace Microsoft.PythonTools.Analysis {
                 var scope = FindScope(location);
                 var unit = GetNearestEnclosingAnalysisUnit(scope);
                 var eval = new ExpressionEvaluator(unit.CopyForEval(), scope, mergeScopes: true);
-                using (var parser = Parser.CreateParser(new StringReader(exprText), _unit.ProjectState.LanguageVersion)) {
-                    var expr = GetExpression(parser.ParseTopExpression().Body);
-                    if (expr is ListExpression ||
-                        expr is TupleExpression ||
-                        expr is DictionaryExpression) {
-                        return Enumerable.Empty<IOverloadResult>();
-                    }
-                    var lookup = eval.Evaluate(expr);
-
-                    lookup = AnalysisSet.Create(lookup.Where(av => !(av is MultipleMemberInfo)).Concat(
-                        lookup.OfType<MultipleMemberInfo>().SelectMany(mmi => mmi.Members)
-                    ));
-
-                    var result = new HashSet<OverloadResult>(OverloadResultComparer.Instance);
-
-                    // TODO: Include relevant type info on the parameter...
-                    result.UnionWith(lookup
-                        // Exclude constant values first time through
-                        .Where(av => av.MemberType != PythonMemberType.Constant)
-                        .SelectMany(av => av.Overloads ?? Enumerable.Empty<OverloadResult>())
-                    );
-
-                    if (!result.Any()) {
-                        result.UnionWith(lookup
-                            .Where(av => av.MemberType == PythonMemberType.Constant)
-                            .SelectMany(av => av.Overloads ?? Enumerable.Empty<OverloadResult>()));
-                    }
-
-                    return result;
+                var parse = Parser.TokenizeAndParseExpressionAsync(exprText, _unit.ProjectState.LanguageVersion)
+                    .WaitAndUnwrapExceptions();
+                if (parse.Tree == null) {
+                    return Enumerable.Empty<IOverloadResult>();
                 }
+                var expr = GetExpression(parse.Tree.Body);
+                if (expr is ListExpression ||
+                    expr is TupleExpression ||
+                    expr is DictionaryExpression) {
+                    return Enumerable.Empty<IOverloadResult>();
+                }
+                var lookup = eval.Evaluate(expr);
+
+                lookup = AnalysisSet.Create(lookup.Where(av => !(av is MultipleMemberInfo)).Concat(
+                    lookup.OfType<MultipleMemberInfo>().SelectMany(mmi => mmi.Members)
+                ));
+
+                var result = new HashSet<OverloadResult>(OverloadResultComparer.Instance);
+
+                // TODO: Include relevant type info on the parameter...
+                result.UnionWith(lookup
+                    // Exclude constant values first time through
+                    .Where(av => av.MemberType != PythonMemberType.Constant)
+                    .SelectMany(av => av.Overloads ?? Enumerable.Empty<OverloadResult>())
+                );
+
+                if (!result.Any()) {
+                    result.UnionWith(lookup
+                        .Where(av => av.MemberType == PythonMemberType.Constant)
+                        .SelectMany(av => av.Overloads ?? Enumerable.Empty<OverloadResult>()));
+                }
+
+                return result;
             } catch (Exception ex) {
                 if (ex.IsCriticalException()) {
                     throw;
@@ -842,9 +845,11 @@ namespace Microsoft.PythonTools.Analysis {
         }
 
         private PythonAst GetAstFromText(string exprText, string privatePrefix) {
-            using (var parser = Parser.CreateParser(new StringReader(exprText), _unit.ProjectState.LanguageVersion, new ParserOptions() { PrivatePrefix = privatePrefix, Verbatim = true })) {
-                return parser.ParseTopExpression();
-            }
+            return Parser.TokenizeAndParseExpressionAsync(
+                exprText,
+                _unit.ProjectState.LanguageVersion,
+                parserOptions: new ParserOptions { PrivatePrefix = privatePrefix }
+            ).WaitAndUnwrapExceptions().Tree;
         }
 
         internal static Expression GetExpression(Statement statement) {
@@ -1060,9 +1065,8 @@ namespace Microsoft.PythonTools.Analysis {
                 return 0;
             }
 
-            // line is 1 based, and index 0 in the array is the position of the 2nd line in the file.
-            line -= 2;
-            return _unit.Tree._lineLocations[line];
+            // line is 1 based
+            return _unit.Tree.Tokenization.GetLineStartIndex(line - 1);
         }
 
         /// <summary>

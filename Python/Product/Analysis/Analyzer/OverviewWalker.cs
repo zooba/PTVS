@@ -535,14 +535,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 _scope = _scope.OuterScope;
                 // transform back into a line number and start the new statement scope on the line
                 // after the suite statement.
-                var lineNo = _tree.IndexToLocation(node.EndIndex).Line;
-
-                int offset;
-                if (_tree._lineLocations.Length == 0) {
-                    // single line input
-                    offset = 0;
-                } else {
-                    offset = lineNo < _tree._lineLocations.Length ? _tree._lineLocations[lineNo] : _tree._lineLocations[_tree._lineLocations.Length - 1];
+                var lineNo = _tree.Tokenization.GetLineNumberByIndex(node.EndIndex);
+                var offset = _tree.Tokenization.GetLineStartIndex(lineNo + 1);
+                if (offset < 0) {
+                    offset = node.EndIndex;
                 }
                 var closingScope = new StatementScope(offset, _scope);
                 _scope.Children.Add(closingScope);

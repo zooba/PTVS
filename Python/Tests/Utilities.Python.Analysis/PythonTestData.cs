@@ -57,28 +57,42 @@ namespace TestUtilities.Python {
             return dir ?? "";
         }
 
-        public static void Deploy(bool includeTestData = true) {
+        public static string GetBinariesSourcePath(string subPath = null) {
             var binSource = Environment.GetEnvironmentVariable("PTVS_BINARIES_SOURCE");
-            var testDataSource = Environment.GetEnvironmentVariable("PTVS_TESTDATA_SOURCE");
-
             var drop = Environment.GetEnvironmentVariable("PTVS_DROP") ??
                 CommonUtils.GetParent(CommonUtils.GetParent(typeof(TestData).Assembly.Location));
-            string buildRoot = null;
 
             if (string.IsNullOrEmpty(binSource)) {
-                buildRoot = buildRoot ?? GetRootDir();
-                binSource = FindDirectoryFromLandmark(buildRoot, BinariesInSourceTree, BinariesLandmark)
+                binSource = FindDirectoryFromLandmark(GetRootDir(), BinariesInSourceTree, BinariesLandmark)
                     ?? FindDirectoryFromLandmark(drop, BinariesInTestDrop, BinariesLandmark)
                     ?? FindDirectoryFromLandmark(drop, BinariesInReleaseDrop, BinariesLandmark);
             }
 
-            if (string.IsNullOrEmpty(testDataSource) && includeTestData) {
-                buildRoot = buildRoot ?? GetRootDir();
-                testDataSource = FindDirectoryFromLandmark(buildRoot, TestDataInSourceTree, TestDataLandmark)
+            if (!string.IsNullOrEmpty(subPath)) {
+                return CommonUtils.GetAbsoluteFilePath(binSource, subPath);
+            }
+            return binSource;
+        }
+
+        public static string GetTestDataSourcePath(string subPath = null) {
+            var testDataSource = Environment.GetEnvironmentVariable("PTVS_TESTDATA_SOURCE");
+            var drop = Environment.GetEnvironmentVariable("PTVS_DROP") ??
+                CommonUtils.GetParent(CommonUtils.GetParent(typeof(TestData).Assembly.Location));
+
+            if (string.IsNullOrEmpty(testDataSource)) {
+                testDataSource = FindDirectoryFromLandmark(GetRootDir(), TestDataInSourceTree, TestDataLandmark)
                     ?? FindDirectoryFromLandmark(drop, TestDataInTestDrop, TestDataLandmark)
                     ?? FindDirectoryFromLandmark(drop, TestDataInReleaseDrop, TestDataLandmark);
             }
 
+            if (!string.IsNullOrEmpty(subPath)) {
+                return CommonUtils.GetAbsoluteFilePath(testDataSource, subPath);
+            }
+            return testDataSource;
+        }
+
+        public static void Deploy(bool includeTestData = true) {
+            var binSource = GetBinariesSourcePath();
             Debug.Assert(Directory.Exists(binSource), "Unable to find binaries at " + (binSource ?? "(null)"));
 
             Trace.TraceInformation("Copying binaries from {0}", binSource);
@@ -86,6 +100,7 @@ namespace TestUtilities.Python {
             FileUtils.CopyDirectory(binSource, TestData.GetPath());
 
             if (includeTestData) {
+                var testDataSource = GetTestDataSourcePath();
                 Debug.Assert(Directory.Exists(testDataSource), "Unable to find test data at " + (testDataSource ?? "(null)"));
                 FileUtils.CopyDirectory(testDataSource, TestData.GetPath("TestData"));
             }

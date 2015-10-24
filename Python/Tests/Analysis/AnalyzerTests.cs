@@ -1,17 +1,18 @@
-/* ****************************************************************************
- *
- * Copyright (c) Microsoft Corporation. 
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- *
- * ***************************************************************************/
+﻿/* ****************************************************************************
+*
+* Copyright (c) Microsoft Corporation. 
+*
+* This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
+* copy of the license can be found in the License.html file at the root of this distribution. If 
+* you cannot locate the Apache License, Version 2.0, please send an email to 
+* vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
+* by the terms of the Apache License, Version 2.0.
+*
+* You must not remove this notice, or any other, from this software.
+*
+* ***************************************************************************/
 
+extern alias analysis;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,6 +20,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using analysis::Microsoft.PythonTools.Parsing;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -45,7 +47,7 @@ namespace AnalysisTests {
             try {
                 using (var analyzer = new PyLibAnalyzer(
                     Guid.Empty,
-                    new Version(),
+                    PythonLanguageVersion.None,
                     null,
                     null,
                     null,
@@ -489,7 +491,7 @@ namespace AnalysisTests {
             public PyLibAnalyzer Analyzer {
                 get {
                     return new PyLibAnalyzer(Guid.Empty,
-                        new Version(2, 7),
+                        PythonLanguageVersion.V27,
                         null,
                         new [] {
                             new PythonLibraryPath(Library, true, null),

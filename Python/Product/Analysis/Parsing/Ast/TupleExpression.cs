@@ -76,12 +76,12 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             } else {
                 if (Items.Count == 0 && 
                     format.SpaceWithinEmptyTupleExpression != null) {
-                    format.ReflowComment(res, this.GetProceedingWhiteSpace(ast));
+                    res.Append(this.GetPrecedingWhiteSpace(ast));
                     res.Append('(');
                     if (String.IsNullOrWhiteSpace(this.GetSecondWhiteSpace(ast))) {
                         res.Append(format.SpaceWithinEmptyTupleExpression.Value ? " " : "");
                     } else {
-                        format.ReflowComment(res, this.GetSecondWhiteSpace(ast));
+                        res.Append(this.GetSecondWhiteSpace(ast));
                     }
                     res.Append(')');
                 } else {

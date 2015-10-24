@@ -36,9 +36,9 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         internal static readonly object WhitespaceAfterAsync = new object();
 
         public FunctionDefinition(NameExpression name, Parameter[] parameters)
-            : this(name, parameters, (Statement)null) {            
+            : this(name, parameters, (Statement)null) {
         }
-        
+
         public FunctionDefinition(NameExpression name, Parameter[] parameters, Statement body, DecoratorStatement decorators = null) {
             if (name == null) {
                 _name = new NameExpression("<lambda>");
@@ -134,7 +134,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         internal override bool ExposesLocalVariable(PythonVariable variable) {
-            return NeedsLocalsDictionary; 
+            return NeedsLocalsDictionary;
         }
 
         internal override bool TryBindOuter(ScopeStatement from, string name, bool allowGlobals, out PythonVariable variable) {
@@ -151,7 +151,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                     }
 
                     AddCellVariable(variable);
-                } else if(allowGlobals) {
+                } else if (allowGlobals) {
                     from.AddReferencedGlobal(name);
                 }
                 return true;
@@ -185,7 +185,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             base.Bind(binder);
             Verify(binder);
         }
-        
+
         private void Verify(PythonNameBinder binder) {
             if (ContainsImportStar && IsClosure) {
                 binder.ReportSyntaxError(
@@ -228,7 +228,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                     this);
             }
         }
-        
+
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 if (_parameters != null) {
@@ -270,7 +270,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             if (Decorators != null) {
                 Decorators.AppendCodeString(res, ast, format);
             }
-            format.ReflowComment(res, this.GetProceedingWhiteSpaceDefaultNull(ast));
+            res.Append(this.GetPrecedingWhiteSpace(ast));
             if (IsCoroutine) {
                 res.Append("async");
                 res.Append(NodeAttributes.GetWhiteSpace(this, ast, WhitespaceAfterAsync));
@@ -282,10 +282,10 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 res.Append(name);
                 if (!this.IsIncompleteNode(ast)) {
                     format.Append(
-                        res, 
-                        format.SpaceBeforeFunctionDeclarationParen, 
-                        " ", 
-                        "", 
+                        res,
+                        format.SpaceBeforeFunctionDeclarationParen,
+                        " ",
+                        "",
                         this.GetThirdWhiteSpaceDefaultNull(ast)
                     );
 
@@ -307,17 +307,17 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                         res.Append(namedOnly);
                     }
 
-                    if (!this.IsMissingCloseGrouping(ast)) {                        
+                    if (!this.IsMissingCloseGrouping(ast)) {
                         format.Append(
                             res,
-                            Parameters.Count != 0 ? 
+                            Parameters.Count != 0 ?
                                 format.SpaceWithinFunctionDeclarationParens :
                                 format.SpaceWithinEmptyParameterList,
                             " ",
                             "",
                             this.GetFourthWhiteSpaceDefaultNull(ast)
-                        ); 
-                        
+                        );
+
                         res.Append(')');
                     }
                     if (ReturnAnnotation != null) {
@@ -327,11 +327,11 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                             " ",
                             "",
                             this.GetFifthWhiteSpace(ast)
-                        ); 
+                        );
                         res.Append("->");
                         _returnAnnotation.AppendCodeString(
-                            res, 
-                            ast, 
+                            res,
+                            ast,
                             format,
                             format.SpaceAroundAnnotationArrow != null ?
                                 format.SpaceAroundAnnotationArrow.Value ? " " : "" :
@@ -352,6 +352,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                         res.Append(commaWhiteSpace[i - 1]);
                     }
                     res.Append(',');
+                    format.ReflowComment(res, Parameters[i - 1].GetComment(ast));
                 }
                 Parameters[i].AppendCodeString(res, ast, format, initialLeadingWhiteSpace);
                 initialLeadingWhiteSpace = null;
@@ -361,6 +362,10 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 // trailing comma
                 res.Append(commaWhiteSpace[commaWhiteSpace.Length - 1]);
                 res.Append(",");
+            }
+
+            if (Parameters.Count > 0) {
+                format.ReflowComment(res, Parameters[Parameters.Count - 1].GetComment(ast));
             }
         }
     }

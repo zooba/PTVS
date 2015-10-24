@@ -224,7 +224,7 @@ namespace AnalysisTests {
             Python.AssertInstalled();
 
             var db = PythonTypeDatabase.GetDatabaseExpectedModules(
-                Python.Version.ToVersion(),
+                Python.Version,
                 await PythonTypeDatabase.GetUncachedDatabaseSearchPathsAsync(Python.InterpreterPath)
             ).ToList();
 

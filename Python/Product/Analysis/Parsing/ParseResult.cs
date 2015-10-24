@@ -12,8 +12,35 @@
  *
  * ***************************************************************************/
 
+using System.Collections.Generic;
+using Microsoft.PythonTools.Parsing.Ast;
+
 namespace Microsoft.PythonTools.Parsing {
-    public enum ParseResult {
+    public sealed class ParseResult {
+        private readonly PythonAst _tree;
+        private readonly ParseState _state;
+        private readonly IReadOnlyCollection<ErrorResult> _errors;
+
+        internal ParseResult(PythonAst tree, ParseState state, IReadOnlyCollection<ErrorResult> errors) {
+            _tree = tree;
+            _state = state;
+            _errors = errors;
+        }
+
+        public PythonAst Tree {
+            get { return _tree; }
+        }
+
+        public ParseState State {
+            get { return _state; }
+        }
+
+        public IReadOnlyCollection<ErrorResult> Errors {
+            get { return _errors; }
+        }
+    }
+
+    public enum ParseState {
         /// <summary>
         /// Source code is a syntactically correct.
         /// </summary>
