@@ -14,13 +14,13 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class IfStatementTest : Node {
         private Expression _test;
         private Statement _body;
+        private SourceSpan _beforeColon, _afterComment;
 
         public IfStatementTest() {
         }
@@ -33,6 +33,29 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public Statement Body {
             get { return _body; }
             set { ThrowIfFrozen(); _body = value; }
+        }
+
+        public SourceSpan BeforeColon {
+            get { return _beforeColon; }
+            set { ThrowIfFrozen(); _beforeColon = value; }
+        }
+
+        public SourceSpan AfterComment {
+            get { return _afterComment; }
+            set { ThrowIfFrozen(); _afterComment = value; }
+        }
+
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            var t = ast.Tokenization;
+            output.Append(t.GetTokenText(BeforeNode));
+            output.Append(t.GetTokenText(Span));
+            Test.AppendCodeString(output, ast, format);
+            output.Append(t.GetTokenText(BeforeColon));
+            output.Append(':');
+            Comment?.AppendCodeString(output, ast, format);
+            output.Append(t.GetTokenText(AfterComment));
+            Body.AppendCodeString(output, ast, format);
+            output.Append(t.GetTokenText(AfterNode));
         }
 
         public override void Walk(PythonWalker walker) {

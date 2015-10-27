@@ -23,13 +23,18 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public sealed class SuiteStatement : Statement {
         private readonly IReadOnlyList<Statement> _statements;
+        private readonly SourceSpan _indent;
 
-        public SuiteStatement(IReadOnlyList<Statement> statements) {
+        public SuiteStatement(IReadOnlyList<Statement> statements, SourceSpan indent) {
             _statements = statements;
         }
 
         public IReadOnlyList<Statement> Statements {
             get { return _statements; }
+        }
+
+        public SourceSpan Indent {
+            get { return _indent; }
         }
 
         public override void Walk(PythonWalker walker) {
@@ -61,7 +66,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 statements[i - start] = Statements[i];
             }
 
-            var res = new SuiteStatement(statements);
+            var res = new SuiteStatement(statements, _indent);
 
             return res;
         }

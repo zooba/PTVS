@@ -1,4 +1,4 @@
-// Python Tools for Visual Studio
+﻿// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -14,39 +14,18 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
+using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class LambdaExpression : Expression {
-        private ParameterList _parameters;
-        private Expression _expression;
-        private SourceSpan _beforeColon, _colon;
-
-        public LambdaExpression() {
-        }
-
-        public ParameterList Parameters {
-            get { return _parameters; }
-            set { ThrowIfFrozen(); _parameters = value; }
-        }
-
-        public Expression Expression {
-            get { return _expression; }
-            set { ThrowIfFrozen(); _expression = value; }
-        }
-
-        public SourceSpan BeforeColon {
-            get { return _beforeColon; }
-            set { ThrowIfFrozen(); _beforeColon = value; }
-        }
+    public class CommentExpression : Node {
+        public CommentExpression() { }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _parameters?.Walk(walker);
             }
             walker.PostWalk(this);
         }

@@ -23,7 +23,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class Node {
         internal static readonly Node EndOfLine = new SingletonNode("<EOL>");
 
-        private SourceSpan _span, _beforeNode, _beforeComment, _comment, _afterNode.
+        private SourceSpan _span, _beforeNode, _afterNode;
+        private CommentExpression _comment;
 
         internal Node() { }
 
@@ -35,11 +36,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         internal void Freeze() {
 #if DEBUG
             _frozen = true;
+            _comment?.Freeze();
 #endif
         }
 
 #if DEBUG
-        protected virtual void OnFreeze() { };
+        protected virtual void OnFreeze() { }
 #endif
 
         [Conditional("DEBUG")]
@@ -62,12 +64,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _beforeNode = value;}
         }
 
-        internal SourceSpan BeforeComment {
-            get { return _beforeComment; }
-            set { ThrowIfFrozen(); _beforeComment = value; }
-        }
-
-        internal SourceSpan Comment {
+        internal CommentExpression Comment {
             get { return _comment; }
             set { ThrowIfFrozen(); _comment = value; }
         }
@@ -98,8 +95,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             var t = ast.Tokenization;
             output.Append(t.GetTokenText(BeforeNode));
             output.Append(t.GetTokenText(Span));
-            output.Append(t.GetTokenText(BeforeComment));
-            output.Append(t.GetTokenText(Comment));
+            Comment?.AppendCodeString(output, ast, format);
             output.Append(t.GetTokenText(AfterNode));
         }
 
