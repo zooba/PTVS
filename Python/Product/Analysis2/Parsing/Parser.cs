@@ -18,6 +18,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private List<Token> _lookahead;
         private SourceSpan _currentIndent;
         private ErrorSink _errors;
+        private Token _eosToken;
 
         public Parser(Tokenization tokenization) {
             _tokenization = tokenization;
@@ -264,7 +265,27 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseWhileStmt() {
-            return null;
+            var stmt = new WhileStatement() {
+                Span = Read(TokenKind.KeywordWhile),
+                Test = ParseExpression()
+            };
+
+            CheckCurrent(TokenCategory.Colon);
+            stmt.Comment = ReadComment();
+            stmt.AfterComment = ReadWhitespaceAndNewline();
+            stmt.Body = ParseSuite();
+
+            if (ReadCurrentIndent() && TryRead(TokenKind.KeywordElse)) {
+                stmt.BeforeElseColon = ReadWhitespace();
+                Read(TokenCategory.Colon);
+                stmt.ElseComment = ReadComment();
+                stmt.AfterElseComment = ReadWhitespaceAndNewline();
+                stmt.ElseStatement = ParseSuite();
+            }
+
+            stmt.Span = new SourceSpan(stmt.Span.Start, Current.Span.Start);
+            stmt.Freeze();
+            return stmt;
         }
 
         private Statement ParseForStmt(bool isAsync) {
@@ -787,9 +808,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             while (_lookahead.Count < tokenCount) {
                 if (_tokenEnumerator.MoveNext()) {
+                    if (_tokenEnumerator.Current.Category == TokenCategory.EndOfStream) {
+                        _eosToken = _tokenEnumerator.Current;
+                    }
                     _lookahead.Add(_tokenEnumerator.Current);
                 } else {
-                    _lookahead.Add(Token.EOF);
+                    _lookahead.Add(_eosToken);
                 }
             }
         }
@@ -798,19 +822,19 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             if (_lookahead != null) {
                 _lookahead.Insert(0, _current);
             } else {
-                _lookahead = new List<Token> { _current, Token.EOF };
+                _lookahead = new List<Token> { _current };
             }
             _current = token;
         }
 
         private Token Next() {
             if (_lookahead == null) {
-                return Token.EOF;
+                return _eosToken;
             }
             FillLookahead(1);
             _current = _lookahead[0];
             _lookahead.RemoveAt(0);
-            if (_current.Equals(Token.EOF) && _lookahead.Count == 0) {
+            if (_current.Equals(_eosToken) && _lookahead.Count == 0) {
                 _lookahead = null;
             }
             return _current;

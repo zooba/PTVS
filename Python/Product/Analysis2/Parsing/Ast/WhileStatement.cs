@@ -19,39 +19,53 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class WhileStatement : Statement {
-        private readonly Expression _test;
-        private readonly Statement _body;
-        private readonly Statement _else;
+        private Expression _test;
+        private Statement _body, _else;
+        private CommentExpression _elseComment;
+        private SourceSpan _beforeElseColon, _afterComment, _afterElseComment;
 
-        public WhileStatement(Expression test, Statement body, Statement else_) {
-            _test = test;
-            _body = body;
-            _else = else_;
-        }
+        public WhileStatement() { }
 
         public Expression Test {
             get { return _test; }
+            set { ThrowIfFrozen(); _test = value; }
         }
 
         public Statement Body {
             get { return _body; }
+            set { ThrowIfFrozen(); _body = value; }
         }
 
         public Statement ElseStatement {
             get { return _else; }
+            set { ThrowIfFrozen(); _else = value; }
+        }
+
+        public SourceSpan BeforeElseColon {
+            get { return _beforeElseColon; }
+            set { ThrowIfFrozen(); _beforeElseColon = value; }
+        }
+
+        public SourceSpan AfterComment {
+            get { return _afterComment; }
+            set { ThrowIfFrozen(); _afterComment = value; }
+        }
+
+        public CommentExpression ElseComment {
+            get { return _elseComment; }
+            set { ThrowIfFrozen(); _elseComment = value; }
+        }
+
+        public SourceSpan AfterElseComment {
+            get { return _afterElseComment; }
+            set { ThrowIfFrozen(); _afterElseComment = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_test != null) {
-                    _test.Walk(walker);
-                }
-                if (_body != null) {
-                    _body.Walk(walker);
-                }
-                if (_else != null) {
-                    _else.Walk(walker);
-                }
+                _test?.Walk(walker);
+                _body?.Walk(walker);
+                _else?.Walk(walker);
             }
             walker.PostWalk(this);
         }
