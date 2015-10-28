@@ -25,7 +25,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class Parameter : Node {
         private NameExpression _name;
         private ParameterKind _kind;
-        private Expression _defaultValue, _annotation;
+        private Expression _defaultValue, _annotationOrSublist;
 
         public Parameter() { }
 
@@ -44,21 +44,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         public Expression Annotation {
-            get { return _annotation; }
-            set { ThrowIfFrozen(); _annotation = value; }
+            get { return _annotationOrSublist; }
+            set { ThrowIfFrozen(); _annotationOrSublist = value; }
         }
 
-        public bool IsList {
-            get { return _kind == ParameterKind.List; }
+        public TupleExpression Sublist {
+            get { return IsSublist ? (TupleExpression)_annotationOrSublist : null; }
+            set { ThrowIfFrozen(); _annotationOrSublist = value; }
         }
 
-        public bool IsDictionary {
-            get { return _kind == ParameterKind.Dictionary; }
-        }
+        public bool IsList => _kind == ParameterKind.List;
 
-        public bool IsKeywordOnly {
-            get { return _kind == ParameterKind.KeywordOnly; }
-        }
+        public bool IsDictionary => _kind == ParameterKind.Dictionary;
+
+        public bool IsKeywordOnly => _kind == ParameterKind.KeywordOnly;
+
+        public bool IsSublist => _kind == ParameterKind.Sublist;
 
         internal ParameterKind Kind {
             get { return _kind; }
@@ -67,7 +68,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _annotation?.Walk(walker);
+                _annotationOrSublist?.Walk(walker);
                 _defaultValue?.Walk(walker);
             }
             walker.PostWalk(this);

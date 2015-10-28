@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
@@ -16,6 +17,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Token _current;
         private List<Token> _lookahead;
         private SourceSpan _currentIndent;
+        private ErrorSink _errors;
 
         public Parser(Tokenization tokenization) {
             _tokenization = tokenization;
@@ -25,6 +27,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private void Reset() {
             _tokenEnumerator = _tokenization.AllTokens.GetEnumerator();
             _lookahead = new List<Token>();
+            IsWhitespaceSignificant = true;
+            IsInAsyncFunction = false;
         }
 
         #region Language Features
@@ -41,9 +45,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         #region Parsing
 
-        public PythonAst Parse() {
-
-            return new PythonAst(ParseSuite(), _tokenization);
+        public PythonAst Parse(ErrorSink errors = null) {
+            Reset();
+            try {
+                _errors = errors ?? ErrorSink.Null;
+                return new PythonAst(ParseSuite(), _tokenization);
+            } finally {
+                _errors = null;
+            }
         }
 
         private SuiteStatement ParseSuite() {
@@ -51,7 +60,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             if (!IsWhitespaceSignificant) {
                 // TODO: Find correct error
-                ThrowError();
+                var start = Current.Span;
+                ReadUntil(IsEndOfStatement);
+                body.Add(new ErrorStatement("unexpected indent") {
+                    Span = new SourceSpan(start.Start, Current.Span.Start)
+                });
+                return new SuiteStatement(body, _currentIndent);
             }
 
             var prevIndent = _currentIndent;
@@ -70,9 +84,21 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private bool ReadCurrentIndent() {
-            Debug.Assert(Current.Category == TokenCategory.EndOfLine || Current.Category == TokenCategory.EndOfStream);
+            Debug.Assert(_currentIndent.Length == 0 ||
+                Current.Category == TokenCategory.EndOfLine ||
+                Current.Category == TokenCategory.EndOfStream
+            );
             if (Current.Category == TokenCategory.EndOfStream) {
                 return false;
+            }
+
+            if (_currentIndent.Length == 0) {
+                if (TryRead(TokenCategory.WhiteSpace)) {
+                    Next();
+                    ThrowError("unexpected indent", Current.Span.Start);
+                    return false;
+                }
+                return true;
             }
 
             if (Peek.Category == TokenCategory.WhiteSpace) {
@@ -95,22 +121,21 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var ws = ReadWhitespace();
             Statement stmt = null;
 
-            var firstSpan = Current.Span;
+            var firstSpan = Peek.Span;
 
             try {
-                switch (Current.Category) {
+                switch (Peek.Category) {
                     case TokenCategory.EndOfLine:
                     case TokenCategory.EndOfStream:
                     case TokenCategory.SemiColon:
-                        stmt = new EmptyStatement();
-                        break;
                     case TokenCategory.Comment:
                         stmt = new EmptyStatement {
-                            Comment = ReadComment()
+                            Comment = ReadComment(),
+                            AfterNode = ReadWhitespaceAndNewline()
                         };
                         break;
                     case TokenCategory.Identifier:
-                        stmt = ParseIdentifierAsStatement(Current.GetTokenKind(_tokenization));
+                        stmt = ParseIdentifierAsStatement(Peek.GetTokenKind(_tokenization));
                         break;
                     case TokenCategory.BinaryIntegerLiteral:
                     case TokenCategory.DecimalIntegerLiteral:
@@ -126,6 +151,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
             } catch (ParseErrorException ex) {
                 ReadUntil(IsEndOfStatement);
+                Next();
                 stmt = new ErrorStatement(ex.Message) {
                     Span = new SourceSpan(firstSpan.Start, Current.Span.Start)
                 };
@@ -134,7 +160,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             Debug.Assert(Current.Category == TokenCategory.EndOfLine ||
                 Current.Category == TokenCategory.EndOfStream ||
                 Current.Category == TokenCategory.SemiColon, Current.Category.ToString());
-            stmt.AfterNode = Current.Span;
             return stmt;
         }
 
@@ -164,7 +189,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     }
                     goto default;
                 case TokenKind.KeywordPass:
-                    return new PassStatement { Span = Current.Span };
+                    return new PassStatement {
+                        Span = Next().Span,
+                        Comment = ReadComment(),
+                        AfterNode = ReadWhitespaceAndNewline()
+                    };
                 case TokenKind.KeywordBreak:
                     return ParseBreakStmt();
                 case TokenKind.KeywordContinue:
@@ -195,17 +224,17 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseIfStmt() {
-            var stmt = new IfStatement();
-            Read(TokenKind.KeywordIf);
+            var stmt = new IfStatement() {
+                Span = Read(TokenKind.KeywordIf)
+            };
 
             while (true) {
-                var test = new IfStatementTest { Span = Current.Span };
+                var test = new IfStatementTest(CurrentKind) { Span = Current.Span };
                 test.Test = ParseExpression();
-                test.BeforeColon = ReadWhitespace();
+                CheckCurrent(TokenCategory.Colon);
                 test.Comment = ReadComment();
-                test.AfterComment = ReadWhitespace();
+                test.AfterComment = ReadWhitespaceAndNewline();
                 test.Body = ParseSuite();
-                test.AfterNode = ReadWhitespace();
                 test.Freeze();
                 stmt.AddTest(test);
 
@@ -219,73 +248,103 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
 
             if (TryRead(TokenKind.KeywordElse)) {
+                var test = new IfStatementTest(TokenKind.KeywordElse) { Span = Current.Span };
+                test.Test = new EmptyExpression { AfterNode = ReadWhitespace() };
+                Read(TokenCategory.Colon);
+                test.Comment = ReadComment();
+                test.AfterComment = ReadWhitespaceAndNewline();
+                test.Body = ParseSuite();
+                test.Freeze();
+                stmt.ElseStatement = test;
             }
 
+            stmt.Span = new SourceSpan(stmt.Span.Start, Current.Span.Start);
             stmt.Freeze();
             return stmt;
         }
 
         private Statement ParseWhileStmt() {
+            return null;
         }
 
         private Statement ParseForStmt(bool isAsync) {
+            return null;
         }
 
         private Statement ParseTryStmt() {
+            return null;
         }
 
         private Statement ParseDecorated() {
+            return null;
         }
 
         private Statement ParseFuncDef(bool isCoroutine) {
+            return null;
         }
 
         private Statement ParseClassDef() {
+            return null;
         }
 
         private Statement ParseWithStmt(bool isAsync) {
+            return null;
         }
 
         private Statement ParseAsyncStmt() {
+            return null;
         }
 
         private Statement ParsePrintStmt() {
+            return null;
         }
 
         private Statement ParseBreakStmt() {
+            return null;
         }
 
         private Statement ParseContinueStmt() {
+            return null;
         }
 
         private Statement ParseReturnStmt() {
+            return null;
         }
 
         private Statement ParseFromImportStmt() {
+            return null;
         }
 
         private Statement ParseImportStmt() {
+            return null;
         }
 
         private Statement ParseGlobalStmt() {
+            return null;
         }
 
         private Statement ParseNonlocalStmt() {
+            return null;
         }
 
         private Statement ParseRaiseStmt() {
+            return null;
         }
 
         private Statement ParseAssertStmt() {
+            return null;
         }
 
         private Statement ParseExecStmt() {
+            return null;
         }
 
         private Statement ParseDelStmt() {
+            return null;
         }
 
         private Statement ParseYieldStmt() {
+            return null;
         }
 
         private Statement ParseExprStmt() {
@@ -294,10 +353,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
 
         private Expression ParseExpression() {
-            var expr = PeekNonWhitespaceKind == TokenKind.KeywordLambda ?
-                ParseLambda() :
-                ParseOrTest();
+            if (PeekNonWhitespaceKind == TokenKind.KeywordLambda) {
+                return ParseLambda();
+            }
 
+            var ws = ReadWhitespace();
+            Next();
+            var expr = ParseOrTest();
+
+            expr.BeforeNode = ws;
             ReadCommentAndWhitespace(expr);
             expr.Freeze();
             return expr;
@@ -388,14 +452,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private Expression ParseOrTest() {
             var expr = ParseAndTest();
-            if (CurrentKind == TokenKind.KeywordOr) {
+            if (TryRead(TokenKind.KeywordOr)) {
             }
             return expr;
         }
 
         private Expression ParseAndTest() {
             var expr = ParseNotTest();
-            if (CurrentKind == TokenKind.KeywordAnd) {
+            if (TryRead(TokenKind.KeywordAnd)) {
             }
             return expr;
         }
@@ -409,6 +473,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Expression ParseComparison() {
             var expr = ParseStarExpression();
             if (Current.Category == TokenCategory.Operator) {
+                switch (CurrentKind) {
+                    case TokenKind.Equals:
+                        break;
+                    default:
+                        return expr;
+                }
+                Next();
             }
             return expr;
         }
@@ -422,7 +493,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Expression ParseExpr() {
             var expr = ParseFactor();
             while (Current.Category == TokenCategory.Operator) {
-
+                switch (CurrentKind) {
+                    case TokenKind.Add:
+                        break;
+                    default:
+                        return expr;
+                }
+                Next();
             }
             return expr;
         }
@@ -452,7 +529,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private Expression ParsePower() {
             var expr = ParsePrimaryWithTrailers();
-            if (TryRead(TokenKind.Power)) {
+            if (CurrentKind == TokenKind.Power) {
+                Next();
                 expr = new BinaryExpression(PythonOperator.Power, expr, ParseFactor());
             }
             return expr;
@@ -467,10 +545,64 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Expression ParsePrimary() {
             switch (CurrentKind) {
                 // TODO: kinds
+                case TokenKind.Constant:
+                    return ParseConstant();
                 default:
                     ThrowError();
                     return null;
             }
+        }
+
+        private ConstantExpression ParseConstant() {
+            ConstantExpression expr = null;
+
+            switch (Current.Category) {
+                case TokenCategory.OpenQuote:
+                    expr = ParseStringLiteral();
+                    break;
+
+                case TokenCategory.StringLiteral:
+                case TokenCategory.CloseQuote:
+                    // Should only ever enter this function at OpenQuote
+                    ThrowError("unexpected string literal");
+                    break;
+
+                case TokenCategory.DecimalIntegerLiteral:
+                    BigInteger biValue;
+                    if (!BigInteger.TryParse(_tokenization.GetTokenText(Current), out biValue)) {
+                        ThrowError();
+                    }
+                    if (int.MinValue < biValue && biValue < int.MaxValue) {
+                        expr = new ConstantExpression((int)biValue) { Span = Current.Span };
+                    } else {
+                        expr = new ConstantExpression(biValue) { Span = Current.Span };
+                    }
+                    break;
+                default:
+                    expr = new ConstantExpression(_tokenization.GetTokenText(Current)) {
+                        Span = Current.Span
+                    };
+                    break;
+            }
+
+            Next();
+            return expr;
+        }
+
+        private ConstantExpression ParseStringLiteral() {
+            var span = Current.Span;
+            string value = "";
+
+            do {
+                Debug.Assert(Current.Category == TokenCategory.OpenQuote);
+
+                var text = Read(TokenCategory.StringLiteral);
+                value += _tokenization.GetTokenText(text);
+
+                span = new SourceSpan(span.Start, Read(TokenCategory.CloseQuote).End);
+            } while (TryRead(TokenCategory.OpenQuote));
+
+            return new ConstantExpression(value) { Span = span };
         }
 
         #endregion
@@ -480,15 +612,42 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private SourceSpan ReadWhitespace() {
             SourceLocation? start = null, end = null;
 
-            bool includeEndOfLine = false;
+            bool skipEndOfLine = false;
 
             while (Peek.Category == TokenCategory.WhiteSpace ||
                 Peek.Category == TokenCategory.IgnoreEndOfLine ||
-                (!IsWhitespaceSignificant || includeEndOfLine) && Peek.Category == TokenCategory.EndOfLine) {
+                (!IsWhitespaceSignificant || skipEndOfLine) && Peek.Category == TokenCategory.EndOfLine ||
+                Peek.Category == TokenCategory.SemiColon
+            ) {
                 Next();
                 start = start ?? Current.Span.Start;
                 end = Current.Span.End;
-                includeEndOfLine = (Current.Category == TokenCategory.IgnoreEndOfLine);
+                skipEndOfLine = (Current.Category == TokenCategory.IgnoreEndOfLine);
+            }
+
+            return new SourceSpan(start.GetValueOrDefault(), end.GetValueOrDefault());
+        }
+
+        private SourceSpan ReadWhitespaceAndNewline() {
+            SourceLocation? start = null, end = null;
+
+            bool skipEndOfLine = false;
+
+            while (Peek.Category == TokenCategory.WhiteSpace ||
+                Peek.Category == TokenCategory.IgnoreEndOfLine ||
+                Peek.Category == TokenCategory.EndOfLine ||
+                Peek.Category == TokenCategory.SemiColon ||
+                Peek.Category == TokenCategory.EndOfStream
+            ) {
+                Next();
+                start = start ?? Current.Span.Start;
+                end = Current.Span.End;
+                if (Current.Category == TokenCategory.SemiColon ||
+                    Current.Category == TokenCategory.EndOfStream ||
+                    Current.Category == TokenCategory.EndOfLine && !skipEndOfLine) {
+                    break;
+                }
+                skipEndOfLine = (Current.Category == TokenCategory.IgnoreEndOfLine);
             }
 
             return new SourceSpan(start.GetValueOrDefault(), end.GetValueOrDefault());
@@ -578,6 +737,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
         }
 
+        private void CheckCurrent(
+            TokenCategory category,
+            string error = "invalid syntax",
+            SourceLocation? errorAt = null
+        ) {
+            if (Current.Category != category) {
+                ThrowError(error, errorAt);
+            }
+        }
+
+        private void CheckCurrent(TokenKind kind, string error = "invalid syntax", SourceLocation? errorAt = null) {
+            if (CurrentKind != kind) {
+                ThrowError(error, errorAt);
+            }
+        }
+
         #endregion
 
         #region Token Predicates
@@ -645,6 +820,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             get {
                 FillLookahead(1);
                 return _lookahead[0];
+            }
+        }
+
+        private TokenKind PeekKind {
+            get {
+                return Peek.GetTokenKind(_tokenization);
             }
         }
 

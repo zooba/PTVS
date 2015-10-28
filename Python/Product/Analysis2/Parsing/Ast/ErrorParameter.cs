@@ -21,9 +21,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     class ErrorParameter : Parameter {
         private readonly ErrorExpression _error;
         
-        public ErrorParameter(ErrorExpression errorValue)
-            : base("", ParameterKind.Normal) {
-                _error = errorValue;
+        public ErrorParameter(ErrorExpression errorValue) {
+            _error = errorValue;
         }
 
         public ErrorExpression Error {

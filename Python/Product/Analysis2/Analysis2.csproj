@@ -67,8 +67,8 @@
     <Compile Include="..\PythonTools\PythonToolsInstallPath.cs">
       <Link>PythonToolsInstallPath.cs</Link>
     </Compile>
-    <Compile Include="Analyzer\FileSourceDocument.cs" />
-    <Compile Include="Analyzer\ISourceDocument.cs" />
+    <Compile Include="FileSourceDocument.cs" />
+    <Compile Include="ISourceDocument.cs" />
     <Compile Include="Analyzer\PathTree.cs" />
     <Compile Include="Analyzer\PythonFileContext.cs" />
     <Compile Include="Analyzer\PythonFileContextProvider.cs" />
@@ -99,6 +99,7 @@
     <Compile Include="Parsing\Ast\DelStatement.cs" />
     <Compile Include="Parsing\Ast\DictionaryExpression.cs" />
     <Compile Include="Parsing\Ast\DottedName.cs" />
+    <Compile Include="Parsing\Ast\EmptyExpression.cs" />
     <Compile Include="Parsing\Ast\EmptyStatement.cs" />
     <Compile Include="Parsing\Ast\ErrorExpression.cs" />
     <Compile Include="Parsing\Ast\ErrorParameter.cs" />
@@ -143,7 +144,6 @@
     <Compile Include="Parsing\Ast\SliceExpression.cs" />
     <Compile Include="Parsing\Ast\StarredExpression.cs" />
     <Compile Include="Parsing\Ast\Statement.cs" />
-    <Compile Include="Parsing\Ast\SublistParameter.cs" />
     <Compile Include="Parsing\Ast\SuiteStatement.cs" />
     <Compile Include="Parsing\Ast\TryStatement.cs" />
     <Compile Include="Parsing\Ast\TupleExpression.cs" />
@@ -159,6 +159,7 @@
     <Compile Include="Parsing\CodeFormattingExampleAttribute.cs" />
     <Compile Include="Parsing\CodeFormattingOptions.cs" />
     <Compile Include="Parsing\CollectingErrorSink.cs" />
+    <Compile Include="Parsing\Ellipsis.cs" />
     <Compile Include="Parsing\ErrorCodes.cs" />
     <Compile Include="Parsing\ErrorResult.cs" />
     <Compile Include="Parsing\ErrorSink.cs" />

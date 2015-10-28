@@ -19,8 +19,6 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class WhileStatement : Statement {
-        // Marks the end of the condition of the while loop
-        private int _indexHeader;
         private readonly Expression _test;
         private readonly Statement _body;
         private readonly Statement _else;

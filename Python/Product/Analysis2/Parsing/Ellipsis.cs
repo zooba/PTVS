@@ -14,14 +14,14 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+namespace Microsoft.PythonTools.Analysis.Parsing {
+    sealed class Ellipsis {
+        public static readonly Ellipsis Value = new Ellipsis();
 
+        private Ellipsis() { }
 
-namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public enum ParameterKind {
-        Normal,
-        List,
-        Dictionary,
-        KeywordOnly,
-        Sublist
+        public override string ToString() {
+            return "...";
+        }
     }
 }

@@ -21,7 +21,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Microsoft.PythonTools.Analysis.Analyzer {
+namespace Microsoft.PythonTools.Analysis {
     public interface ISourceDocument {
         Task<Stream> ReadAsync();
 

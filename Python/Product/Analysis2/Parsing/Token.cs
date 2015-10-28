@@ -28,6 +28,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             Span = new SourceSpan(start, new SourceLocation(start.Index + length, start.Line, start.Column + length));
         }
 
+        public override string ToString() {
+            return $"{Category} ({Span})";
+        }
+
         public override bool Equals(object obj) {
             if (!(obj is Token)) {
                 return false;

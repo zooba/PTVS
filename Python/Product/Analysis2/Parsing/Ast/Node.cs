@@ -93,10 +93,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         internal virtual void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
             // TODO: Apply formatting options
             var t = ast.Tokenization;
-            output.Append(t.GetTokenText(BeforeNode));
-            output.Append(t.GetTokenText(Span));
+            BeforeNode.AppendCodeString(output, ast);
+            Span.AppendCodeString(output, ast);
             Comment?.AppendCodeString(output, ast, format);
-            output.Append(t.GetTokenText(AfterNode));
+            AfterNode.AppendCodeString(output, ast);
         }
 
         internal static PythonReference GetVariableReference(Node node, PythonAst ast) {

@@ -27,6 +27,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public SuiteStatement(IReadOnlyList<Statement> statements, SourceSpan indent) {
             _statements = statements;
+            _indent = indent;
         }
 
         public IReadOnlyList<Statement> Statements {

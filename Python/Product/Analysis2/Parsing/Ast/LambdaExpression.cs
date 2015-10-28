@@ -24,7 +24,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class LambdaExpression : Expression {
         private ParameterList _parameters;
         private Expression _expression;
-        private SourceSpan _beforeColon, _colon;
+        private SourceSpan _beforeColon;
 
         public LambdaExpression() {
         }
@@ -42,6 +42,19 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public SourceSpan BeforeColon {
             get { return _beforeColon; }
             set { ThrowIfFrozen(); _beforeColon = value; }
+        }
+
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            // TODO: Apply formatting options
+            var t = ast.Tokenization;
+            BeforeNode.AppendCodeString(output, ast);
+            output.Append("lambda");
+            Parameters?.AppendCodeString(output, ast, format);
+            BeforeColon.AppendCodeString(output, ast);
+            output.Append(":");
+            Expression?.AppendCodeString(output, ast, format);
+            Comment?.AppendCodeString(output, ast, format);
+            AfterNode.AppendCodeString(output, ast);
         }
 
         public override void Walk(PythonWalker walker) {

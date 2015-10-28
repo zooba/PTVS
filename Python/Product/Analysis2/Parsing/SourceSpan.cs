@@ -18,6 +18,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
+using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Parsing {
 
@@ -139,6 +141,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             // 7 bits for each column (0-128), 9 bits for each row (0-512), xor helps if
             // we have a bigger file.
             return (_start.Column) ^ (_end.Column << 7) ^ (_start.Line << 14) ^ (_end.Line << 23);
+        }
+
+        internal void AppendCodeString(StringBuilder output, PythonAst ast) {
+            if (Length > 0) {
+                output.Append(ast.Tokenization.GetTokenText(this));
+            }
         }
 
         internal string ToDebugString() {

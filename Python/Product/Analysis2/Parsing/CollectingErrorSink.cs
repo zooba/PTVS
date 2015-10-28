@@ -22,9 +22,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
     class CollectingErrorSink : ErrorSink {
         private readonly List<ErrorResult> _errors;
 
-        public CollectingErrorSink(List<ErrorResult> errors) {
-            _errors = errors;
+        public CollectingErrorSink() {
+            _errors = new List<ErrorResult>();
         }
+
+        public IReadOnlyList<ErrorResult> Errors => _errors;
 
         public override void Add(string message, SourceSpan span, int errorCode, Severity severity) {
             _errors.Add(new ErrorResult(message, span, severity));

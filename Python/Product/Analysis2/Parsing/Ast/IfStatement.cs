@@ -17,12 +17,13 @@
 
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class IfStatement : Statement {
         private IList<IfStatementTest> _tests;
-        private Statement _else;
+        private IfStatementTest _else;
 
         public IfStatement() { }
 
@@ -45,7 +46,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             _tests.Add(test);
         }
 
-        public Statement ElseStatement {
+        public IfStatementTest ElseStatement {
             get { return _else; }
             set { ThrowIfFrozen(); _else = value; }
         }
@@ -57,11 +58,21 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                         test.Walk(walker);
                     }
                 }
-                if (_else != null) {
-                    _else.Walk(walker);
-                }
+                _else?.Walk(walker);
             }
             walker.PostWalk(this);
+        }
+
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            // TODO: Apply formatting options
+            var t = ast.Tokenization;
+            BeforeNode.AppendCodeString(output, ast);
+            foreach (var test in Tests ?? Enumerable.Empty<IfStatementTest>()) {
+                test.AppendCodeString(output, ast, format);
+            }
+            ElseStatement?.AppendCodeString(output, ast, format);
+            Comment?.AppendCodeString(output, ast, format);
+            AfterNode.AppendCodeString(output, ast);
         }
     }
 }

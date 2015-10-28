@@ -20,9 +20,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class IfStatementTest : Node {
         private Expression _test;
         private Statement _body;
-        private SourceSpan _beforeColon, _afterComment;
+        private SourceSpan _afterComment;
+        private readonly TokenKind _kind;
 
-        public IfStatementTest() {
+        public IfStatementTest(TokenKind kind) {
+            _kind = kind;
         }
 
         public Expression Test {
@@ -35,27 +37,30 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _body = value; }
         }
 
-        public SourceSpan BeforeColon {
-            get { return _beforeColon; }
-            set { ThrowIfFrozen(); _beforeColon = value; }
-        }
-
         public SourceSpan AfterComment {
             get { return _afterComment; }
             set { ThrowIfFrozen(); _afterComment = value; }
         }
 
+        public TokenKind Kind {
+            get { return _kind; }
+        }
+
         internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
-            var t = ast.Tokenization;
-            output.Append(t.GetTokenText(BeforeNode));
-            output.Append(t.GetTokenText(Span));
+            // TODO: Apply formatting options
+            BeforeNode.AppendCodeString(output, ast);
+            if (_kind == TokenKind.KeywordIf) {
+                output.Append("if");
+            } else if (_kind == TokenKind.KeywordElseIf) {
+                output.Append("elif");
+            } else {
+                output.Append("else");
+            }
             Test.AppendCodeString(output, ast, format);
-            output.Append(t.GetTokenText(BeforeColon));
-            output.Append(':');
+            output.Append(":");
             Comment?.AppendCodeString(output, ast, format);
-            output.Append(t.GetTokenText(AfterComment));
-            Body.AppendCodeString(output, ast, format);
-            output.Append(t.GetTokenText(AfterNode));
+            AfterComment.AppendCodeString(output, ast);
+            Body?.AppendCodeString(output, ast, format);
         }
 
         public override void Walk(PythonWalker walker) {
