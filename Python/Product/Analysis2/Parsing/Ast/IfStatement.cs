@@ -15,7 +15,6 @@
 // permissions and limitations under the License.
 
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 
@@ -43,11 +42,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             _tests.Add(test);
         }
 
-        public IfStatementTest ElseStatement {
-            get { return _else; }
-            set { ThrowIfFrozen(); _else = value; }
-        }
-
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 if (_tests != null) {
@@ -67,7 +61,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             foreach (var test in Tests ?? Enumerable.Empty<IfStatementTest>()) {
                 test.AppendCodeString(output, ast, format);
             }
-            ElseStatement?.AppendCodeString(output, ast, format);
             Comment?.AppendCodeString(output, ast, format);
             AfterNode.AppendCodeString(output, ast);
         }

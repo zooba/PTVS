@@ -1726,13 +1726,13 @@ namespace AnalysisTests {
                 CheckAst(
                     ParseFileNoErrors("IfStmt.py", version),
                     CheckSuite(
-                        CheckIfStmt(IfTests(IfTest(One, CheckSuite(Pass)))),
+                        CheckIfStmt(IfTest(One, CheckSuite(Pass))),
                         Empty,
                         Empty,
-                        CheckIfStmt(IfTests(IfTest(One, CheckSuite(Pass)), IfTest(Two, CheckSuite(Pass)))),
+                        CheckIfStmt(IfTest(One, CheckSuite(Pass)), IfTest(Two, CheckSuite(Pass))),
                         Empty,
                         Empty,
-                        CheckIfStmt(IfTests(IfTest(One, CheckSuite(Pass))), ElseTest(CheckSuite(Pass)))
+                        CheckIfStmt(IfTest(One, CheckSuite(Pass)), ElseTest(CheckSuite(Pass)))
                     )
                 );
             }
@@ -2527,13 +2527,13 @@ namespace AnalysisTests {
                     CheckCommentStatement("#notfunc", tree),
                     CheckNameStmt("a"),
                     CheckCommentStatement("# Below", tree),
-                    CheckIfStmt(tests => {
-                        Assert.AreEqual(1, tests.Count);
-                        CheckSuite(
-                            CheckCommentStatement("#block", tree),
-                            CheckEmptyStmt()
-                        )(tests[0].Body);
-                    }),
+                    //CheckIfStmt(tests => {
+                    //    Assert.AreEqual(1, tests.Count);
+                    //    CheckSuite(
+                    //        CheckCommentStatement("#block", tree),
+                    //        CheckEmptyStmt()
+                    //    )(tests[0].Body);
+                    //}),
                     CheckCommentStatement("#eof", tree)
                 )
             );
@@ -2802,7 +2802,21 @@ namespace AnalysisTests {
         }
 
         private static Action<TryStatementHandler> CheckHandler(Action<Expression> test, Action<Expression> target, Action<Statement> body) {
+            return CheckHandlerWithKind(TokenKind.KeywordExcept, test, target, body);
+        }
+
+        private static Action<TryStatementHandler> CheckElseHandler(Action<Expression> test, Action<Expression> target, Action<Statement> body) {
+            return CheckHandlerWithKind(TokenKind.KeywordElse, test, target, body);
+        }
+
+        private static Action<TryStatementHandler> CheckFinallyHandler(Action<Expression> test, Action<Expression> target, Action<Statement> body) {
+            return CheckHandlerWithKind(TokenKind.KeywordFinally, test, target, body);
+        }
+
+        private static Action<TryStatementHandler> CheckHandlerWithKind(TokenKind kind, Action<Expression> test, Action<Expression> target, Action<Statement> body) {
             return handler => {
+                Assert.AreEqual(kind, handler.Kind);
+
                 body(handler.Body);
 
                 if (test != null) {
@@ -2819,7 +2833,7 @@ namespace AnalysisTests {
             };
         }
 
-        private static Action<Statement> CheckTryStmt(Action<Statement> body, Action<TryStatementHandler>[] handlers, Action<Statement> _else = null, Action<Statement> _finally = null) {
+        private static Action<Statement> CheckTryStmt(Action<Statement> body, Action<TryStatementHandler>[] handlers) {
             return stmt => {
                 Assert.IsInstanceOfType(stmt, typeof(TryStatement));
                 var tryStmt = (TryStatement)stmt;
@@ -2829,18 +2843,6 @@ namespace AnalysisTests {
                 Assert.AreEqual(handlers.Length, tryStmt.Handlers.Count);
                 for (int i = 0; i < handlers.Length; i++) {
                     handlers[i](tryStmt.Handlers[i]);
-                }
-
-                if (_else != null) {
-                    _else(tryStmt.Else);
-                } else {
-                    Assert.AreEqual(tryStmt.Else, null);
-                }
-
-                if (_finally != null) {
-                    _finally(tryStmt.Finally);
-                } else {
-                    Assert.AreEqual(tryStmt.Finally, null);
                 }
             };
         }
@@ -2915,15 +2917,6 @@ namespace AnalysisTests {
             };
         }
 
-        private static Action<IList<IfStatementTest>> IfTests(params Action<IfStatementTest>[] expectedTests) {
-            return tests => {
-                Assert.AreEqual(expectedTests.Length, tests.Count);
-                for (int i = 0; i < expectedTests.Length; i++) {
-                    expectedTests[i](tests[i]);
-                }
-            };
-        }
-
         private static Action<IfStatementTest> ElseTest(Action<Statement> body) {
             return test => {
                 Assert.AreEqual(TokenKind.KeywordElse, test.Kind);
@@ -2931,17 +2924,15 @@ namespace AnalysisTests {
             };
         }
 
-        private static Action<Statement> CheckIfStmt(Action<IList<IfStatementTest>> tests, Action<IfStatementTest> _else = null) {
+        private static Action<Statement> CheckIfStmt(params Action<IfStatementTest>[] expectedTests) {
             return stmt => {
                 Assert.IsInstanceOfType(stmt, typeof(IfStatement));
                 var ifStmt = (IfStatement)stmt;
+                var tests = ifStmt.Tests;
 
-                tests(ifStmt.Tests);
-
-                if (_else != null) {
-                    _else(ifStmt.ElseStatement);
-                } else {
-                    Assert.AreEqual(null, ifStmt.ElseStatement);
+                Assert.AreEqual(expectedTests.Length, tests.Count);
+                for (int i = 0; i < expectedTests.Length; i++) {
+                    expectedTests[i](tests[i]);
                 }
             };
         }

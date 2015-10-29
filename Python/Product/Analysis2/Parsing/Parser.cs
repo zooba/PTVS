@@ -262,24 +262,19 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 test.Body = ParseSuite();
 
                 moreTests = false;
-                if (test.Kind != TokenKind.KeywordElse && IsCurrentStatementBreak()) {
+                if (IsCurrentStatementBreak()) {
                     if (IsCurrentStatementBreak(TokenKind.KeywordElseIf)) {
                         test.AfterNode = ReadCurrentStatementBreak();
                         Read(TokenKind.KeywordElseIf);
-                        moreTests = true;
                     } else if (IsCurrentStatementBreak(TokenKind.KeywordElse)) {
                         test.AfterNode = ReadCurrentStatementBreak();
                         Read(TokenKind.KeywordElse);
-                        moreTests = true;
                     }
+                    moreTests = true;
                 }
                 test.Freeze();
 
-                if (test.Kind != TokenKind.KeywordElse) {
-                    stmt.AddTest(test);
-                } else {
-                    stmt.ElseStatement = test;
-                }
+                stmt.AddTest(test);
             }
 
             stmt.Span = new SourceSpan(stmt.Span.Start, Current.Span.Start);
@@ -345,7 +340,45 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseTryStmt() {
-            return null;
+            var stmt = new TryStatement {
+                Span = Read(TokenKind.KeywordTry)
+            };
+
+            bool moreTests = true;
+            while (moreTests) {
+                var handler = new TryStatementHandler(Current.Kind) {
+                    Span = Current.Span
+                };
+                handler.Test = ParseSingleExpression();
+                if (TryRead(TokenKind.KeywordAs)) {
+                    handler.Target = ReadName();
+                }
+                Read(TokenKind.Colon);
+                handler.Comment = ReadComment();
+                handler.AfterComment = ReadWhitespace();
+                handler.Body = ParseSuite();
+
+                moreTests = false;
+                if (IsCurrentStatementBreak()) {
+                    if (IsCurrentStatementBreak(TokenKind.KeywordElseIf)) {
+                        handler.AfterNode = ReadCurrentStatementBreak();
+                        Read(TokenKind.KeywordElseIf);
+                    } else if (IsCurrentStatementBreak(TokenKind.KeywordElse)) {
+                        handler.AfterNode = ReadCurrentStatementBreak();
+                        Read(TokenKind.KeywordElse);
+                    } else if (IsCurrentStatementBreak(TokenKind.KeywordFinally)) {
+                        handler.AfterNode = ReadCurrentStatementBreak();
+                        Read(TokenKind.KeywordFinally);
+                    }
+                    moreTests = true;
+                }
+                handler.Freeze();
+
+                stmt.AddHandler(handler);
+            }
+
+            stmt.Span = new SourceSpan(stmt.Span.Start, Current.Span.Start);
+            return stmt;
         }
 
         private Statement ParseDecorated() {
