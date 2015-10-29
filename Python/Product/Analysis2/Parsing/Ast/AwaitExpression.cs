@@ -23,14 +23,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     //    x = await z
     // TODO: The return value (x) is provided by calling ...
     public class AwaitExpression : Expression {
-        private readonly Expression _expression;
+        private Expression _expression;
 
-        public AwaitExpression(Expression expression) {
-            _expression = expression;
-        }
+        public AwaitExpression() { }
 
         public Expression Expression {
             get { return _expression; }
+            set { ThrowIfFrozen(); _expression = value; }
         }
 
         public override void Walk(PythonWalker walker) {

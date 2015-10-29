@@ -29,6 +29,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         int _lineStart;
         string _multilineStringQuotes;
         SourceLocation _multilineStringStart;
+        Stack<TokenKind> _nesting;
 
         private const string HexDigits = "0123456789ABCDEFabcdef";
         private const string DecimalDigits = "0123456789";
@@ -43,17 +44,31 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         public string SerializeState() {
             return string.Format(
-                "v={0};ln={1};ls={2};mlsq={3};mlss={4}",
+                "v={0};ln={1};ls={2};mlsq={3};mlss={4};nest={5}",
                 (int)_version,
                 _lineNumber,
                 _lineStart,
                 _multilineStringQuotes ?? "",
-                Serialize(_multilineStringStart)
+                Serialize(_multilineStringStart),
+                Serialize(_nesting)
             );
         }
 
         private static string Serialize(SourceLocation loc) {
             return string.Format("{0}+{1}+{2}", loc.Index, loc.Line, loc.Column);
+        }
+
+        private static string Serialize(Stack<TokenKind> stack) {
+            if (stack.Count == 0) {
+                return "";
+            }
+
+            var sb = new StringBuilder();
+            foreach (var k in stack.Reverse()) {
+                sb.AppendFormat("{0}+", (uint)k);
+            }
+            sb.Length -= 1;
+            return sb.ToString();
         }
 
         public void RestoreState(string state) {
@@ -76,6 +91,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     case "mlss":
                         _multilineStringStart = RestoreSourceLocation(value);
                         break;
+                    case "nest":
+                        _nesting = RestoreTokenKindStack(value);
+                        break;
                     default:
                         throw new FormatException("Unrecognized key " + key);
                 }
@@ -88,6 +106,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 throw new FormatException("Cannot read SourceLocation from " + state);
             }
             return new SourceLocation(int.Parse(bits[0]), int.Parse(bits[1]), int.Parse(bits[2]));
+        }
+
+        private static Stack<TokenKind> RestoreTokenKindStack(string state) {
+            var stack = new Stack<TokenKind>();
+            foreach (var bit in state.Split('+')) {
+                stack.Push((TokenKind)uint.Parse(bit));
+            }
+            return stack;
         }
 
         public IEnumerable<Token> GetTokens(string line) {
@@ -104,121 +130,145 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private IEnumerable<Token> GetTokensWorker(string line, int lineStart, int lineNumber) {
             int c = 0;
             while (c < line.Length) {
-                // Handle a multiline string
-                if (!string.IsNullOrEmpty(_multilineStringQuotes)) {
-                    int i = line.IndexOf(_multilineStringQuotes, c);
-                    while (i > 0 && line[i - 1] == '\\') {
-                        i = line.IndexOf(_multilineStringQuotes, i + 1);
-                    }
-                    if (i < 0) {
-                        // not at the end of the string yet
-                        yield break;
-                    }
-                    var stringEnd = new SourceLocation(lineStart + i, lineNumber, i + 1);
-                    yield return new Token(TokenCategory.StringLiteral, _multilineStringStart, stringEnd);
-                    yield return new Token(TokenCategory.CloseQuote, stringEnd, _multilineStringQuotes.Length);
+                var start = new SourceLocation(lineStart, lineNumber, c + 1);
+                int len = 0;
+                var inGroup = TokenKind.Unknown;
 
-                    c = i + _multilineStringQuotes.Length;
-                    _multilineStringQuotes = null;
-                    continue;
+                if (_nesting.Count > 0) {
+                    inGroup = _nesting.Peek();
                 }
 
-                int len;
-                TokenCategory category;
-                GetNextToken(line, c, out len, out category);
-                var token = new Token(category, new SourceLocation(lineStart, lineNumber, c + 1), len);
+                TokenKind kind = TokenKind.Unknown;
+
+                switch (inGroup) {
+                    case TokenKind.RightSingleQuote:
+                    case TokenKind.RightDoubleQuote:
+                    case TokenKind.RightSingleTripleQuote:
+                    case TokenKind.RightDoubleTripleQuote:
+                        kind = GetStringLiteralToken(line, c, inGroup, out len);
+                        break;
+                }
+
+                if (kind == TokenKind.Unknown) {
+                    kind = GetNextToken(line, c, out len);
+                }
+
+                var token = new Token(kind, start, len);
                 yield return token;
                 c += len;
 
-                if (category == TokenCategory.OpenQuote) {
-                    if (len >= 3) {
-                        _multilineStringStart = token.Span.End;
-                        _multilineStringQuotes = line.Substring(c - len, len);
-                    } else {
-                        char q = line[c];
-                        int c2 = line.IndexOf(q, c + 1);
-                        while (c2 > 0 && line[c2 - 1] == '\\') {
-                            c2 = line.IndexOf(q, c2 + 1);
-                        }
-                        if (c2 < c) {
-                            yield return new Token(TokenCategory.StringLiteral, token.Span.End, line.Length - c);
-                            c = line.Length;
-                        } else {
-                            token = new Token(TokenCategory.StringLiteral, token.Span.End, c2 - c);
-                            yield return token;
-                            yield return new Token(TokenCategory.CloseQuote, token.Span.End, 1);
-                            c = c2 + 1;
-                        }
-                    }
+                if (inGroup == kind) {
+                    _nesting.Pop();
                 }
-
+                var endGroup = kind.GetGroupEnding();
+                if (endGroup != TokenKind.Unknown) {
+                    _nesting.Push(endGroup);
+                }
             }
         }
 
-        private void GetNextToken(string line, int start, out int length, out TokenCategory category) {
+        private TokenKind GetStringLiteralToken(string line, int start, TokenKind inGroup, out int length) {
+            length = 0;
+
+            string quote;
+            switch (inGroup) {
+                case TokenKind.RightSingleQuote:
+                case TokenKind.RightDoubleQuote:
+                    if (start == 0) {
+                        // Unterminated literal, so pop and fall back to regular
+                        // processing
+                        var close = _nesting.Pop();
+                        Debug.Assert(close == inGroup);
+                        return TokenKind.Unknown;
+                    }
+                    quote = inGroup == TokenKind.RightSingleQuote ? "'" : "\"";
+                    break;
+                case TokenKind.RightSingleTripleQuote:
+                    quote = "'''";
+                    break;
+                case TokenKind.RightDoubleTripleQuote:
+                    quote = "\"\"\"";
+                    break;
+                default:
+                    return TokenKind.Unknown;
+            }
+
+            int end = line.IndexOf(quote, start);
+            while (end > 0 && line[end - 1] == '\\') {
+                end = line.IndexOf(quote, end + 1);
+            }
+            if (end == start) {
+                length = quote.Length;
+                return inGroup;
+            } else if (end < 0) {
+                length = line.Length - start;
+            } else {
+                length = end - start;
+            }
+            return TokenKind.LiteralString;
+        }
+
+        private TokenKind GetNextToken(string line, int start, out int length) {
             length = 1;
-            category = TokenCategory.Error;
 
             char c = line[start];
             switch (c) {
                 case ':':
-                    category = TokenCategory.Colon;
-                    return;
+                    return TokenKind.Colon;
                 case ';':
-                    category = TokenCategory.SemiColon;
-                    return;
+                    return TokenKind.SemiColon;
                 case ',':
-                    category = TokenCategory.Comma;
-                    return;
+                    return TokenKind.Comma;
                 case '.':
                     // Handled below in case it begins a floating-point literal
                     break;
                 case '(':
+                    return TokenKind.LeftParenthesis;
                 case '[':
+                    return TokenKind.LeftBracket;
                 case '{':
-                    category = TokenCategory.OpenGrouping;
-                    return;
+                    return TokenKind.LeftBrace;
                 case ')':
+                    return TokenKind.RightParenthesis;
                 case ']':
+                    return TokenKind.RightBracket;
                 case '}':
-                    category = TokenCategory.CloseGrouping;
-                    return;
+                    return TokenKind.RightBrace;
                 case '\'':
                 case '"':
                     if (IsNextChar(line, start, c) && IsNextChar(line, start, c, 2)) {
                         length = 3;
+                        return c == '\'' ? TokenKind.LeftSingleTripleQuote : TokenKind.LeftDoubleTripleQuote;
                     }
-                    // TokenCategory.CloseQuote is not generated by this function
-                    category = TokenCategory.OpenQuote;
-                    return;
+                    return c == '\'' ? TokenKind.LeftSingleQuote : TokenKind.LeftDoubleQuote;
                 case '\r':
                 case '\n':
                     length = line.Length - start;
-                    category = TokenCategory.EndOfLine;
-                    return;
+                    return TokenKind.NewLine;
                 default:
                     break;
             }
 
             int end = start + 1;
+            TokenKind kind = TokenKind.Error;
 
             if (c == '.') {
                 if (end >= line.Length) {
-                    category = TokenCategory.Period;
-                    return;
+                    return TokenKind.Dot;
                 } else if (DecimalDigits.Contains(line[end])) {
+                    kind = TokenKind.LiteralDecimal;
                     ReadDecimals(line, ref end);
-                    MaybeReadExponent(line, ref end, ref category);
-                    if (category != TokenCategory.Error) {
-                        MaybeReadImaginary(line, ref end, ref category);
+                    kind = MaybeReadExponent(line, kind, ref end);
+                    if (kind != TokenKind.Error) {
+                        kind = MaybeReadImaginary(line, kind, ref end);
                     }
+                    length = end - start;
+                    return kind;
                 } else if (end + 2 < line.Length && line[end] == '.' && line[end + 1] == '.') {
-                    end += 2;
-                    category = TokenCategory.Identifier;
-                    return;
+                    length = 3;
+                    return TokenKind.Ellipsis;
                 } else {
-                    category = TokenCategory.Period;
-                    return;
+                    return TokenKind.Dot;
                 }
             }
 
@@ -226,37 +276,34 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 if (c == '0') {
                     if (end + 1 >= line.Length) {
                         length = end - start;
-                        category = TokenCategory.DecimalIntegerLiteral;
-                        return;
+                        return TokenKind.LiteralDecimal;
                     }
 
                     if (IsNextChar(line, end, 'x') || IsNextChar(line, end, 'X')) {
                         end += 2;
                         ReadWhile(line, ref end, HexDigits);
-                        category = TokenCategory.HexadecimalIntegerLiteral;
+                        kind = TokenKind.LiteralHex;
                     } else if (IsNextChar(line, end, 'o') || IsNextChar(line, end, 'O')) {
                         end += 2;
                         ReadWhile(line, ref end, OctalDigits);
-                        category = TokenCategory.OctalIntegerLiteral;
+                        kind = TokenKind.LiteralOctal;
                     } else if (IsNextChar(line, end, 'b') || IsNextChar(line, end, 'B')) {
                         end += 2;
                         ReadWhile(line, ref end, BinaryDigits);
-                        category = TokenCategory.BinaryIntegerLiteral;
+                        kind = TokenKind.LiteralBinary;
                     } else if (_version.Is2x()) {
                         // Numbers starting with '0' in Python 2.x are octal
                         end += 1;
                         ReadWhile(line, ref end, OctalDigits);
-                        category = TokenCategory.OctalIntegerLiteral;
                         MaybeReadLongSuffix(line, ref end);
                         length = end - start;
-                        return;
+                        return TokenKind.LiteralOctal;
                     } else {
                         // Numbers starting with '0' in Python 3.x are zero
                         end += 1;
                         ReadWhile(line, ref end, '0');
                         length = end - start;
-                        category = TokenCategory.DecimalIntegerLiteral;
-                        return;
+                        return TokenKind.LiteralDecimal;
                     }
 
                     if (_version.Is2x()) {
@@ -265,27 +312,26 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     length = end - start;
                     if (length <= 2) {
                         // Expect at least "0[xob]."
-                        category = TokenCategory.Error;
+                        return TokenKind.Error;
                     }
-                    return;
+                    return kind;
                 }
 
-                category = TokenCategory.DecimalIntegerLiteral;
+                kind = TokenKind.LiteralDecimal;
                 ReadDecimals(line, ref end);
-                // Will change category if necessary
-                MaybeReadFloatingPoint(line, ref end, ref category);
-                if (category == TokenCategory.DecimalIntegerLiteral && _version.Is2x()) {
+                // Will change kind if necessary
+                kind = MaybeReadFloatingPoint(line, kind, ref end);
+                if (kind == TokenKind.LiteralDecimal && _version.Is2x()) {
                     MaybeReadLongSuffix(line, ref end);
                 }
                 length = end - start;
-                return;
+                return kind;
             }
 
             if (char.IsLetter(c) || c == '_') {
-                ReadIdentifier(line, ref end);
+                kind = ReadIdentifier(line, ref end);
                 length = end - start;
-                category = TokenCategory.Identifier;
-                return;
+                return kind;
             }
 
             if (c == '#') {
@@ -293,39 +339,45 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     end += 1;
                 }
                 length = end - start;
-                category = TokenCategory.Comment;
-                return;
-            }
-
-            MaybeReadOperator(line, c, ref end, ref category);
-            if (category != TokenCategory.Error) {
-                length = end - start;
-                return;
+                return TokenKind.Comment;
             }
 
             if (c == '\\') {
                 length = 1;
-                category = TokenCategory.IgnoreEndOfLine;
-                return;
+                return TokenKind.ExplicitLineJoin;
+            }
+
+            kind = MaybeReadOperator(line, c, ref end);
+            if (kind != TokenKind.Unknown) {
+                length = end - start;
+                return kind;
             }
 
             if (char.IsWhiteSpace(c)) {
-                while (end < line.Length && line[end] != '\r' && line[end] != '\n' && char.IsWhiteSpace(line, end)) {
+                while (end < line.Length && char.IsWhiteSpace(line, end)) {
+                    if (line[end] == '\r' || line[end] == '\n') {
+                        break;
+                    }
                     end += 1;
                 }
                 length = end - start;
-                category = TokenCategory.WhiteSpace;
-                return;
+                if (start == 0) {
+                    return TokenKind.SignificantWhitespace;
+                }
+                return TokenKind.Whitespace;
             }
 
-            Debug.Assert(category == TokenCategory.Error, "Unexpected " + category.ToString());
+            Debug.Assert(kind == TokenKind.Error, "Unexpected " + kind.ToString());
+            return kind;
         }
 
-        private static void ReadIdentifier(string line, ref int end) {
+        private static TokenKind ReadIdentifier(string line, ref int end) {
             int len = line.Length;
+            // TODO: Resolve to keywords
             while (end < len && (char.IsLetterOrDigit(line, end) || line[end] == '_')) {
                 end += 1;
             }
+            return TokenKind.Name;
         }
 
         private static void ReadDecimals(string line, ref int end) {
@@ -350,23 +402,24 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
         }
 
-        private static void MaybeReadFloatingPoint(string line, ref int end, ref TokenCategory category) {
-            if (end >= line.Length) {
-                return;
+        private static TokenKind MaybeReadFloatingPoint(string line, TokenKind kind, ref int end) {
+            if (end >= line.Length || kind != TokenKind.LiteralDecimal) {
+                return kind;
             }
 
             char c = line[end];
             if (c != '.') {
-                return;
+                return kind;
             }
 
-            category = TokenCategory.FloatingPointLiteral;
+            kind = TokenKind.LiteralFloat;
             end += 1;
             ReadDecimals(line, ref end);
-            MaybeReadExponent(line, ref end, ref category);
-            if (category != TokenCategory.Error) {
-                MaybeReadImaginary(line, ref end, ref category);
+            kind = MaybeReadExponent(line, kind, ref end);
+            if (kind != TokenKind.Error) {
+                kind = MaybeReadImaginary(line, kind, ref end);
             }
+            return kind;
         }
 
         private static void MaybeReadLongSuffix(string line, ref int end) {
@@ -379,17 +432,16 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
         }
 
-        private static void MaybeReadExponent(string line, ref int end, ref TokenCategory category) {
+        private static TokenKind MaybeReadExponent(string line, TokenKind kind, ref int end) {
             if (end >= line.Length) {
-                return;
+                return kind;
             }
 
             char c = line[end];
             if (c == 'e' || c == 'E') {
                 if (end + 1 >= line.Length) {
-                    category = TokenCategory.Error;
                     end = line.Length;
-                    return;
+                    return TokenKind.Error;
                 }
 
                 char c2 = line[end + 1];
@@ -399,93 +451,46 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     end += 1;
                 } else {
                     // 'e' belongs to following token
-                    return;
+                    return kind;
                 }
 
                 if (end >= line.Length) {
-                    category = TokenCategory.Error;
                     end = line.Length;
-                    return;
+                    return TokenKind.Error;
                 }
                 ReadDecimals(line, ref end);
             }
+            return TokenKind.LiteralFloat;
         }
 
-        private static void MaybeReadImaginary(string line, ref int end, ref TokenCategory category) {
-            if (end >= line.Length) {
-                return;
+        private static TokenKind MaybeReadImaginary(string line, TokenKind kind, ref int end) {
+            if (end >= line.Length ||
+                kind != TokenKind.LiteralDecimal && kind != TokenKind.LiteralFloat
+            ) {
+                return kind;
             }
 
             char c = line[end];
             if (c == 'j' || c == 'J') {
-                category = TokenCategory.ImaginaryLiteral;
                 end += 1;
+                return TokenKind.LiteralImaginary;
             }
+            return kind;
         }
 
-        private static void MaybeReadOperator(string line, char c, ref int end, ref TokenCategory category) {
+        private static TokenKind MaybeReadOperator(string line, char c, ref int end) {
             if (end >= line.Length) {
-                return;
+                return TokenKind.Unknown;
             }
 
             char c2 = (end < line.Length) ? line[end] : '\0';
             char c3 = (end + 1 < line.Length) ? line[end + 1] : '\0';
-            switch (c) {
-                // X= operators
-                case '!':
-                    if (c2 == '=') {
-                        category = TokenCategory.Operator;
-                        end += 1;
-                        return;
-                    }
-                    break;
-
-                // X operators
-                case '~':
-                    category = TokenCategory.Operator;
-                    return;
-
-                // X or X= operators
-                case '+':
-                case '=':
-                case '&':
-                case '%':
-                case '@':
-                case '^':
-                case '|':
-                    category = TokenCategory.Operator;
-                    if (c2 == '=') {
-                        end += 1;
-                    }
-                    return;
-
-                // X or XX or X= or XX= operators
-                case '*':
-                case '/':
-                case '<':
-                case '>':
-                    category = TokenCategory.Operator;
-                    if (c2 == '=') {
-                        end += 1;
-                    } else if (c2 == c) {
-                        if (c3 == '=') {
-                            end += 2;
-                        } else {
-                            end += 1;
-                        }
-                    }
-                    return;
-
-                // X or X= or X> operators
-                case '-':
-                    category = TokenCategory.Operator;
-                    if (c2 == '=' || c2 == '>') {
-                        end += 1;
-                    }
-                    return;
+            int len;
+            var kind = GetOperatorKind(c, c2, c3, out len, TokenKind.Unknown);
+            if (kind != TokenKind.Unknown) {
+                end += len - 1;
             }
-
-            end -= 1;
+            return kind;
         }
 
 
@@ -512,10 +517,161 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var eof = new SourceLocation(_lineStart, _lineNumber, 1);
 
             if (!string.IsNullOrEmpty(_multilineStringQuotes)) {
-                yield return new Token(TokenCategory.StringLiteral, _multilineStringStart, eof);
+                yield return new Token(TokenKind.LiteralString, _multilineStringStart, eof);
             }
 
-            yield return new Token(TokenCategory.EndOfStream, eof, 0);
+            yield return new Token(TokenKind.EndOfFile, eof, 0);
         }
+
+        #region Token Kind Resolution
+
+        private static readonly IReadOnlyList<Dictionary<char, TokenKind>> OperatorMap = CreateOperatorMap();
+
+        private static Dictionary<char, TokenKind>[] CreateOperatorMap() {
+            var topLevelMap = new Dictionary<char, TokenKind>[4];
+
+            // c2 == '\0'
+            topLevelMap[0] = new Dictionary<char, TokenKind> {
+                { '+', TokenKind.Add },
+                { '-', TokenKind.Subtract },
+                { '*', TokenKind.Multiply },
+                { '@', TokenKind.MatMultiply },
+                { '/', TokenKind.Divide },
+                { '%', TokenKind.Mod },
+                { '&', TokenKind.BitwiseAnd },
+                { '|', TokenKind.BitwiseOr },
+                { '^', TokenKind.ExclusiveOr },
+                { '~', TokenKind.Twiddle },
+                { '<', TokenKind.LessThan },
+                { '>', TokenKind.GreaterThan },
+            };
+
+            // c2 == '='
+            topLevelMap[1] =  new Dictionary<char, TokenKind> {
+                { '+', TokenKind.AddEqual },
+                { '-', TokenKind.SubtractEqual },
+                { '*', TokenKind.MultiplyEqual },
+                { '@', TokenKind.MatMultiplyEqual },
+                { '/', TokenKind.DivideEqual },
+                { '%', TokenKind.ModEqual },
+                { '&', TokenKind.BitwiseAndEqual },
+                { '|', TokenKind.BitwiseOrEqual },
+                { '^', TokenKind.ExclusiveOrEqual },
+                { '=', TokenKind.Equals },
+                { '!', TokenKind.NotEquals },
+            };
+
+            // c2 == c1
+            topLevelMap[2] = new Dictionary<char, TokenKind> {
+                { '*', TokenKind.Power },
+                { '/', TokenKind.FloorDivide },
+                { '<', TokenKind.LeftShift },
+                { '>', TokenKind.RightShift },
+            };
+
+            // c2 == c1 && c3 == '='
+            topLevelMap[3] = new Dictionary<char, TokenKind> {
+                { '*', TokenKind.PowerEqual },
+                { '/', TokenKind.FloorDivideEqual },
+                { '<', TokenKind.LeftShiftEqual },
+                { '>', TokenKind.RightShiftEqual },
+            };
+
+            return topLevelMap;
+        }
+
+        private static TokenKind GetOperatorKind(
+            char c1,
+            char c2,
+            char c3,
+            out int operatorLength,
+            TokenKind defaultKind = TokenKind.Error
+        ) {
+            TokenKind result;
+            var map = OperatorMap[0];
+            operatorLength = 1;
+
+            if (c2 == '=') {
+                map = OperatorMap[1];
+                operatorLength = 2;
+            } else if (c2 == c1) {
+                if (c3 == '=') {
+                    map = OperatorMap[3];
+                    operatorLength = 3;
+                } else {
+                    map = OperatorMap[2];
+                    operatorLength = 2;
+                }
+            }
+
+            return map.TryGetValue(c1, out result) ? result : defaultKind;
+        }
+
+        private static readonly Dictionary<string, TokenKind> Groupings = new Dictionary<string, TokenKind> {
+            { "(", TokenKind.LeftParenthesis },
+            { ")", TokenKind.RightParenthesis },
+            { "[", TokenKind.LeftBracket },
+            { "]", TokenKind.RightBracket },
+            { "{", TokenKind.LeftBrace },
+            { "}", TokenKind.RightBrace },
+        };
+
+        private static TokenKind GetGroupingTokenKind(Tokenization tokenization, Token token) {
+            try {
+                return Groupings[tokenization.GetTokenText(token)];
+            } catch (KeyNotFoundException) {
+                Debug.Fail("Unhandled grouping: " + tokenization.GetTokenText(token));
+                return TokenKind.Unknown;
+            }
+        }
+
+        private static readonly Dictionary<string, TokenKind> Identifiers = new Dictionary<string, TokenKind> {
+            { "and", TokenKind.KeywordAnd },
+            { "assert", TokenKind.KeywordAssert },
+            { "async", TokenKind.KeywordAsync },
+            { "await", TokenKind.KeywordAwait },
+            { "break", TokenKind.KeywordBreak },
+            { "class", TokenKind.KeywordClass },
+            { "continue", TokenKind.KeywordContinue },
+            { "def", TokenKind.KeywordDef },
+            { "del", TokenKind.KeywordDel },
+            { "elif", TokenKind.KeywordElseIf },
+            { "else", TokenKind.KeywordElse },
+            { "except", TokenKind.KeywordExcept },
+            { "exec", TokenKind.KeywordExec },
+            { "finally", TokenKind.KeywordFinally },
+            { "for", TokenKind.KeywordFor },
+            { "from", TokenKind.KeywordFrom },
+            { "global", TokenKind.KeywordGlobal },
+            { "if", TokenKind.KeywordIf },
+            { "import", TokenKind.KeywordImport },
+            { "in", TokenKind.KeywordIn },
+            { "is", TokenKind.KeywordIs },
+            { "lambda", TokenKind.KeywordLambda },
+            { "not", TokenKind.KeywordNot },
+            { "or", TokenKind.KeywordOr },
+            { "pass", TokenKind.KeywordPass },
+            { "print", TokenKind.KeywordPrint },
+            { "raise", TokenKind.KeywordRaise },
+            { "return", TokenKind.KeywordReturn },
+            { "try", TokenKind.KeywordTry },
+            { "while", TokenKind.KeywordWhile },
+            { "yield", TokenKind.KeywordYield },
+            { "as", TokenKind.KeywordAs },
+            { "with", TokenKind.KeywordWith },
+            { "True", TokenKind.KeywordTrue },
+            { "False", TokenKind.KeywordFalse },
+            { "nonlocal", TokenKind.KeywordNonlocal },
+        };
+
+        private static TokenKind GetIdentifierTokenKind(Tokenization tokenization, Token token) {
+            TokenKind kind;
+            if (Identifiers.TryGetValue(tokenization.GetTokenText(token), out kind)) {
+                return kind;
+            }
+            return TokenKind.Name;
+        }
+
+        #endregion
     }
 }

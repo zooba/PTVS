@@ -57,7 +57,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 var tok = tokenizer.GetTokens(line).ToArray();
                 tokens.Add(tok);
                 Debug.Assert(tok.Length > 0);
-                if (tok.Last().Category == TokenCategory.EndOfLine) {
+                if (tok.Last().Kind == TokenCategory.EndOfLine) {
                     lineStarts.Add(tok.Last().Span.End.Index);
                 }
             }
@@ -139,7 +139,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         public string GetTokenText(Token token) {
-            if (token.Category == TokenCategory.EndOfStream) {
+            if (token.Kind == TokenCategory.EndOfStream) {
                 return string.Empty;
             }
 

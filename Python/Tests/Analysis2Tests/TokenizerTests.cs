@@ -36,7 +36,7 @@ namespace AnalysisTests {
         }
 
         private static string MakeString(Tokenization tokenization, Token t) {
-            var s = string.Format("{0}:{1}", t.Category, tokenization.GetTokenText(t));
+            var s = string.Format("{0}:{1}", t.Kind, tokenization.GetTokenText(t));
 
             s = s.Replace("\r", "\\r");
             s = s.Replace("\n", "\\n");

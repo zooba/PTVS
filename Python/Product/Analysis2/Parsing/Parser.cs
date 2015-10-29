@@ -18,7 +18,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private List<Token> _lookahead;
         private SourceSpan _currentIndent;
         private ErrorSink _errors;
-        private Token _eosToken;
+        private Token _eofToken;
 
         public Parser(Tokenization tokenization) {
             _tokenization = tokenization;
@@ -28,7 +28,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private void Reset() {
             _tokenEnumerator = _tokenization.AllTokens.GetEnumerator();
             _lookahead = new List<Token>();
-            IsWhitespaceSignificant = true;
             IsInAsyncFunction = false;
         }
 
@@ -39,8 +38,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private bool HasAsyncAwait => _version >= PythonLanguageVersion.V35;
 
         private bool IsInAsyncFunction { get; set; }
-
-        private bool IsWhitespaceSignificant { get; set; }
 
         #endregion
 
@@ -59,18 +56,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private SuiteStatement ParseSuite() {
             var body = new List<Statement>();
 
-            if (!IsWhitespaceSignificant) {
-                // TODO: Find correct error
-                var start = Current.Span;
-                ReadUntil(IsEndOfStatement);
-                body.Add(new ErrorStatement("unexpected indent") {
-                    Span = new SourceSpan(start.Start, Current.Span.Start)
-                });
-                return new SuiteStatement(body, _currentIndent);
-            }
-
             var prevIndent = _currentIndent;
-            var indent = Peek.Category == TokenCategory.WhiteSpace ? Peek.Span : SourceSpan.None;
+            var indent = Peek.Is(TokenKind.SignificantWhitespace) ? Peek.Span : SourceSpan.None;
             _currentIndent = indent;
 
             while (ReadCurrentIndent()) {
@@ -85,24 +72,23 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private bool ReadCurrentIndent() {
-            Debug.Assert(_currentIndent.Length == 0 ||
-                Current.Category == TokenCategory.EndOfLine ||
-                Current.Category == TokenCategory.EndOfStream
-            );
-            if (Current.Category == TokenCategory.EndOfStream) {
+            Debug.Assert(_currentIndent.Length == 0 || Current.Is(TokenUsage.EndStatement));
+            if (Current.Is(TokenKind.EndOfFile)) {
                 return false;
+            }
+            if (Current.Is(TokenKind.SemiColon)) {
+                return true;
             }
 
             if (_currentIndent.Length == 0) {
-                if (TryRead(TokenCategory.WhiteSpace)) {
-                    Next();
-                    ThrowError("unexpected indent", Current.Span.Start);
+                if (TryRead(TokenKind.SignificantWhitespace)) {
+                    ThrowError("unexpected indent");
                     return false;
                 }
                 return true;
             }
 
-            if (Peek.Category == TokenCategory.WhiteSpace) {
+            if (Peek.Is(TokenKind.SignificantWhitespace)) {
                 // TODO: Proper indent matching
                 if (_tokenization.GetTokenText(Peek) == _tokenization.GetTokenText(_currentIndent)) {
                     Next();
@@ -110,7 +96,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
             }
 
-            if (Peek.Category == TokenCategory.EndOfLine || Peek.Category == TokenCategory.Comment) {
+            if (Peek.Is(TokenCategory.Whitespace) || Peek.Is(TokenKind.Comment)) {
                 return true;
             }
 
@@ -125,28 +111,18 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var firstSpan = Peek.Span;
 
             try {
-                switch (Peek.Category) {
-                    case TokenCategory.EndOfLine:
-                    case TokenCategory.EndOfStream:
-                    case TokenCategory.SemiColon:
-                    case TokenCategory.Comment:
+                switch (Peek.Kind.GetUsage()) {
+                    case TokenUsage.EndStatement:
                         stmt = new EmptyStatement {
                             Comment = ReadComment(),
                             AfterNode = ReadWhitespaceAndNewline()
                         };
                         break;
-                    case TokenCategory.Identifier:
-                        stmt = ParseIdentifierAsStatement(Peek.GetTokenKind(_tokenization));
+                    case TokenUsage.BeginStatement:
+                    case TokenUsage.BeginStatementOrBinaryOperator:
+                        stmt = ParseIdentifierAsStatement();
                         break;
-                    case TokenCategory.BinaryIntegerLiteral:
-                    case TokenCategory.DecimalIntegerLiteral:
-                    case TokenCategory.FloatingPointLiteral:
-                    case TokenCategory.HexadecimalIntegerLiteral:
-                    case TokenCategory.ImaginaryLiteral:
-                    case TokenCategory.OctalIntegerLiteral:
-                    case TokenCategory.OpenGrouping:
-                    case TokenCategory.OpenQuote:
-                    case TokenCategory.StringLiteral:
+                    default:
                         stmt = ParseExprStmt();
                         break;
                 }
@@ -158,30 +134,43 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 };
             }
 
-            Debug.Assert(Current.Category == TokenCategory.EndOfLine ||
-                Current.Category == TokenCategory.EndOfStream ||
-                Current.Category == TokenCategory.SemiColon, Current.Category.ToString());
+            Debug.Assert(Current.Is(TokenUsage.EndStatement), Current.Kind.ToString());
             return stmt;
         }
 
-        private Statement ParseIdentifierAsStatement(TokenKind kind) {
+        private Statement ParseIdentifierAsStatement() {
+            var kind = Peek.Kind;
+            bool isAsync = false;
+            if (HasAsyncAwait && kind == TokenKind.KeywordAsync) {
+                kind = PeekAhead(2).Kind;
+                if (kind != TokenKind.KeywordFor &&
+                    kind != TokenKind.KeywordDef &&
+                    kind != TokenKind.KeywordWith
+                ) {
+                    // async prefix is not supported on these keywords, so
+                    // parse as an expression 
+                    return ParseExprStmt();
+                }
+                isAsync = true;
+            }
+
             switch (kind) {
                 case TokenKind.KeywordIf:
                     return ParseIfStmt();
                 case TokenKind.KeywordWhile:
                     return ParseWhileStmt();
                 case TokenKind.KeywordFor:
-                    return ParseForStmt(isAsync: false);
+                    return ParseForStmt(isAsync);
                 case TokenKind.KeywordTry:
                     return ParseTryStmt();
                 case TokenKind.At:
                     return ParseDecorated();
                 case TokenKind.KeywordDef:
-                    return ParseFuncDef(isCoroutine: false);
+                    return ParseFuncDef(isAsync);
                 case TokenKind.KeywordClass:
                     return ParseClassDef();
                 case TokenKind.KeywordWith:
-                    return ParseWithStmt(isAsync: false);
+                    return ParseWithStmt(isAsync);
                 case TokenKind.KeywordAsync:
                     return ParseAsyncStmt();
                 case TokenKind.KeywordPrint:
@@ -230,9 +219,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             };
 
             while (true) {
-                var test = new IfStatementTest(CurrentKind) { Span = Current.Span };
+                var test = new IfStatementTest(Current.Kind) { Span = Current.Span };
                 test.Test = ParseExpression();
-                CheckCurrent(TokenCategory.Colon);
+                Read(TokenKind.Colon);
                 test.Comment = ReadComment();
                 test.AfterComment = ReadWhitespaceAndNewline();
                 test.Body = ParseSuite();
@@ -251,7 +240,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             if (TryRead(TokenKind.KeywordElse)) {
                 var test = new IfStatementTest(TokenKind.KeywordElse) { Span = Current.Span };
                 test.Test = new EmptyExpression { AfterNode = ReadWhitespace() };
-                Read(TokenCategory.Colon);
+                Read(TokenKind.Colon);
                 test.Comment = ReadComment();
                 test.AfterComment = ReadWhitespaceAndNewline();
                 test.Body = ParseSuite();
@@ -270,17 +259,17 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 Test = ParseExpression()
             };
 
-            CheckCurrent(TokenCategory.Colon);
+            Read(TokenKind.Colon);
             stmt.Comment = ReadComment();
             stmt.AfterComment = ReadWhitespaceAndNewline();
             stmt.Body = ParseSuite();
 
             if (ReadCurrentIndent() && TryRead(TokenKind.KeywordElse)) {
                 stmt.BeforeElseColon = ReadWhitespace();
-                Read(TokenCategory.Colon);
+                Read(TokenKind.Colon);
                 stmt.ElseComment = ReadComment();
                 stmt.AfterElseComment = ReadWhitespaceAndNewline();
-                stmt.ElseStatement = ParseSuite();
+                stmt.Else = ParseSuite();
             }
 
             stmt.Span = new SourceSpan(stmt.Span.Start, Current.Span.Start);
@@ -289,7 +278,31 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseForStmt(bool isAsync) {
-            return null;
+            var stmt = new ForStatement(isAsync);
+            if (isAsync) {
+                stmt.Span = new SourceSpan(Read(TokenKind.KeywordAsync).Start, Read(TokenKind.KeywordFor).End);
+            } else {
+                stmt.Span = Read(TokenKind.KeywordFor);
+            }
+
+            stmt.Index = ParseExpressionTuple();
+
+            Read(TokenKind.Colon);
+            stmt.Comment = ReadComment();
+            stmt.AfterComment = ReadWhitespaceAndNewline();
+            stmt.Body = ParseSuite();
+
+            if (ReadCurrentIndent() && TryRead(TokenKind.KeywordElse)) {
+                stmt.BeforeElseColon = ReadWhitespace();
+                Read(TokenKind.Colon);
+                stmt.ElseComment = ReadComment();
+                stmt.AfterElseComment = ReadWhitespaceAndNewline();
+                stmt.Else = ParseSuite();
+            }
+
+            stmt.Span = new SourceSpan(stmt.Span.Start, Current.Span.Start);
+            stmt.Freeze();
+            return stmt;
         }
 
         private Statement ParseTryStmt() {
@@ -373,8 +386,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
 
+        private Expression ParseExpressionTuple() {
+            return null;
+        }
+
         private Expression ParseExpression() {
-            if (PeekNonWhitespaceKind == TokenKind.KeywordLambda) {
+            if (PeekNonWhitespace.Is(TokenKind.KeywordLambda)) {
                 return ParseLambda();
             }
 
@@ -396,7 +413,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 BeforeColon = ReadWhitespace(),
             };
 
-            Read(TokenCategory.Colon, errorAt: expr.Span.End);
+            Read(TokenKind.Colon, errorAt: expr.Span.End);
 
 
             expr.Expression = ParseExpression();
@@ -409,34 +426,25 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             };
 
             while (true) {
-                if (forLambda && Current.Category == TokenCategory.Colon) {
+                if (forLambda && Current.Is(TokenKind.Colon)) {
                     break;
                 }
 
-                if (!forLambda && CurrentKind == TokenKind.RightParenthesis) {
+                if (!forLambda && Current.Is(TokenKind.RightParenthesis)) {
                     break;
                 }
 
                 var p = new Parameter();
 
-                if (Current.Category == TokenCategory.Operator) {
-                    switch (CurrentKind) {
-                        case TokenKind.Multiply:
-                            p.Kind = ParameterKind.List;
-                            break;
-                        case TokenKind.Power:
-                            p.Kind = ParameterKind.Dictionary;
-                            break;
-                        default:
-                            ThrowError();
-                            break;
-                    }
-                    Next();
+                if (TryRead(TokenKind.Multiply)) {
+                    p.Kind = ParameterKind.List;
+                } else if (TryRead(TokenKind.Power)) {
+                    p.Kind = ParameterKind.Dictionary;
                 }
 
                 p.NameExpression = ReadName();
 
-                if (!forLambda && HasAnnotations && TryRead(TokenCategory.Colon)) {
+                if (!forLambda && HasAnnotations && TryRead(TokenKind.Colon)) {
                     p.Annotation = ParseExpression();
                 }
 
@@ -444,7 +452,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     p.DefaultValue = ParseExpression();
                 }
 
-                if (Current.Category == TokenCategory.Comma) {
+                if (Current.Kind == TokenKind.Comma) {
                     var comma = Current.Span;
                     var ws = ReadWhitespace();
                     if (ws.End.Index > comma.End.Index) {
@@ -487,14 +495,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private Expression ParseNotTest() {
             return TryRead(TokenKind.KeywordNot) ?
-                new UnaryExpression(PythonOperator.Not, ParseNotTest()) :
+                new UnaryExpression { Operator = PythonOperator.Not, Expression = ParseNotTest() } :
                 ParseComparison();
         }
 
         private Expression ParseComparison() {
             var expr = ParseStarExpression();
-            if (Current.Category == TokenCategory.Operator) {
-                switch (CurrentKind) {
+            if (Current.Is(TokenUsage.Comparison)) {
+                switch (Current.Kind) {
                     case TokenKind.Equals:
                         break;
                     default:
@@ -513,46 +521,74 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private Expression ParseExpr() {
             var expr = ParseFactor();
-            while (Current.Category == TokenCategory.Operator) {
-                switch (CurrentKind) {
-                    case TokenKind.Add:
-                        break;
-                    default:
-                        return expr;
-                }
+            while (Peek.IsAny(TokenUsage.BinaryOperator, TokenUsage.BinaryOrUnaryOperator)) {
+
                 Next();
             }
             return expr;
         }
 
         private Expression ParseFactor() {
-            if (Current.Category == TokenCategory.Operator) {
-                switch (CurrentKind) {
+            UnaryExpression topExpr = null, unaryExpr = null;
+            AwaitExpression awaitExpr = null;
+
+            while (PeekNonWhitespace.IsAny(TokenUsage.UnaryOperator, TokenUsage.BinaryOrUnaryOperator)) {
+                var expr = new UnaryExpression {
+                    BeforeNode = ReadWhitespace()
+                };
+                switch (Next().Kind) {
                     case TokenKind.Add:
-                        Next();
-                        return new UnaryExpression(PythonOperator.Add, ParseFactor());
+                        expr.Operator = PythonOperator.Add;
+                        break;
                     case TokenKind.Subtract:
-                        Next();
-                        return new UnaryExpression(PythonOperator.Negate, ParseFactor());
+                        expr.Operator = PythonOperator.Negate;
+                        break;
                     case TokenKind.Twiddle:
-                        Next();
-                        return new UnaryExpression(PythonOperator.Invert, ParseFactor());
+                        expr.Operator = PythonOperator.Invert;
+                        break;
+                    default:
+                        ThrowError();
+                        return null;
+                }
+                ReadCommentAndWhitespace(expr);
+                if (unaryExpr == null) {
+                    topExpr = unaryExpr = expr;
+                } else {
+                    unaryExpr.Expression = expr;
+                    unaryExpr = expr;
                 }
             }
-            return ParseAwaitExpr();
-        }
 
-        private Expression ParseAwaitExpr() {
-            if (HasAsyncAwait && IsInAsyncFunction) {
+            if (HasAsyncAwait && IsInAsyncFunction && PeekNonWhitespace.Is(TokenKind.KeywordAwait)) {
+                awaitExpr = new AwaitExpression {
+                    BeforeNode = ReadWhitespace(),
+                    Span = Read(TokenKind.KeywordAwait),
+                };
+                if (unaryExpr != null) {
+                    awaitExpr.Expression = topExpr;
+                    unaryExpr.Expression = ParsePower();
+                } else {
+                    awaitExpr.Expression = ParsePower();
+                }
+                return awaitExpr;
             }
+
+            if (unaryExpr != null) {
+                unaryExpr.Expression = ParsePower();
+                return topExpr;
+            }
+
             return ParsePower();
         }
 
         private Expression ParsePower() {
             var expr = ParsePrimaryWithTrailers();
-            if (CurrentKind == TokenKind.Power) {
-                Next();
-                expr = new BinaryExpression(PythonOperator.Power, expr, ParseFactor());
+            if (TryRead(TokenKind.Power)) {
+                expr = new BinaryExpression {
+                    Left = expr,
+                    Operator = PythonOperator.Power,
+                    Right = ParseFactor()
+                };
             }
             return expr;
         }
@@ -564,33 +600,32 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Expression ParsePrimary() {
-            switch (CurrentKind) {
-                // TODO: kinds
-                case TokenKind.Constant:
-                    return ParseConstant();
-                default:
-                    ThrowError();
-                    return null;
+            if (!Peek.Is(TokenUsage.Primary)) {
+                ThrowError();
+                return null;
             }
-        }
 
-        private ConstantExpression ParseConstant() {
-            ConstantExpression expr = null;
-
-            switch (Current.Category) {
-                case TokenCategory.OpenQuote:
+            Expression expr = null;
+            switch (Peek.Kind) {
+                case TokenKind.LeftSingleQuote:
+                case TokenKind.LeftDoubleQuote:
+                case TokenKind.LeftSingleTripleQuote:
+                case TokenKind.LeftDoubleTripleQuote:
                     expr = ParseStringLiteral();
                     break;
 
-                case TokenCategory.StringLiteral:
-                case TokenCategory.CloseQuote:
+                case TokenKind.LiteralString:
+                case TokenKind.RightSingleQuote:
+                case TokenKind.RightDoubleQuote:
+                case TokenKind.RightSingleTripleQuote:
+                case TokenKind.RightDoubleTripleQuote:
                     // Should only ever enter this function at OpenQuote
                     ThrowError("unexpected string literal");
                     break;
 
-                case TokenCategory.DecimalIntegerLiteral:
+                case TokenKind.LiteralDecimal:
                     BigInteger biValue;
-                    if (!BigInteger.TryParse(_tokenization.GetTokenText(Current), out biValue)) {
+                    if (!BigInteger.TryParse(_tokenization.GetTokenText(Peek), out biValue)) {
                         ThrowError();
                     }
                     if (int.MinValue < biValue && biValue < int.MaxValue) {
@@ -600,8 +635,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     }
                     break;
                 default:
-                    expr = new ConstantExpression(_tokenization.GetTokenText(Current)) {
-                        Span = Current.Span
+                    expr = new ErrorExpression {
+                        Span = Peek.Span
                     };
                     break;
             }
@@ -615,7 +650,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             string value = "";
 
             do {
-                Debug.Assert(Current.Category == TokenCategory.OpenQuote);
+                Debug.Assert(Current.Kind == TokenCategory.OpenQuote);
 
                 var text = Read(TokenCategory.StringLiteral);
                 value += _tokenization.GetTokenText(text);
@@ -635,15 +670,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             bool skipEndOfLine = false;
 
-            while (Peek.Category == TokenCategory.WhiteSpace ||
-                Peek.Category == TokenCategory.IgnoreEndOfLine ||
-                (!IsWhitespaceSignificant || skipEndOfLine) && Peek.Category == TokenCategory.EndOfLine ||
-                Peek.Category == TokenCategory.SemiColon
+            while (Peek.Kind == TokenCategory.WhiteSpace ||
+                Peek.Kind == TokenCategory.IgnoreEndOfLine ||
+                (!IsWhitespaceSignificant || skipEndOfLine) && Peek.Kind == TokenCategory.EndOfLine ||
+                Peek.Kind == TokenCategory.SemiColon
             ) {
                 Next();
                 start = start ?? Current.Span.Start;
                 end = Current.Span.End;
-                skipEndOfLine = (Current.Category == TokenCategory.IgnoreEndOfLine);
+                skipEndOfLine = (Current.Kind == TokenCategory.IgnoreEndOfLine);
             }
 
             return new SourceSpan(start.GetValueOrDefault(), end.GetValueOrDefault());
@@ -654,28 +689,28 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             bool skipEndOfLine = false;
 
-            while (Peek.Category == TokenCategory.WhiteSpace ||
-                Peek.Category == TokenCategory.IgnoreEndOfLine ||
-                Peek.Category == TokenCategory.EndOfLine ||
-                Peek.Category == TokenCategory.SemiColon ||
-                Peek.Category == TokenCategory.EndOfStream
+            while (Peek.Kind == TokenCategory.WhiteSpace ||
+                Peek.Kind == TokenCategory.IgnoreEndOfLine ||
+                Peek.Kind == TokenCategory.EndOfLine ||
+                Peek.Kind == TokenCategory.SemiColon ||
+                Peek.Kind == TokenCategory.EndOfStream
             ) {
                 Next();
                 start = start ?? Current.Span.Start;
                 end = Current.Span.End;
-                if (Current.Category == TokenCategory.SemiColon ||
-                    Current.Category == TokenCategory.EndOfStream ||
-                    Current.Category == TokenCategory.EndOfLine && !skipEndOfLine) {
+                if (Current.Kind == TokenCategory.SemiColon ||
+                    Current.Kind == TokenCategory.EndOfStream ||
+                    Current.Kind == TokenCategory.EndOfLine && !skipEndOfLine) {
                     break;
                 }
-                skipEndOfLine = (Current.Category == TokenCategory.IgnoreEndOfLine);
+                skipEndOfLine = (Current.Kind == TokenCategory.IgnoreEndOfLine);
             }
 
             return new SourceSpan(start.GetValueOrDefault(), end.GetValueOrDefault());
         }
 
         private CommentExpression ReadComment() {
-            if (PeekNonWhitespace.Category == TokenCategory.Comment) {
+            if (PeekNonWhitespace.Kind == TokenCategory.Comment) {
                 return new CommentExpression {
                     BeforeNode = ReadWhitespace(),
                     Span = Read(TokenCategory.Comment),
@@ -691,58 +726,42 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private NameExpression ReadName(string error = "invalid syntax", SourceLocation? errorAt = null) {
             var before = ReadWhitespace();
-            Read(TokenCategory.Identifier, error, errorAt);
 
-            var kind = CurrentKind;
-            var name = new NameExpression(_tokenization.GetTokenText(Current)) {
+            string name;
+            Next();
+            switch (Current.Kind) {
+                case TokenKind.Name:
+                    name = _tokenization.GetTokenText(Current);
+                    break;
+                case TokenKind.KeywordAsync:
+                case TokenKind.KeywordAwait:
+                    if (HasAsyncAwait && IsInAsyncFunction) {
+                        ThrowError(error, errorAt);
+                        return null;
+                    }
+                    name = Current.Is(TokenKind.KeywordAsync) ? "async" : "await";
+                    break;
+                default:
+                    ThrowError(error, errorAt);
+                    return null;
+            }
+
+            var expr = new NameExpression(name) {
                 BeforeNode = before,
                 Span = Current.Span,
                 AfterNode = ReadWhitespace()
             };
 
-            switch (kind) {
-                case TokenKind.Name:
-                    break;
-                case TokenKind.KeywordAsync:
-                case TokenKind.KeywordAwait:
-                    if (HasAsyncAwait && IsInAsyncFunction) {
-                        ThrowError(error, name.Span.End);
-                    }
-                    break;
-                default:
-                    ThrowError(error, name.Span.End);
-                    break;
-            }
-
-            name.Freeze();
-            return name;
-        }
-
-        private bool TryRead(TokenCategory category) {
-            if (Peek.Category == category) {
-                Next();
-                return true;
-            }
-            return false;
+            expr.Freeze();
+            return expr;
         }
 
         private bool TryRead(TokenKind kind) {
-            if (Peek.GetTokenKind(_tokenization) == kind) {
+            if (Peek.Is(kind)) {
                 Next();
                 return true;
             }
             return false;
-        }
-
-        private SourceSpan Read(
-            TokenCategory category,
-            string error = "invalid syntax",
-            SourceLocation? errorAt = null
-        ) {
-            if (!TryRead(category)) {
-                ThrowError(error, errorAt);
-            }
-            return Current.Span;
         }
 
         private SourceSpan Read(TokenKind kind, string error = "invalid syntax", SourceLocation? errorAt = null) {
@@ -753,23 +772,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private void ReadUntil(Func<Token, bool> predicate) {
-            while (Peek.Category != TokenCategory.EndOfStream && !predicate(Peek)) {
+            while (!Peek.Is(TokenKind.EndOfFile) && !predicate(Peek)) {
                 Next();
             }
         }
 
-        private void CheckCurrent(
-            TokenCategory category,
-            string error = "invalid syntax",
-            SourceLocation? errorAt = null
-        ) {
-            if (Current.Category != category) {
-                ThrowError(error, errorAt);
-            }
-        }
-
         private void CheckCurrent(TokenKind kind, string error = "invalid syntax", SourceLocation? errorAt = null) {
-            if (CurrentKind != kind) {
+            if (Current.Kind != kind) {
                 ThrowError(error, errorAt);
             }
         }
@@ -779,9 +788,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         #region Token Predicates
 
         private static bool IsEndOfStatement(Token token) {
-            return token.Category == TokenCategory.EndOfLine ||
-                token.Category == TokenCategory.EndOfStream ||
-                token.Category == TokenCategory.SemiColon;
+            return token.Is(TokenUsage.EndStatement);
         }
 
         #endregion
@@ -794,13 +801,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
         }
 
-        private TokenKind CurrentKind {
-            get {
-                // TODO: Cache for current token
-                return _current.GetTokenKind(_tokenization);
-            }
-        }
-
         private void FillLookahead(int tokenCount) {
             if (_lookahead == null) {
                 return;
@@ -808,12 +808,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             while (_lookahead.Count < tokenCount) {
                 if (_tokenEnumerator.MoveNext()) {
-                    if (_tokenEnumerator.Current.Category == TokenCategory.EndOfStream) {
-                        _eosToken = _tokenEnumerator.Current;
+                    if (_tokenEnumerator.Current.Is(TokenKind.EndOfFile)) {
+                        _eofToken = _tokenEnumerator.Current;
                     }
                     _lookahead.Add(_tokenEnumerator.Current);
                 } else {
-                    _lookahead.Add(_eosToken);
+                    _lookahead.Add(_eofToken);
                 }
             }
         }
@@ -829,57 +829,45 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private Token Next() {
             if (_lookahead == null) {
-                return _eosToken;
+                return _eofToken;
             }
             FillLookahead(1);
             _current = _lookahead[0];
             _lookahead.RemoveAt(0);
-            if (_current.Equals(_eosToken) && _lookahead.Count == 0) {
+            if (_current.Equals(_eofToken) && _lookahead.Count == 0) {
                 _lookahead = null;
             }
             return _current;
         }
 
-        private Token Peek {
-            get {
-                FillLookahead(1);
-                return _lookahead[0];
-            }
+        private Token PeekAhead(int count = 1) {
+            FillLookahead(count);
+            return _lookahead[count - 1];
         }
 
-        private TokenKind PeekKind {
-            get {
-                return Peek.GetTokenKind(_tokenization);
-            }
-        }
+        private Token Peek => PeekAhead();
 
         private Token PeekNonWhitespace {
             get {
                 FillLookahead(2);
                 int i = 0;
                 while (true) {
-                    if (_lookahead[i].Category == TokenCategory.EndOfStream) {
+                    if (_lookahead[i].Is(TokenKind.EndOfFile)) {
                         return _lookahead[i];
-                    } else if (_lookahead[i].Category == TokenCategory.IgnoreEndOfLine) {
+                    } else if (_lookahead[i].Is(TokenKind.ExplicitLineJoin)) {
                         FillLookahead(i + 3);
-                        if (_lookahead[i + 1].Category == TokenCategory.EndOfLine) {
+                        if (_lookahead[i + 1].IsAny(TokenKind.NewLine, TokenKind.EndOfFile)) {
                             i += 2;
                         } else {
                             return _lookahead[i];
                         }
-                    } else if (_lookahead[i].Category == TokenCategory.WhiteSpace) {
+                    } else if (_lookahead[i].Is(TokenKind.Whitespace)) {
                         i += 1;
                     } else {
                         return _lookahead[i];
                     }
                     FillLookahead(i + 2);
                 }
-            }
-        }
-
-        private TokenKind PeekNonWhitespaceKind {
-            get {
-                return PeekNonWhitespace.GetTokenKind(_tokenization);
             }
         }
 

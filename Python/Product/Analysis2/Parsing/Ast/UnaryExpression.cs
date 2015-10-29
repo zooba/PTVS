@@ -20,20 +20,19 @@ using System.Text;
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public class UnaryExpression : Expression {
-        private readonly Expression _expression;
-        private readonly PythonOperator _op;
+        private Expression _expression;
+        private PythonOperator _op;
 
-        public UnaryExpression(PythonOperator op, Expression expression) {
-            _op = op;
-            _expression = expression;
-        }
+        public UnaryExpression() { }
 
         public Expression Expression {
             get { return _expression; }
+            set { ThrowIfFrozen(); _expression = value; }
         }
 
-        public PythonOperator Op {
+        public PythonOperator Operator {
             get { return _op; }
+            set { ThrowIfFrozen(); _op = value; }
         }
 
         public override void Walk(PythonWalker walker) {

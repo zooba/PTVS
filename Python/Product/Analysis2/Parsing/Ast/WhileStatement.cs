@@ -36,7 +36,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _body = value; }
         }
 
-        public Statement ElseStatement {
+        public Statement Else {
             get { return _else; }
             set { ThrowIfFrozen(); _else = value; }
         }

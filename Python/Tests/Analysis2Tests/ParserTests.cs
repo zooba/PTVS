@@ -2782,9 +2782,9 @@ namespace AnalysisTests {
                 test(whileStmt.Test);
                 body(whileStmt.Body);
                 if (_else != null) {
-                    _else(whileStmt.ElseStatement);
+                    _else(whileStmt.Else);
                 } else {
-                    Assert.AreEqual(whileStmt.ElseStatement, null);
+                    Assert.AreEqual(whileStmt.Else, null);
                 }
             };
         }
@@ -3164,7 +3164,7 @@ namespace AnalysisTests {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(UnaryExpression));
                 var unary = (UnaryExpression)expr;
-                Assert.AreEqual(unary.Op, op);
+                Assert.AreEqual(unary.Operator, op);
                 value(unary.Expression);
             };
         }

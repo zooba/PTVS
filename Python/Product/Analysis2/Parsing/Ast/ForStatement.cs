@@ -19,45 +19,56 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ForStatement : Statement {
-        private int _headerIndex;
-        private readonly Expression _left;
+        private readonly bool _isAsync;
+        private Expression _index;
         private Expression _list;
         private Statement _body;
-        private readonly Statement _else;
-        private readonly bool _isAsync;
+        private Statement _else;
+        private CommentExpression _elseComment;
+        private SourceSpan _beforeElseColon, _afterComment, _afterElseComment;
 
-        public ForStatement(Expression left, Expression list, Statement body, Statement else_) {
-            _left = left;
-            _list = list;
-            _body = body;
-            _else = else_;
-        }
-
-        public ForStatement(Expression left, Expression list, Statement body, Statement else_, bool isAsync)
-            : this(left, list, body, else_) {
+        public ForStatement(bool isAsync) {
             _isAsync = isAsync;
         }
 
-        public int HeaderIndex {
-            set { _headerIndex = value; }
-        }
-
-        public Expression Left {
-            get { return _left; }
+        public Expression Index {
+            get { return _index; }
+            set { ThrowIfFrozen();_index = value; }
         }
 
         public Statement Body {
             get { return _body; }
-            set { _body = value; }
+            set { ThrowIfFrozen(); _body = value; }
         }
 
         public Expression List {
             get { return _list; }
-            set { _list = value; }
+            set { ThrowIfFrozen(); _list = value; }
         }
 
         public Statement Else {
             get { return _else; }
+            set { ThrowIfFrozen(); _else = value; }
+        }
+
+        public SourceSpan BeforeElseColon {
+            get { return _beforeElseColon; }
+            set { ThrowIfFrozen(); _beforeElseColon = value; }
+        }
+
+        public SourceSpan AfterComment {
+            get { return _afterComment; }
+            set { ThrowIfFrozen(); _afterComment = value; }
+        }
+
+        public CommentExpression ElseComment {
+            get { return _elseComment; }
+            set { ThrowIfFrozen(); _elseComment = value; }
+        }
+
+        public SourceSpan AfterElseComment {
+            get { return _afterElseComment; }
+            set { ThrowIfFrozen(); _afterElseComment = value; }
         }
 
         public bool IsAsync {
@@ -66,18 +77,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_left != null) {
-                    _left.Walk(walker);
-                }
-                if (_list != null) {
-                    _list.Walk(walker);
-                }
-                if (_body != null) {
-                    _body.Walk(walker);
-                }
-                if (_else != null) {
-                    _else.Walk(walker);
-                }
+                _index?.Walk(walker);
+                _list?.Walk(walker);
+                _body?.Walk(walker);
+                _else?.Walk(walker);
             }
             walker.PostWalk(this);
         }

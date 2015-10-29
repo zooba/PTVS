@@ -17,7 +17,7 @@
 
 namespace Microsoft.PythonTools.Analysis.Parsing {
 
-    public enum TokenCategory {
+    public enum OldTokenCategory {
         None,
 
         /// <summary>

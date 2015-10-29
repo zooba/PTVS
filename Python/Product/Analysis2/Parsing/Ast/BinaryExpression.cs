@@ -23,29 +23,24 @@ using System.Text;
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public partial class BinaryExpression : Expression {
-        private readonly Expression _left, _right;
-        private readonly PythonOperator _op;
+        private Expression _left, _right;
+        private PythonOperator _op;
 
-        public BinaryExpression(PythonOperator op, Expression left, Expression right) {
-            Contract.Assert(left != null);
-            Contract.Assert(right != null);
-            if (op == PythonOperator.None) throw new ArgumentException("bad operator");
-
-            _op = op;
-            _left = left;
-            _right = right;
-        }
+        public BinaryExpression() { }
 
         public Expression Left {
             get { return _left; }
+            set { ThrowIfFrozen(); _left = value; }
         }
 
         public Expression Right {
             get { return _right; }
+            set { ThrowIfFrozen(); _right = value; }
         }
 
         public PythonOperator Operator {
             get { return _op; }
+            set { ThrowIfFrozen(); _op = value; }
         }
 
         private bool IsComparison() {
