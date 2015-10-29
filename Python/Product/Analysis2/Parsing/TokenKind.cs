@@ -17,7 +17,7 @@
 using System.Linq;
 
 namespace Microsoft.PythonTools.Analysis.Parsing {
-    public enum TokenUsage : uint {
+    public enum TokenUsage {
         None = 0x00 << 8,
         Primary = 0x01 << 8,
         BeginStatement = 0x02 << 8,
@@ -34,7 +34,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         Mask = 0xFF << 8
     }
 
-    public enum TokenCategory : uint {
+    public enum TokenCategory {
         None = 0x00 << 16,
         Identifier = 0x01 << 16,
         Keyword = 0x02 << 16,
@@ -48,7 +48,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         Mask = 0xFF << 16
     }
 
-    public enum TokenKind : uint {
+    public enum TokenKind {
         Unknown = 0,
         Mask = 0xFF,
 
@@ -171,11 +171,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
     public static class TokenKindExtensions {
         public static TokenCategory GetCategory(this TokenKind kind) {
-            return (TokenCategory)((uint)kind & (uint)TokenCategory.Mask);
+            return (TokenCategory)((int)kind & (int)TokenCategory.Mask);
         }
 
         public static TokenUsage GetUsage(this TokenKind kind) {
-            return (TokenUsage)((uint)kind & (uint)TokenUsage.Mask);
+            return (TokenUsage)((int)kind & (int)TokenUsage.Mask);
         }
 
         public static TokenKind GetGroupEnding(this TokenKind kind) {
@@ -183,7 +183,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 return TokenKind.Unknown;
             }
 
-            return (TokenKind)(((uint)kind & ~(uint)TokenUsage.Mask) | (uint)TokenUsage.EndGroup);
+            return (TokenKind)(((int)kind & ~(int)TokenUsage.Mask) | (int)TokenUsage.EndGroup);
         }
 
         public static bool Is(this Token token, TokenKind kind) {

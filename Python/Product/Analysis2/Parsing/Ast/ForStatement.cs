@@ -25,7 +25,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private Statement _body;
         private Statement _else;
         private CommentExpression _elseComment;
-        private SourceSpan _beforeElseColon, _afterComment, _afterElseComment;
+        private SourceSpan _afterBody, _beforeElseColon, _afterComment, _afterElseComment;
 
         public ForStatement(bool isAsync) {
             _isAsync = isAsync;
@@ -49,6 +49,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public Statement Else {
             get { return _else; }
             set { ThrowIfFrozen(); _else = value; }
+        }
+
+        public SourceSpan AfterBody {
+            get { return _afterBody; }
+            set { ThrowIfFrozen(); _afterBody = value; }
         }
 
         public SourceSpan BeforeElseColon {

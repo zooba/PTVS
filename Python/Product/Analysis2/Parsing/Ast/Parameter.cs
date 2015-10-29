@@ -26,6 +26,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private NameExpression _name;
         private ParameterKind _kind;
         private Expression _defaultValue, _annotationOrSublist;
+        private bool _hasComma;
 
         public Parameter() { }
 
@@ -52,6 +53,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             get { return IsSublist ? (TupleExpression)_annotationOrSublist : null; }
             set { ThrowIfFrozen(); _annotationOrSublist = value; }
         }
+
+        public bool HasComma {
+            get { return _hasComma; }
+            set { ThrowIfFrozen(); _hasComma = value; }
+        }
+
+        public bool IsEmpty => _name == null;
 
         public bool IsList => _kind == ParameterKind.List;
 

@@ -1060,7 +1060,7 @@ namespace AnalysisTests {
                         Empty,
                         CheckForStmt(CheckListExpr(CheckListExpr(Fob), CheckListExpr(Oar)), Baz, CheckSuite(Pass)),
                         Empty,
-                        CheckForStmt(CheckTupleExpr(CheckParenExpr(Fob), CheckParenExpr(Oar)), Baz, CheckSuite(Pass))
+                        CheckForStmt(CheckParenExpr(CheckTupleExpr(CheckParenExpr(Fob), CheckParenExpr(Oar))), Baz, CheckSuite(Pass))
                     )
                 );
             }
@@ -1442,6 +1442,7 @@ namespace AnalysisTests {
                     ParseFileNoErrors("WhileStmt.py", version),
                     CheckSuite(
                         CheckWhileStmt(One, CheckSuite(Pass)),
+                        Empty,
                         CheckWhileStmt(One, CheckSuite(Pass), CheckSuite(Pass))
                     )
                 );
@@ -1726,7 +1727,11 @@ namespace AnalysisTests {
                     ParseFileNoErrors("IfStmt.py", version),
                     CheckSuite(
                         CheckIfStmt(IfTests(IfTest(One, CheckSuite(Pass)))),
+                        Empty,
+                        Empty,
                         CheckIfStmt(IfTests(IfTest(One, CheckSuite(Pass)), IfTest(Two, CheckSuite(Pass)))),
+                        Empty,
+                        Empty,
                         CheckIfStmt(IfTests(IfTest(One, CheckSuite(Pass))), ElseTest(CheckSuite(Pass)))
                     )
                 );
