@@ -1,4 +1,4 @@
-// Python Tools for Visual Studio
+﻿// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -14,34 +14,32 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
-using System.Text;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class StringExpression : Expression {
+        private IList<Expression> _parts;
 
-    public class ParenthesisExpression : Expression {
-        private Expression _expression;
-
-        public ParenthesisExpression() { }
-
-        public Expression Expression {
-            get { return _expression; }
-            set { ThrowIfFrozen(); _expression = value; }
+        public IList<Expression> Parts {
+            get { return _parts; }
+            set { ThrowIfFrozen(); _parts = value; }
         }
 
-        internal override string CheckAssign() {
-            return _expression.CheckAssign();
+        protected override void OnFreeze() {
+            _parts = FreezeList(_parts);
         }
 
-        internal override string CheckDelete() {
-            return _expression.CheckDelete();
+        public void AddPart(Expression expression) {
+            if (_parts == null) {
+                _parts = new List<Expression>();
+            }
+            _parts.Add(expression);
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
             }
             walker.PostWalk(this);
         }

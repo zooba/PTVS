@@ -22,10 +22,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class TupleExpression : SequenceExpression {
         private bool _expandable;
 
-        public TupleExpression(bool expandable, params Expression[] items)
-            : base(items) {
-            _expandable = expandable;
-        }
+        public TupleExpression() { }
 
         internal override string CheckAssign() {
             if (Items.Count == 0) {

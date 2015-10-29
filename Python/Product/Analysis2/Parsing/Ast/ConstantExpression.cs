@@ -23,16 +23,13 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ConstantExpression : Expression {
-        private readonly object _value;
+        private object _value;
 
-        public ConstantExpression(object value) {
-            _value = value;
-        }
+        public ConstantExpression() { }
 
         public object Value {
-            get {
-                return _value; 
-            }
+            get { return _value; }
+            set { ThrowIfFrozen(); _value = value; }
         }
 
         internal override string CheckAssign() {

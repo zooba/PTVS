@@ -16,7 +16,10 @@
 
 
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
@@ -28,21 +31,39 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         internal Node() { }
 
+        #region Freezing
+        // Nodes should be "frozen" once complete to deter later modification.
+        // For debug builds, modification will be detected a number of ways.
+        // In release builds, freezing may attempt to reduce memory usage but
+        // most validation is otherwise removed.
+
 #if DEBUG
         private bool _frozen;
 #endif
 
-        [Conditional("DEBUG")]
         internal void Freeze() {
 #if DEBUG
             _frozen = true;
             _comment?.Freeze();
 #endif
+            OnFreeze();
         }
 
+        protected static IList<T> FreezeList<T>(IList<T> original) {
+            if (original == null || original.Count == 0) {
+                return null;
+            }
+
 #if DEBUG
-        protected virtual void OnFreeze() { }
+            // Use a ReadOnlyCollection to detect attempts to change the list
+            return new ReadOnlyCollection<T>(original);
+#else
+            // Convert to an array to remove unnecessary object allocation
+            return (original as T[]) ?? (original as List<T>)?.ToArray() ?? (original.ToArray());
 #endif
+        }
+
+        protected virtual void OnFreeze() { }
 
         [Conditional("DEBUG")]
         protected void ThrowIfFrozen() {
@@ -53,6 +74,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             }
 #endif
         }
+
+        #endregion
 
         public SourceSpan Span {
             get { return _span; }

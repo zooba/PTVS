@@ -15,13 +15,10 @@
 // permissions and limitations under the License.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis.Parsing {
+    [DebuggerDisplay("{Kind} ({Span})")]
     public struct Token : IEquatable<Token> {
         public static readonly Token Empty = new Token();
 
@@ -36,10 +33,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         public Token(TokenKind kind, SourceLocation start, int length) {
             Kind = kind;
             Span = new SourceSpan(start, new SourceLocation(start.Index + length, start.Line, start.Column + length));
-        }
-
-        public override string ToString() {
-            return $"{Kind} ({Span})";
         }
 
         public override bool Equals(object obj) {

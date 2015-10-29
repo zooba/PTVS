@@ -1049,11 +1049,17 @@ namespace AnalysisTests {
                     ParseFileNoErrors("ForStmt.py", version),
                     CheckSuite(
                         CheckForStmt(Fob, Oar, CheckSuite(Pass)),
+                        Empty,
                         CheckForStmt(CheckTupleExpr(Fob, Oar), Baz, CheckSuite(Pass)),
+                        Empty,
                         CheckForStmt(Fob, Oar, CheckSuite(Pass), CheckSuite(Pass)),
+                        Empty,
                         CheckForStmt(Fob, Oar, CheckSuite(Break)),
+                        Empty,
                         CheckForStmt(Fob, Oar, CheckSuite(Continue)),
+                        Empty,
                         CheckForStmt(CheckListExpr(CheckListExpr(Fob), CheckListExpr(Oar)), Baz, CheckSuite(Pass)),
+                        Empty,
                         CheckForStmt(CheckTupleExpr(CheckParenExpr(Fob), CheckParenExpr(Oar)), Baz, CheckSuite(Pass))
                     )
                 );
@@ -2720,6 +2726,7 @@ namespace AnalysisTests {
         private static Action<Expression> Baz = CheckNameExpr("baz");
         private static Action<Expression> Quox = CheckNameExpr("quox");
         private static Action<Expression> Exception = CheckNameExpr("Exception");
+        private static Action<Statement> Empty = CheckEmptyStmt();
         private static Action<Statement> Pass = CheckPassStmt();
         private static Action<Statement> Break = CheckBreakStmt();
         private static Action<Statement> Continue = CheckContinueStmt();
@@ -2747,12 +2754,12 @@ namespace AnalysisTests {
             };
         }
 
-        private static Action<Statement> CheckForStmt(Action<Expression> left, Action<Expression> list, Action<Statement> body, Action<Statement> _else = null) {
+        private static Action<Statement> CheckForStmt(Action<Expression> index, Action<Expression> list, Action<Statement> body, Action<Statement> _else = null) {
             return stmt => {
                 Assert.IsInstanceOfType(stmt, typeof(ForStatement));
                 ForStatement forStmt = (ForStatement)stmt;
 
-                left(forStmt.Left);
+                index(forStmt.Index);
                 list(forStmt.List);
                 body(forStmt.Body);
                 if (_else != null) {

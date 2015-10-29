@@ -24,26 +24,27 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     }
 
     public abstract class Comprehension : Expression {
-        public abstract IList<ComprehensionIterator> Iterators { get; }
-        
+        private IList<ComprehensionIterator> _iterators;
+
+        public IList<ComprehensionIterator> Iterators {
+            get { return _iterators; }
+            set { ThrowIfFrozen(); _iterators = value; }
+        }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _iterators = FreezeList(_iterators);
+        }
+
         public abstract override void Walk(PythonWalker walker);
     }
 
     public sealed class ListComprehension : Comprehension {
-        private readonly ComprehensionIterator[] _iterators;
-        private readonly Expression _item;
-
-        public ListComprehension(Expression item, ComprehensionIterator[] iterators) {
-            _item = item;
-            _iterators = iterators;
-        }
+        private Expression _item;
 
         public Expression Item {
             get { return _item; }
-        }
-
-        public override IList<ComprehensionIterator> Iterators {
-            get { return _iterators; }
+            set { ThrowIfFrozen(); _item = value; }
         }
 
         public override void Walk(PythonWalker walker) {
@@ -51,8 +52,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 if (_item != null) {
                     _item.Walk(walker);
                 }
-                if (_iterators != null) {
-                    foreach (ComprehensionIterator ci in _iterators) {
+                if (Iterators != null) {
+                    foreach (ComprehensionIterator ci in Iterators) {
                         ci.Walk(walker);
                     }
                 }
@@ -62,20 +63,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     }
 
     public sealed class SetComprehension : Comprehension {
-        private readonly ComprehensionIterator[] _iterators;
-        private readonly Expression _item;
-
-        public SetComprehension(Expression item, ComprehensionIterator[] iterators) {
-            _item = item;
-            _iterators = iterators;
-        }
+        private Expression _item;
 
         public Expression Item {
             get { return _item; }
-        }
-
-        public override IList<ComprehensionIterator> Iterators {
-            get { return _iterators; }
+            set { ThrowIfFrozen(); _item = value; }
         }
 
         public override void Walk(PythonWalker walker) {
@@ -83,8 +75,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 if (_item != null) {
                     _item.Walk(walker);
                 }
-                if (_iterators != null) {
-                    foreach (ComprehensionIterator ci in _iterators) {
+                if (Iterators != null) {
+                    foreach (ComprehensionIterator ci in Iterators) {
                         ci.Walk(walker);
                     }
                 }
@@ -94,24 +86,16 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     }
 
     public sealed class DictionaryComprehension : Comprehension {
-        private readonly ComprehensionIterator[] _iterators;
-        private readonly SliceExpression _value;
-
-        public DictionaryComprehension(SliceExpression value, ComprehensionIterator[] iterators) {
-            _value = value;
-            _iterators = iterators;
-        }
+        private SliceExpression _value;
 
         public Expression Key {
             get { return _value.SliceStart; }
+            set { ThrowIfFrozen(); _value.SliceStart = value; }
         }
 
         public Expression Value {
             get { return _value.SliceStop; }
-        }
-
-        public override IList<ComprehensionIterator> Iterators {
-            get { return _iterators; }
+            set { ThrowIfFrozen(); _value.SliceStop = value; }
         }
 
         public override void Walk(PythonWalker walker) {
@@ -120,8 +104,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                     _value.Walk(walker);
                 }
 
-                if (_iterators != null) {
-                    foreach (ComprehensionIterator ci in _iterators) {
+                if (Iterators != null) {
+                    foreach (ComprehensionIterator ci in Iterators) {
                         ci.Walk(walker);
                     }
                 }

@@ -14,16 +14,13 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
 using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ListExpression : SequenceExpression {
-        public ListExpression(params Expression[] items)
-            : base(items) {
-        }
+        public ListExpression() { }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {

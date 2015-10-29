@@ -16,17 +16,29 @@
 
 
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class SequenceExpression : Expression {
-        private readonly Expression[] _items;
+        private IList<Expression> _items;
 
-        protected SequenceExpression(Expression[] items) {
-            _items = items;
+        protected SequenceExpression() { }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _items = FreezeList(_items);
         }
 
         public IList<Expression> Items {
             get { return _items; }
+            set { ThrowIfFrozen(); _items = value; }
+        }
+
+        public void AddItem(Expression expr) {
+            if (_items == null) {
+                _items = new List<Expression>();
+            }
+            _items.Add(expr);
         }
 
         internal override string CheckAssign() {

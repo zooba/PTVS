@@ -105,6 +105,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public virtual bool Walk(SliceExpression node) { return true; }
         public virtual void PostWalk(SliceExpression node) { }
 
+        // StringExpression
+        public virtual bool Walk(StringExpression node) { return true; }
+        public virtual void PostWalk(StringExpression node) { }
+
         // TupleExpression
         public virtual bool Walk(TupleExpression node) { return true; }
         public virtual void PostWalk(TupleExpression node) { }
@@ -367,6 +371,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public override bool Walk(SliceExpression node) { return false; }
         public override void PostWalk(SliceExpression node) { }
 
+        // StringExpression
+        public override bool Walk(StringExpression node) { return false; }
+        public override void PostWalk(StringExpression node) { }
+
         // TupleExpression
         public override bool Walk(TupleExpression node) { return false; }
         public override void PostWalk(TupleExpression node) { }
@@ -613,6 +621,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         // SliceExpression
         public override bool Walk(SliceExpression node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
+
+        // StringExpression
+        public override bool Walk(StringExpression node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
 
         // TupleExpression
         public override bool Walk(TupleExpression node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }

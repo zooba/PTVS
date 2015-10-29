@@ -19,28 +19,24 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class SliceExpression : Expression {
-        private readonly Expression _sliceStart;
-        private readonly Expression _sliceStop;
-        private readonly Expression _sliceStep;
-        private readonly bool _stepProvided;
-
-        public SliceExpression(Expression start, Expression stop, Expression step, bool stepProvided) {
-            _sliceStart = start;
-            _sliceStop = stop;
-            _sliceStep = step;
-            _stepProvided = stepProvided;
-        }
+        private Expression _sliceStart;
+        private Expression _sliceStop;
+        private Expression _sliceStep;
+        private bool _stepProvided;
 
         public Expression SliceStart {
             get { return _sliceStart; }
+            set { ThrowIfFrozen(); _sliceStart = value; }
         }
 
         public Expression SliceStop {
             get { return _sliceStop; }
+            set { ThrowIfFrozen(); _sliceStop = value; }
         }
 
         public Expression SliceStep {
             get { return _sliceStep; }
+            set { ThrowIfFrozen(); _sliceStep = value; }
         }
 
         /// <summary>
@@ -48,9 +44,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         /// or providing an empty step parameter) false if only start and stop were provided.
         /// </summary>
         public bool StepProvided {
-            get {
-                return _stepProvided;
-            }
+            get { return _stepProvided; }
+            set { ThrowIfFrozen(); _stepProvided = value; }
         }
 
         public override void Walk(PythonWalker walker) {

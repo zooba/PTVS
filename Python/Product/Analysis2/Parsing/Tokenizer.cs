@@ -27,8 +27,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         PythonLanguageVersion _version;
         int _lineNumber;
         int _lineStart;
-        string _multilineStringQuotes;
-        SourceLocation _multilineStringStart;
         Stack<TokenKind> _nesting;
 
         private const string HexDigits = "0123456789ABCDEFabcdef";
@@ -40,16 +38,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             _version = version;
             _lineNumber = 0;
             _lineStart = 0;
+            _nesting = new Stack<TokenKind>();
         }
 
         public string SerializeState() {
             return string.Format(
-                "v={0};ln={1};ls={2};mlsq={3};mlss={4};nest={5}",
+                "v={0};ln={1};ls={2};nest={3}",
                 (int)_version,
                 _lineNumber,
                 _lineStart,
-                _multilineStringQuotes ?? "",
-                Serialize(_multilineStringStart),
                 Serialize(_nesting)
             );
         }
@@ -84,12 +81,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         break;
                     case "ls":
                         _lineStart = int.Parse(value);
-                        break;
-                    case "mlsq":
-                        _multilineStringQuotes = value;
-                        break;
-                    case "mlss":
-                        _multilineStringStart = RestoreSourceLocation(value);
                         break;
                     case "nest":
                         _nesting = RestoreTokenKindStack(value);
@@ -175,11 +166,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 case TokenKind.RightSingleQuote:
                 case TokenKind.RightDoubleQuote:
                     if (start == 0) {
-                        // Unterminated literal, so pop and fall back to regular
-                        // processing
-                        var close = _nesting.Pop();
-                        Debug.Assert(close == inGroup);
-                        return TokenKind.Unknown;
+                        // Unterminated literal, so use regular processing
+                        return inGroup;
                     }
                     quote = inGroup == TokenKind.RightSingleQuote ? "'" : "\"";
                     break;
@@ -347,8 +335,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 return TokenKind.ExplicitLineJoin;
             }
 
-            kind = MaybeReadOperator(line, c, ref end);
-            if (kind != TokenKind.Unknown) {
+            kind = ReadOperator(line, c, ref end);
+            if (kind != TokenKind.Error) {
                 length = end - start;
                 return kind;
             }
@@ -361,7 +349,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     end += 1;
                 }
                 length = end - start;
-                if (start == 0) {
+                if (start == 0 && _nesting.Count == 0) {
                     return TokenKind.SignificantWhitespace;
                 }
                 return TokenKind.Whitespace;
@@ -372,10 +360,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private static TokenKind ReadIdentifier(string line, ref int end) {
+            int start = end - 1;
             int len = line.Length;
-            // TODO: Resolve to keywords
             while (end < len && (char.IsLetterOrDigit(line, end) || line[end] == '_')) {
                 end += 1;
+            }
+            TokenKind kind;
+            if (Keywords.TryGetValue(line.Substring(start, end - start), out kind)) {
+                return kind;
             }
             return TokenKind.Name;
         }
@@ -478,16 +470,16 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return kind;
         }
 
-        private static TokenKind MaybeReadOperator(string line, char c, ref int end) {
+        private static TokenKind ReadOperator(string line, char c, ref int end) {
             if (end >= line.Length) {
-                return TokenKind.Unknown;
+                return TokenKind.Error;
             }
 
             char c2 = (end < line.Length) ? line[end] : '\0';
             char c3 = (end + 1 < line.Length) ? line[end + 1] : '\0';
             int len;
-            var kind = GetOperatorKind(c, c2, c3, out len, TokenKind.Unknown);
-            if (kind != TokenKind.Unknown) {
+            var kind = GetOperatorKind(c, c2, c3, out len, TokenKind.Error);
+            if (kind != TokenKind.Error) {
                 end += len - 1;
             }
             return kind;
@@ -516,8 +508,23 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         public IEnumerable<Token> GetRemainingTokens() {
             var eof = new SourceLocation(_lineStart, _lineNumber, 1);
 
-            if (!string.IsNullOrEmpty(_multilineStringQuotes)) {
-                yield return new Token(TokenKind.LiteralString, _multilineStringStart, eof);
+            while (_nesting.Any()) {
+                var close = _nesting.Pop();
+                switch (close) {
+                    case TokenKind.RightSingleQuote:
+                    case TokenKind.RightDoubleQuote:
+                    case TokenKind.RightSingleTripleQuote:
+                    case TokenKind.RightDoubleTripleQuote:
+                        break;
+                    case TokenKind.RightParenthesis:
+                        break;
+                    case TokenKind.RightBracket:
+                        break;
+                    case TokenKind.RightBrace:
+                        break;
+                    case TokenKind.RightBackQuote:
+                        break;
+                }
             }
 
             yield return new Token(TokenKind.EndOfFile, eof, 0);
@@ -544,6 +551,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 { '~', TokenKind.Twiddle },
                 { '<', TokenKind.LessThan },
                 { '>', TokenKind.GreaterThan },
+                { '=', TokenKind.Assign },
             };
 
             // c2 == '='
@@ -607,25 +615,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return map.TryGetValue(c1, out result) ? result : defaultKind;
         }
 
-        private static readonly Dictionary<string, TokenKind> Groupings = new Dictionary<string, TokenKind> {
-            { "(", TokenKind.LeftParenthesis },
-            { ")", TokenKind.RightParenthesis },
-            { "[", TokenKind.LeftBracket },
-            { "]", TokenKind.RightBracket },
-            { "{", TokenKind.LeftBrace },
-            { "}", TokenKind.RightBrace },
-        };
-
-        private static TokenKind GetGroupingTokenKind(Tokenization tokenization, Token token) {
-            try {
-                return Groupings[tokenization.GetTokenText(token)];
-            } catch (KeyNotFoundException) {
-                Debug.Fail("Unhandled grouping: " + tokenization.GetTokenText(token));
-                return TokenKind.Unknown;
-            }
-        }
-
-        private static readonly Dictionary<string, TokenKind> Identifiers = new Dictionary<string, TokenKind> {
+        private static readonly Dictionary<string, TokenKind> Keywords = new Dictionary<string, TokenKind> {
             { "and", TokenKind.KeywordAnd },
             { "assert", TokenKind.KeywordAssert },
             { "async", TokenKind.KeywordAsync },
@@ -663,14 +653,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             { "False", TokenKind.KeywordFalse },
             { "nonlocal", TokenKind.KeywordNonlocal },
         };
-
-        private static TokenKind GetIdentifierTokenKind(Tokenization tokenization, Token token) {
-            TokenKind kind;
-            if (Identifiers.TryGetValue(tokenization.GetTokenText(token), out kind)) {
-                return kind;
-            }
-            return TokenKind.Name;
-        }
 
         #endregion
     }

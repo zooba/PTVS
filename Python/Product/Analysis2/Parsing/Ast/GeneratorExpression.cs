@@ -20,22 +20,11 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public sealed class GeneratorExpression : Comprehension {
-        private readonly ComprehensionIterator[] _iterators;
-        private readonly Expression _item;
-
-        public GeneratorExpression(Expression item, ComprehensionIterator[] iterators) {
-            _item = item;
-            _iterators = iterators;
-        }
-
-        public override IList<ComprehensionIterator> Iterators {
-            get { return _iterators; }
-        }
+        private Expression _item;
 
         public Expression Item {
-            get {
-                return _item;
-            }
+            get { return _item; }
+            set { ThrowIfFrozen(); _item = value; }
         }
 
         internal override string CheckAssign() {
@@ -56,8 +45,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                     _item.Walk(walker);
                 }
 
-                if (_iterators != null) {
-                    foreach (ComprehensionIterator ci in _iterators) {
+                if (Iterators != null) {
+                    foreach (ComprehensionIterator ci in Iterators) {
                         ci.Walk(walker);
                     }
                 }

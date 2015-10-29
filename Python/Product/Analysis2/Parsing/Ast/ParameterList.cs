@@ -11,12 +11,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public ParameterList() { }
 
-#if DEBUG
         protected override void OnFreeze() {
             base.OnFreeze();
-            _parameters = new ReadOnlyCollection<Parameter>(_parameters);
+            _parameters = FreezeList(_parameters);
         }
-#endif
 
         public IList<Parameter> Parameters {
             get { return _parameters; }

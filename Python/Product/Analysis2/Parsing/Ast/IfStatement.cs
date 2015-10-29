@@ -14,7 +14,6 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -27,12 +26,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public IfStatement() { }
 
-#if DEBUG
         protected override void OnFreeze() {
             base.OnFreeze();
-            _tests = _tests != null ? new ReadOnlyCollection<IfStatementTest>(_tests) : null;
+            _tests = FreezeList(_tests);
         }
-#endif
 
         public IList<IfStatementTest> Tests {
             get { return _tests; }
