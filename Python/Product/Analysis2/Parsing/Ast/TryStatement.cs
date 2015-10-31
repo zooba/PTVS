@@ -19,25 +19,19 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class TryStatement : Statement {
-        private Statement _body, _else, _finally;
-        private IList<TryStatementHandler> _handlers;
+    public class TryStatement : CompoundStatement {
+        private IList<CompoundStatement> _handlers;
 
-        public TryStatement() { }
+        public TryStatement() : base(TokenKind.KeywordTry) { }
 
-        public Statement Body {
-            get { return _body; }
-            set { ThrowIfFrozen(); _body = value; }
-        }
-
-        public IList<TryStatementHandler> Handlers {
+        public IList<CompoundStatement> Handlers {
             get { return _handlers; }
             set { ThrowIfFrozen(); _handlers = value; }
         }
 
-        public void AddHandler(TryStatementHandler handler) {
+        public void AddHandler(CompoundStatement handler) {
             if (_handlers == null) {
-                _handlers = new List<TryStatementHandler>();
+                _handlers = new List<CompoundStatement>();
             }
             _handlers.Add(handler);
         }
@@ -49,59 +43,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _body?.Walk(walker);
+                base.Walk(walker);
                 if (_handlers != null) {
-                    foreach (TryStatementHandler handler in _handlers) {
+                    foreach (CompoundStatement handler in _handlers) {
                         handler.Walk(walker);
                     }
                 }
-                _else?.Walk(walker);
-                _finally?.Walk(walker);
-            }
-            walker.PostWalk(this);
-        }
-    }
-
-    // A handler corresponds to the except block.
-    public class TryStatementHandler : Node {
-        private readonly TokenKind _kind;
-        private Expression _test, _target;
-        private Statement _body;
-        private SourceSpan _afterComment;
-
-        public TryStatementHandler(TokenKind kind) {
-            _kind = kind;
-        }
-
-        public TokenKind Kind {
-            get { return _kind; }
-        }
-
-        public Expression Test {
-            get { return _test; }
-            set { ThrowIfFrozen(); _test = value; }
-        }
-
-        public Expression Target {
-            get { return _target; }
-            set { ThrowIfFrozen(); _target = value; }
-        }
-
-        public Statement Body {
-            get { return _body; }
-            set { ThrowIfFrozen(); _body = value; }
-        }
-
-        public SourceSpan AfterComment {
-            get { return _afterComment; }
-            set { ThrowIfFrozen(); _afterComment = value; }
-        }
-
-        public override void Walk(PythonWalker walker) {
-            if (walker.Walk(this)) {
-                _test?.Walk(walker);
-                _target?.Walk(walker);
-                _body?.Walk(walker);
             }
             walker.PostWalk(this);
         }

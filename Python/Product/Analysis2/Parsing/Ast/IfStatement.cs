@@ -19,50 +19,47 @@ using System.Linq;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class IfStatement : Statement {
-        private IList<IfStatementTest> _tests;
-        private IfStatementTest _else;
+    public class IfStatement : CompoundStatement {
+        private IList<CompoundStatement> _tests;
 
-        public IfStatement() { }
+        public IfStatement() : base(TokenKind.KeywordIf) { }
 
         protected override void OnFreeze() {
             base.OnFreeze();
             _tests = FreezeList(_tests);
         }
 
-        public IList<IfStatementTest> Tests {
+        public IList<CompoundStatement> Tests {
             get { return _tests; }
             set { ThrowIfFrozen(); _tests = value; }
         }
 
-        internal void AddTest(IfStatementTest test) {
+        internal void AddTest(CompoundStatement test) {
             if (_tests == null) {
-                _tests = new List<IfStatementTest>();
+                _tests = new List<CompoundStatement>();
             }
             _tests.Add(test);
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
+                base.Walk(walker);
                 if (_tests != null) {
-                    foreach (IfStatementTest test in _tests) {
+                    foreach (CompoundStatement test in _tests) {
                         test.Walk(walker);
                     }
                 }
-                _else?.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
         internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
-            // TODO: Apply formatting options
-            var t = ast.Tokenization;
-            BeforeNode.AppendCodeString(output, ast);
-            foreach (var test in Tests ?? Enumerable.Empty<IfStatementTest>()) {
-                test.AppendCodeString(output, ast, format);
+            base.AppendCodeString(output, ast, format);
+            if (Tests?.Any() ?? false) {
+                foreach (var test in Tests) {
+                    test.AppendCodeString(output, ast, format);
+                }
             }
-            Comment?.AppendCodeString(output, ast, format);
-            AfterNode.AppendCodeString(output, ast);
         }
     }
 }

@@ -79,6 +79,7 @@
     <Compile Include="Interpreter\InterpreterUIMode.cs" />
     <Compile Include="Parsing\AsciiString.cs" />
     <Compile Include="Parsing\Ast\Arg.cs" />
+    <Compile Include="Parsing\Ast\AsExpression.cs" />
     <Compile Include="Parsing\Ast\AssertStatement.cs" />
     <Compile Include="Parsing\Ast\AssignmentStatement.cs" />
     <Compile Include="Parsing\Ast\AugmentedAssignStatement.cs" />
@@ -89,6 +90,7 @@
     <Compile Include="Parsing\Ast\CallExpression.cs" />
     <Compile Include="Parsing\Ast\ClassDefinition.cs" />
     <Compile Include="Parsing\Ast\CommentExpression.cs" />
+    <Compile Include="Parsing\Ast\CompoundStatement.cs" />
     <Compile Include="Parsing\Ast\Comprehension.cs" />
     <Compile Include="Parsing\Ast\ComprehensionFor.cs" />
     <Compile Include="Parsing\Ast\ComprehensionIf.cs" />
@@ -113,7 +115,6 @@
     <Compile Include="Parsing\Ast\GeneratorExpression.cs" />
     <Compile Include="Parsing\Ast\GlobalStatement.cs" />
     <Compile Include="Parsing\Ast\IfStatement.cs" />
-    <Compile Include="Parsing\Ast\IfStatementTest.cs" />
     <Compile Include="Parsing\Ast\ImportStatement.cs" />
     <Compile Include="Parsing\Ast\IndexExpression.cs" />
     <Compile Include="Parsing\Ast\LambdaExpression.cs" />

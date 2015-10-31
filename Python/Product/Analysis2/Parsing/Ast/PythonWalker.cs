@@ -20,6 +20,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     /// PythonWalker class - The Python AST Walker (default result is true)
     /// </summary>
     public class PythonWalker {
+        // AsExpression
+        public virtual bool Walk(AsExpression node) { return true; }
+        public virtual void PostWalk(AsExpression node) { }
 
         // AwaitExpression
         public virtual bool Walk(AwaitExpression node) { return true; }
@@ -249,10 +252,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public virtual bool Walk(DottedName node) { return true; }
         public virtual void PostWalk(DottedName node) { }
 
-        // IfStatementTest
-        public virtual bool Walk(IfStatementTest node) { return true; }
-        public virtual void PostWalk(IfStatementTest node) { }
-
         // ModuleName
         public virtual bool Walk(ModuleName node) { return true; }
         public virtual void PostWalk(ModuleName node) { }
@@ -269,10 +268,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public virtual bool Walk(RelativeModuleName node) { return true; }
         public virtual void PostWalk(RelativeModuleName node) { }
 
-        // TryStatementHandler
-        public virtual bool Walk(TryStatementHandler node) { return true; }
-        public virtual void PostWalk(TryStatementHandler node) { }
-
         // ErrorStatement
         public virtual bool Walk(ErrorStatement node) { return true; }
         public virtual void PostWalk(ErrorStatement node) { }
@@ -287,6 +282,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     /// PythonWalkerNonRecursive class - The Python AST Walker (default result is false)
     /// </summary>
     public class PythonWalkerNonRecursive : PythonWalker {
+        // AsExpression
+        public override bool Walk(AsExpression node) { return false; }
+        public override void PostWalk(AsExpression node) { }
+
         // AwaitExpression
         public override bool Walk(AwaitExpression node) { return false; }
         public override void PostWalk(AwaitExpression node) { }
@@ -515,10 +514,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public override bool Walk(DottedName node) { return false; }
         public override void PostWalk(DottedName node) { }
 
-        // IfStatementTest
-        public override bool Walk(IfStatementTest node) { return false; }
-        public override void PostWalk(IfStatementTest node) { }
-
         // ModuleName
         public override bool Walk(ModuleName node) { return false; }
         public override void PostWalk(ModuleName node) { }
@@ -534,11 +529,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         // RelativeModuleName
         public override bool Walk(RelativeModuleName node) { return false; }
         public override void PostWalk(RelativeModuleName node) { }
-
-        // TryStatementHandler
-        public override bool Walk(TryStatementHandler node) { return false; }
-        public override void PostWalk(TryStatementHandler node) { }
-
+        
         // ErrorStatement
         public override bool Walk(ErrorStatement node) { return false; }
         public override void PostWalk(ErrorStatement node) { }
@@ -558,6 +549,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public PythonWalkerWithLocation(int location) {
             Location = location;
         }
+
+        // AsExpression
+        public override bool Walk(AsExpression node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
 
         // AwaitExpression
         public override bool Walk(AwaitExpression node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
@@ -729,10 +723,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         // DottedName
         public override bool Walk(DottedName node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
-
-        // IfStatementTest
-        public override bool Walk(IfStatementTest node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
-
+        
         // ModuleName
         public override bool Walk(ModuleName node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
 
@@ -744,10 +735,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         // RelativeModuleName
         public override bool Walk(RelativeModuleName node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
-
-        // TryStatementHandler
-        public override bool Walk(TryStatementHandler node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
-
+        
         // ErrorStatement
         public override bool Walk(ErrorStatement node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
 

@@ -14,7 +14,6 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -115,7 +114,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         internal virtual void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
             // TODO: Apply formatting options
-            var t = ast.Tokenization;
             BeforeNode.AppendCodeString(output, ast);
             Span.AppendCodeString(output, ast);
             Comment?.AppendCodeString(output, ast, format);

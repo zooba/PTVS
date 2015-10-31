@@ -18,59 +18,19 @@
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class WhileStatement : Statement {
-        private Expression _test;
-        private Statement _body, _else;
-        private CommentExpression _elseComment;
-        private SourceSpan _afterBody, _beforeElseColon, _afterComment, _afterElseComment;
+    public class WhileStatement : CompoundStatement {
+        private CompoundStatement _else;
 
-        public WhileStatement() { }
+        public WhileStatement() : base(TokenKind.KeywordWhile) { }
 
-        public Expression Test {
-            get { return _test; }
-            set { ThrowIfFrozen(); _test = value; }
-        }
-
-        public Statement Body {
-            get { return _body; }
-            set { ThrowIfFrozen(); _body = value; }
-        }
-
-        public Statement Else {
+        public CompoundStatement Else {
             get { return _else; }
             set { ThrowIfFrozen(); _else = value; }
         }
 
-        public SourceSpan AfterBody {
-            get { return _afterBody; }
-            set { ThrowIfFrozen(); _afterBody = value; }
-        }
-
-        public SourceSpan BeforeElseColon {
-            get { return _beforeElseColon; }
-            set { ThrowIfFrozen(); _beforeElseColon = value; }
-        }
-
-        public SourceSpan AfterComment {
-            get { return _afterComment; }
-            set { ThrowIfFrozen(); _afterComment = value; }
-        }
-
-        public CommentExpression ElseComment {
-            get { return _elseComment; }
-            set { ThrowIfFrozen(); _elseComment = value; }
-        }
-
-        public SourceSpan AfterElseComment {
-            get { return _afterElseComment; }
-            set { ThrowIfFrozen(); _afterElseComment = value; }
-        }
-
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _test?.Walk(walker);
-                _body?.Walk(walker);
-                _else?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

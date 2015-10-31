@@ -121,7 +121,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private IEnumerable<Token> GetTokensWorker(string line, int lineStart, int lineNumber) {
             int c = 0;
             while (c < line.Length) {
-                var start = new SourceLocation(lineStart, lineNumber, c + 1);
+                var start = new SourceLocation(lineStart + c, lineNumber, c + 1);
                 int len = 0;
                 var inGroup = TokenKind.Unknown;
 
