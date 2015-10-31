@@ -24,10 +24,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public ForStatement() : base(TokenKind.KeywordFor) { }
 
-        public bool IsAsync {
-            get { return AfterAsync.Length > 0; }
-        }
-
         public Expression Index {
             get { return _index; }
             set { ThrowIfFrozen();_index = value; }

@@ -20,82 +20,15 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class WithStatement : Statement {
-        private int _headerIndex;
-        private readonly WithItem[] _items;
-        private readonly Statement _body;
-        private readonly bool _isAsync;
+    public class WithStatement : CompoundStatement {
 
-        public WithStatement(WithItem[] items, Statement body) {
-            _items = items;
-            _body = body;
-        }
-
-        public WithStatement(WithItem[] items, Statement body, bool isAsync) : this(items, body) {
-            _isAsync = isAsync;
-        }
-
-
-        public IList<WithItem> Items {
-            get {
-                return _items;
-            }
-        }
-
-        public int HeaderIndex {
-            set { _headerIndex = value; }
-        }
-
-        public Statement Body {
-            get { return _body; }
-        }
-
-        public bool IsAsync {
-            get { return _isAsync; }
-        }
+        public WithStatement() : base(TokenKind.KeywordWith) { }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                foreach (var item in _items) {
-                    item.Walk(walker);
-                }
-
-                if (_body != null) {
-                    _body.Walk(walker);
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
-        }
-    }
-
-    public sealed class WithItem : Node {
-        private readonly Expression _contextManager;
-        private readonly Expression _variable;
-
-        public WithItem(Expression contextManager, Expression variable) {
-            _contextManager = contextManager;
-            _variable = variable;
-        }
-
-        public Expression ContextManager {
-            get {
-                return _contextManager;
-            }
-        }
-
-        public Expression Variable {
-            get {
-                return _variable;
-            }
-        }
-
-        public override void Walk(PythonWalker walker) {
-            if (ContextManager != null) {
-                ContextManager.Walk(walker);
-            }
-            if (Variable != null) {
-                Variable.Walk(walker);
-            }
         }
     }
 }

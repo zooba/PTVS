@@ -21,7 +21,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ErrorStatement : Statement {
         private readonly string _message;
 
-        public ErrorStatement(string message) {
+        public ErrorStatement(string message = "invalid syntax") {
             _message = message;
         }
 

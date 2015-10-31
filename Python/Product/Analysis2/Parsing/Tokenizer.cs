@@ -567,6 +567,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 { '^', TokenKind.ExclusiveOrEqual },
                 { '=', TokenKind.Equals },
                 { '!', TokenKind.NotEquals },
+                { '<', TokenKind.LessThanOrEqual },
+                { '>', TokenKind.GreaterThanOrEqual },
             };
 
             // c2 == c1
@@ -598,6 +600,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             TokenKind result;
             var map = OperatorMap[0];
             operatorLength = 1;
+
+            if (c1 == '<' && c2 == '>') {
+                operatorLength = 2;
+                return TokenKind.LessThanGreaterThan;
+            }
 
             if (c2 == '=') {
                 map = OperatorMap[1];

@@ -23,19 +23,18 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     /// </summary>
     public class CompoundStatement : Statement {
         private readonly TokenKind _kind;
-        private Expression _test;
-        private AsExpression _target;
         private Statement _body;
-        private SourceSpan _afterAsync, _beforeTarget, _beforeColon, _afterComment, _afterBody;
+        private Expression _test;
+        private SourceSpan _afterAsync, _beforeColon, _afterComment, _afterBody;
 
         public CompoundStatement(TokenKind kind) {
             _kind = kind;
             Span = SourceSpan.Invalid;
         }
 
-        public TokenKind Kind {
-            get { return _kind; }
-        }
+        public TokenKind Kind => _kind;
+
+        public bool IsAsync => _afterAsync.Length > 0;
 
         public Statement Body {
             get { return _body; }
@@ -45,11 +44,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public Expression Test {
             get { return _test; }
             set { ThrowIfFrozen(); _test = value; }
-        }
-
-        public AsExpression Target {
-            get { return _target; }
-            set { ThrowIfFrozen(); _target = value; }
         }
 
         public SourceSpan AfterAsync {
@@ -106,7 +100,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                     throw new NotSupportedException("Cannot format statement " + _kind);
             }
             Test?.AppendCodeString(output, ast, format);
-            Target?.AppendCodeString(output, ast, format);
             BeforeColon.AppendCodeString(output, ast);
             output.Append(":");
             Comment?.AppendCodeString(output, ast, format);
@@ -117,7 +110,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             Test?.Walk(walker);
-            Target?.Walk(walker);
             Body?.Walk(walker);
         }
     }

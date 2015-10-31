@@ -60,7 +60,7 @@ namespace AnalysisTests {
 
         #region Test Cases
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void MixedWhiteSpace() {
             // mixed, but in different blocks, which is ok
             ParseErrors("MixedWhitespace1.py", PythonLanguageVersion.V27, Severity.Error);
@@ -81,7 +81,7 @@ namespace AnalysisTests {
             ParseErrors("MixedWhitespace6.py", PythonLanguageVersion.V27, Severity.Error, new ErrorInfo("inconsistent whitespace", 126, 8, 17, 128, 9, 2));
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void Errors() {
             foreach (var version in V30_V32Versions) {
                 ParseErrors("Errors3x.py",
@@ -484,7 +484,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void InvalidUnicodeLiteral() {
             foreach (var version in V26AndUp) {
                 ParseErrors("InvalidUnicodeLiteral26Up.py",
@@ -509,7 +509,7 @@ namespace AnalysisTests {
         }
 
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void DedentError() {
             foreach (var version in AllVersions) {
                 ParseErrors("DedentError.py",
@@ -519,7 +519,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void DedentErrorLargeFile() {
             foreach (var version in AllVersions) {
                 ParseErrors("DedentErrorLargeFile.py",
@@ -529,7 +529,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void Literals() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -689,7 +689,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void Literals26() {
             foreach (var version in V26AndUp) {
                 CheckAst(
@@ -710,7 +710,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void Keywords25() {
             foreach (var version in V24_V25Versions) {
                 CheckAst(
@@ -734,7 +734,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void Keywords2x() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -755,7 +755,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void Keywords30() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -781,7 +781,6 @@ namespace AnalysisTests {
         [TestMethod, Priority(0)]
         public void BinaryOperators() {
             foreach (var version in AllVersions) {
-
                 CheckAst(
                     ParseFileNoErrors("BinaryOperators.py", version),
                     CheckSuite(
@@ -796,7 +795,7 @@ namespace AnalysisTests {
                         CheckBinaryStmt(One, PythonOperator.RightShift, Two),
                         CheckBinaryStmt(One, PythonOperator.BitwiseAnd, Two),
                         CheckBinaryStmt(One, PythonOperator.BitwiseOr, Two),
-                        CheckBinaryStmt(One, PythonOperator.Xor, Two),
+                        CheckBinaryStmt(One, PythonOperator.BitwiseXor, Two),
                         CheckBinaryStmt(One, PythonOperator.LessThan, Two),
                         CheckBinaryStmt(One, PythonOperator.GreaterThan, Two),
                         CheckBinaryStmt(One, PythonOperator.LessThanOrEqual, Two),
@@ -827,8 +826,7 @@ namespace AnalysisTests {
 
             foreach (var version in V3Versions) {
                 ParseErrors("BinaryOperatorsV2.py", version, new[] { 
-                    new ErrorInfo("unexpected token '>'", 3, 1, 4, 4, 1, 5),
-                    new ErrorInfo("invalid syntax", 5, 1, 6, 6, 1, 7)
+                    new ErrorInfo("invalid syntax", 2, 1, 3, 4, 1, 5)
                 });
             }
         }
@@ -846,12 +844,13 @@ namespace AnalysisTests {
 
             foreach (var version in V3Versions.Except(V35AndUp)) {
                 ParseErrors("MatMulOperator.py", version, new[] { 
-                    new ErrorInfo("unexpected token '@'", 2, 1, 3, 3, 1, 4)
+                    new ErrorInfo("invalid syntax", 2, 1, 3, 3, 1, 4),
+                    new ErrorInfo("invalid syntax", 4, 1, 5, 5, 1, 6)
                 });
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void GroupingRecovery() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -869,7 +868,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void UnaryOperators() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -884,7 +883,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void StringPlus() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -896,7 +895,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void BytesPlus() {
             foreach (var version in V26AndUp) {
                 CheckAst(
@@ -915,7 +914,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void UnicodePlus() {
             foreach (var version in V2Versions.Concat(V33AndUp)) {
                 CheckAst(
@@ -935,7 +934,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void RawBytes() {
             foreach (var version in V33AndUp) {
                 CheckAst(
@@ -983,7 +982,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void Delimiters() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1009,7 +1008,7 @@ namespace AnalysisTests {
                         CheckAssignment(Fob, PythonOperator.Mod, One),
                         CheckAssignment(Fob, PythonOperator.BitwiseAnd, One),
                         CheckAssignment(Fob, PythonOperator.BitwiseOr, One),
-                        CheckAssignment(Fob, PythonOperator.Xor, One),
+                        CheckAssignment(Fob, PythonOperator.BitwiseXor, One),
                         CheckAssignment(Fob, PythonOperator.RightShift, One),
                         CheckAssignment(Fob, PythonOperator.LeftShift, One),
                         CheckAssignment(Fob, PythonOperator.Power, One)
@@ -1018,7 +1017,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void DelimitersV2() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -1073,39 +1072,30 @@ namespace AnalysisTests {
                     ParseFileNoErrors("WithStmt.py", version),
                     CheckSuite(
                         CheckWithStmt(Fob, CheckSuite(Pass)),
-                        CheckWithStmt(Fob, Oar, CheckSuite(Pass)),
-                        CheckWithStmt(new[] { Fob, Oar }, CheckSuite(Pass)),
-                        CheckWithStmt(new[] { Fob, Baz }, new[] { Oar, Quox }, CheckSuite(Pass))
+                        Empty,
+                        CheckWithStmt(CheckAsExpression(Fob, Oar), CheckSuite(Pass)),
+                        Empty,
+                        CheckWithStmt(CheckTupleExpr(Fob, Oar), CheckSuite(Pass)),
+                        Empty,
+                        CheckWithStmt(CheckTupleExpr(
+                            CheckAsExpression(Fob, Oar),
+                            CheckAsExpression(Baz, Quox)
+                        ), CheckSuite(Pass))
                     )
                 );
             }
 
             foreach (var version in V24_V25Versions) {
                 ParseErrors("WithStmt.py", version,
-                    new ErrorInfo("unexpected token 'fob'", 5, 1, 6, 8, 1, 9),
-                    new ErrorInfo("unexpected token ':'", 8, 1, 9, 9, 1, 10),
-                    new ErrorInfo("unexpected token 'pass'", 10, 1, 11, 14, 1, 15),
-                    new ErrorInfo("unexpected token 'fob'", 23, 3, 6, 26, 3, 9),
-                    new ErrorInfo("unexpected token 'oar'", 30, 3, 13, 33, 3, 16),
-                    new ErrorInfo("unexpected token ':'", 33, 3, 16, 34, 3, 17),
-                    new ErrorInfo("unexpected token 'pass'", 35, 3, 18, 39, 3, 22),
-                    new ErrorInfo("unexpected token 'fob'", 48, 5, 6, 51, 5, 9),
-                    new ErrorInfo("unexpected token ','", 51, 5, 9, 52, 5, 10),
-                    new ErrorInfo("unexpected token 'oar'", 53, 5, 11, 56, 5, 14),
-                    new ErrorInfo("unexpected token ':'", 56, 5, 14, 57, 5, 15),
-                    new ErrorInfo("unexpected token 'pass'", 58, 5, 16, 62, 5, 20),
-                    new ErrorInfo("unexpected token 'fob'", 71, 7, 6, 74, 7, 9),
-                    new ErrorInfo("unexpected token 'oar'", 78, 7, 13, 81, 7, 16),
-                    new ErrorInfo("unexpected token ','", 81, 7, 16, 82, 7, 17),
-                    new ErrorInfo("unexpected token 'baz'", 83, 7, 18, 86, 7, 21),
-                    new ErrorInfo("unexpected token 'quox'", 90, 7, 25, 94, 7, 29),
-                    new ErrorInfo("unexpected token ':'", 94, 7, 29, 95, 7, 30),
-                    new ErrorInfo("unexpected token 'pass'", 96, 7, 31, 100, 7, 35)
+                    new ErrorInfo("invalid syntax", 5, 1, 6, 14, 1, 15),
+                    new ErrorInfo("invalid syntax", 23, 3, 6, 39, 3, 22),
+                    new ErrorInfo("invalid syntax", 48, 5, 6, 62, 5, 20),
+                    new ErrorInfo("invalid syntax", 71, 7, 6, 100, 7, 35)
                 );
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void Semicolon() {
             foreach (var version in V26AndUp) {
                 CheckAst(
@@ -1126,7 +1116,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void DelStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1144,7 +1134,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void IndexExpr() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1156,7 +1146,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void DelStmtIllegal() {
             foreach (var version in AllVersions) {
                 ParseErrors("DelStmtIllegal.py", version,
@@ -1167,7 +1157,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void YieldStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1184,7 +1174,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void YieldExpr() {
             foreach (var version in V25AndUp) {
                 CheckAst(
@@ -1212,7 +1202,7 @@ namespace AnalysisTests {
             );
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void YieldStmtIllegal() {
             foreach (var version in V2Versions.Concat(V30_V32Versions)) {
                 ParseErrors("YieldStmtIllegal.py", version,
@@ -1230,7 +1220,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void YieldFromStmt() {
             foreach (var version in V33AndUp) {
                 CheckAst(
@@ -1246,7 +1236,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void YieldFromExpr() {
             foreach (var version in V33AndUp) {
                 CheckAst(
@@ -1272,7 +1262,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void YieldFromStmtIllegal() {
             foreach (var version in V25_V27Versions.Concat(V30_V32Versions)) {
                 if (version == PythonLanguageVersion.V24) {
@@ -1299,7 +1289,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void ImportStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1326,7 +1316,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void GlobalStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1343,7 +1333,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void NonlocalStmt() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -1419,7 +1409,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void NonlocalStmtIllegal() {
             foreach (var version in V3Versions) {
                 ParseErrors("NonlocalStmtIllegal.py", version,
@@ -1457,13 +1447,13 @@ namespace AnalysisTests {
                     CheckSuite(
                         CheckTryStmt(
                             CheckSuite(Pass),
-                            new[] { CheckHandler(null, null, CheckSuite(Pass)) }
+                            CheckHandler(null, CheckSuite(Pass))
                         ),
                         Empty,
                         Empty,
                         CheckTryStmt(
                             CheckSuite(Pass),
-                            new[] { CheckHandler(Exception, null, CheckSuite(Pass)) }
+                            CheckHandler(Exception, CheckSuite(Pass))
                         )
                     )
                 );
@@ -1501,7 +1491,7 @@ namespace AnalysisTests {
                 CheckSuite(
                     CheckTryStmt(
                         CheckSuite(Pass),
-                        new[] { CheckHandler(Exception, CheckNameExpr("e"), CheckSuite(Pass)) }
+                        CheckHandler(CheckAsExpression(Exception, CheckNameExpr("e")), CheckSuite(Pass))
                     )
                 )
             );
@@ -1513,13 +1503,13 @@ namespace AnalysisTests {
                 CheckSuite(
                     CheckTryStmt(
                         CheckSuite(Pass),
-                        new[] { CheckHandler(CheckTupleExpr(Exception, CheckNameExpr("e")), null, CheckSuite(Pass)) }
+                        CheckHandler(CheckTupleExpr(Exception, CheckNameExpr("e")), CheckSuite(Pass))
                     )
                 )
             );
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void RaiseStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1568,14 +1558,14 @@ namespace AnalysisTests {
                 CheckAst(
                     ParseFileNoErrors("PrintStmt.py", version),
                     CheckSuite(
-                        CheckPrintStmt(new Action<Expression>[0]),
+                        CheckPrintStmt(null),
                         CheckPrintStmt(new[] { One }),
                         CheckPrintStmt(new[] { One }, trailingComma: true),
                         CheckPrintStmt(new[] { One, Two }),
                         CheckPrintStmt(new[] { One, Two }, trailingComma: true),
                         CheckPrintStmt(new[] { One, Two }, Fob),
                         CheckPrintStmt(new[] { One, Two }, Fob, trailingComma: true),
-                        CheckPrintStmt(new Action<Expression>[0], Fob),
+                        CheckPrintStmt(null, Fob),
                         CheckPrintStmt(new[] { CheckBinaryExpression(One, PythonOperator.Equal, Two) }),
                         CheckPrintStmt(new[] { CheckLambda(new Action<Parameter>[0], One) })
                     )
@@ -1585,19 +1575,20 @@ namespace AnalysisTests {
             foreach (var version in V3Versions) {
                 ParseErrors(
                     "PrintStmt.py", version,
-                    new ErrorInfo("invalid syntax", 13, 2, 7, 14, 2, 8),
-                    new ErrorInfo("invalid syntax", 22, 3, 7, 23, 3, 8),
-                    new ErrorInfo("invalid syntax", 32, 4, 7, 33, 4, 8),
-                    new ErrorInfo("invalid syntax", 44, 5, 7, 45, 5, 8),
-                    new ErrorInfo("invalid syntax", 110, 9, 7, 111, 9, 8),
-                    new ErrorInfo("unexpected token 'lambda'", 124, 10, 7, 130, 10, 13),
-                    new ErrorInfo("unexpected token ':'", 130, 10, 13, 131, 10, 14),
-                    new ErrorInfo("unexpected token '1'", 132, 10, 15, 133, 10, 16)
+                    new ErrorInfo("Missing parentheses in call to 'print'", 13, 2, 7, 14, 2, 8),
+                    new ErrorInfo("Missing parentheses in call to 'print'", 22, 3, 7, 24, 3, 9),
+                    new ErrorInfo("Missing parentheses in call to 'print'", 32, 4, 7, 36, 4, 11),
+                    new ErrorInfo("Missing parentheses in call to 'print'", 44, 5, 7, 50, 5, 13),
+                    new ErrorInfo("Missing parentheses in call to 'print'", 58, 6, 7, 69, 6, 18),
+                    new ErrorInfo("Missing parentheses in call to 'print'", 77, 7, 7, 89, 7, 19),
+                    new ErrorInfo("Missing parentheses in call to 'print'", 97, 8, 7, 102, 8, 12),
+                    new ErrorInfo("Missing parentheses in call to 'print'", 110, 9, 7, 116, 9, 13),
+                    new ErrorInfo("Missing parentheses in call to 'print'", 124, 10, 7, 133, 10, 16)
                 );
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AssertStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1610,7 +1601,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void ListComp() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1624,7 +1615,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void ListComp2x() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -1643,7 +1634,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void GenComp() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1658,7 +1649,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void DictComp() {
             foreach (var version in V27AndUp) {
                 CheckAst(
@@ -1680,7 +1671,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void SetComp() {
             foreach (var version in V27AndUp) {
                 CheckAst(
@@ -1702,7 +1693,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void SetLiteral() {
             foreach (var version in V27AndUp) {
                 CheckAst(
@@ -1740,7 +1731,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void FromImportStmt() {
 
             foreach (var version in AllVersions) {
@@ -1784,7 +1775,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void FromImportStmtIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1802,7 +1793,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void FromImportStmtIncomplete() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1826,7 +1817,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void DecoratorsFuncDef() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1841,7 +1832,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void DecoratorsAsyncFuncDef() {
             foreach (var version in V35AndUp) {
                 CheckAst(
@@ -1856,7 +1847,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void DecoratorsClassDef() {
             foreach (var version in V26AndUp) {
                 CheckAst(
@@ -1881,7 +1872,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void DecoratorsIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1901,7 +1892,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void Calls() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1920,7 +1911,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void CallsIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1941,7 +1932,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void LambdaExpr() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1955,7 +1946,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void FuncDef() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1975,7 +1966,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void FuncDefV2() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -1993,7 +1984,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void FuncDefV3() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -2047,7 +2038,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void FuncDefV3Illegal() {
             foreach (var version in V3Versions) {
                 ParseErrors("FuncDefV3Illegal.py", version,
@@ -2058,7 +2049,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void CoroutineDef() {
             foreach (var version in V35AndUp) {
                 CheckAst(
@@ -2090,7 +2081,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void ClassDef() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2115,7 +2106,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void ClassDef3x() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -2149,7 +2140,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AssignStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2170,7 +2161,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AssignStmt2x() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -2183,7 +2174,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AssignStmt25() {
             foreach (var version in V25AndUp) {
                 CheckAst(
@@ -2209,7 +2200,7 @@ namespace AnalysisTests {
             );
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AssignStmtV3() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -2233,7 +2224,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AssignStmtIllegalV3() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -2252,7 +2243,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AssignStmtIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2286,7 +2277,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AwaitStmt() {
             var AwaitFob = CheckAwaitExpression(Fob);
             foreach (var version in V35AndUp) {
@@ -2305,7 +2296,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AwaitStmtPreV35() {
             foreach (var version in AllVersions.Except(V35AndUp)) {
                 ParseErrors("AwaitStmt.py", version,
@@ -2327,7 +2318,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AwaitAsyncNames() {
             var Async = CheckNameExpr("async");
             var Await = CheckNameExpr("await");
@@ -2359,7 +2350,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void AwaitStmtIllegal() {
             //foreach (var version in V35AndUp) {
             //    CheckAst(
@@ -2382,7 +2373,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void ConditionalExpr() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2398,7 +2389,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void ExecStmt() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -2427,7 +2418,7 @@ namespace AnalysisTests {
 
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void EllipsisExpr() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -2451,7 +2442,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void FromFuture() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2507,7 +2498,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void ParseComments() {
             var version = PythonLanguageVersion.V35;
             var tree = ParseFileNoErrors("Comments.py", version);
@@ -2541,7 +2532,7 @@ namespace AnalysisTests {
             );
         }
 
-        //[TestMethod, Priority(0), Timeout(10 * 60 * 1000)]
+        //[TestMethod, Priority(1), Timeout(10 * 60 * 1000)]
         //public async Task StdLib() {
         //    var tasks = new List<KeyValuePair<string, Task<string>>>();
 
@@ -2657,7 +2648,7 @@ namespace AnalysisTests {
                     error.Span.Start.Index,
                     error.Span.Start.Line,
                     error.Span.Start.Column,
-                    error.Span.End,
+                    error.Span.End.Index,
                     error.Span.End.Line,
                     error.Span.End.Column
                 );
@@ -2803,15 +2794,19 @@ namespace AnalysisTests {
             };
         }
 
-        private static Action<CompoundStatement> CheckHandler(Action<Expression> test, Action<NameExpression> target, Action<Statement> body) {
+        private static Action<Expression> CheckAsExpression(Action<Expression> expression, Action<NameExpression> name) {
+            return expr => {
+                Assert.IsInstanceOfType(expr, typeof(AsExpression));
+                var ae = (AsExpression)expr;
+
+                expression(ae.Expression);
+                name(ae.Name);
+            };
+        }
+
+        private static Action<CompoundStatement> CheckHandler(Action<Expression> test, Action<Statement> body) {
             return stmt => {
                 Assert.AreEqual(TokenKind.KeywordExcept, stmt.Kind);
-
-                if (target != null) {
-                    target(stmt.Target.Name);
-                } else {
-                    Assert.IsNull(stmt.Target);
-                }
 
                 if (test != null) {
                     test(stmt.Test);
@@ -2837,7 +2832,7 @@ namespace AnalysisTests {
             };
         }
 
-        private static Action<Statement> CheckTryStmt(Action<Statement> body, Action<CompoundStatement>[] handlers) {
+        private static Action<Statement> CheckTryStmt(Action<Statement> body, params Action<CompoundStatement>[] handlers) {
             return stmt => {
                 Assert.IsInstanceOfType(stmt, typeof(TryStatement));
                 var tryStmt = (TryStatement)stmt;
@@ -2882,11 +2877,18 @@ namespace AnalysisTests {
                 Assert.IsInstanceOfType(stmt, typeof(PrintStatement));
                 var printStmt = (PrintStatement)stmt;
 
-                Assert.AreEqual(expressions.Length, printStmt.Expressions.Count);
-                Assert.AreEqual(printStmt.TrailingComma, trailingComma);
+                Assert.AreEqual(trailingComma, printStmt.TrailingComma);
 
-                for (int i = 0; i < expressions.Length; i++) {
-                    expressions[i](printStmt.Expressions[i]);
+                if (expressions != null) {
+                    int actualLength = printStmt.Expressions?.Count ?? 0;
+                    if (printStmt.TrailingComma) {
+                        actualLength -= 1;
+                    }
+                    Assert.AreEqual(expressions.Length, actualLength);
+
+                    for (int i = 0; i < actualLength; i++) {
+                        expressions[i](printStmt.Expressions[i]);
+                    }
                 }
 
                 if (destination != null) {
@@ -3150,7 +3152,7 @@ namespace AnalysisTests {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(BinaryExpression));
                 BinaryExpression bin = (BinaryExpression)expr;
-                Assert.AreEqual(bin.Operator, op);
+                Assert.AreEqual(op, bin.Operator);
                 lhs(bin.Left);
                 rhs(bin.Right);
             };
@@ -3449,32 +3451,17 @@ namespace AnalysisTests {
             };
         }
 
-        private Action<Statement> CheckWithStmt(Action<Expression> expr, Action<Statement> body) {
-            return CheckWithStmt(expr, null, body);
-        }
-
-        private Action<Statement> CheckWithStmt(Action<Expression> expr, Action<Expression> target, Action<Statement> body) {
-            return CheckWithStmt(new[] { expr }, new[] { target }, body);
-        }
-
-        private Action<Statement> CheckWithStmt(Action<Expression>[] expr, Action<Statement> body) {
-            return CheckWithStmt(expr, new Action<Expression>[expr.Length], body);
-        }
-
-        private Action<Statement> CheckWithStmt(Action<Expression>[] expr, Action<Expression>[] target, Action<Statement> body) {
+        private Action<Statement> CheckWithStmt(Action<Expression> withItems, Action<Statement> body) {
             return stmt => {
                 Assert.IsInstanceOfType(stmt, typeof(WithStatement));
                 var with = (WithStatement)stmt;
 
-                Assert.AreEqual(expr.Length, with.Items.Count);
-                for (int i = 0; i < with.Items.Count; i++) {
-                    expr[i](with.Items[i].ContextManager);
-
-                    if (target[i] != null) {
-                        target[i](with.Items[i].Variable);
-                    } else {
-                        Assert.AreEqual(null, with.Items[0].Variable);
+                if (withItems == null) {
+                    if (!(with.Test == null || with.Test is EmptyExpression)) {
+                        Assert.Fail("Expected null or EmptyExpression Test, not " + with.Test.ToString());
                     }
+                } else {
+                    withItems(with.Test);
                 }
 
                 body(with.Body);

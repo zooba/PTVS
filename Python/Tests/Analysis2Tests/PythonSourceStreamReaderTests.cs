@@ -27,7 +27,7 @@ namespace Analysis2Tests {
             return text.Replace("\r", "\\r").Replace("\n", "\\n");
         }
 
-        [TestMethod]
+        [TestMethod, Priority(0)]
         public void ReadLines() {
             using (var reader = Read("line 1\r\nline 2\r\nline 3")) {
                 Assert.AreEqual("line 1\r\n", reader.ReadLine());
@@ -37,7 +37,7 @@ namespace Analysis2Tests {
             }
         }
 
-        [TestMethod]
+        [TestMethod, Priority(0)]
         public void BufferBoundaries() {
             var sb = new StringBuilder();
             while (sb.Length < PythonSourceStreamReader.BufferFillChunkSize) {
@@ -66,7 +66,7 @@ namespace Analysis2Tests {
             }
         }
 
-        [TestMethod]
+        [TestMethod, Priority(0)]
         public void DetectEncoding() {
             using (var reader = Read("no encoding")) {
                 Assert.AreEqual("utf-8", reader.Encoding.WebName);

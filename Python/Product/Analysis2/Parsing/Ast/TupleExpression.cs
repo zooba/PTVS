@@ -20,8 +20,6 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class TupleExpression : SequenceExpression {
-        private bool _expandable;
-
         public TupleExpression() { }
 
         internal override string CheckAssign() {
@@ -40,12 +38,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 }
             }
             walker.PostWalk(this);
-        }
-
-        public bool IsExpandable {
-            get {
-                return _expandable;
-            }
         }
     }
 }

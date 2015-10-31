@@ -18,8 +18,19 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class AsExpression : Expression {
+        private Expression _expression;
         private NameExpression _name;
-        private SourceSpan _beforeName;
+        private SourceSpan _beforeAs, _beforeName;
+
+        public Expression Expression {
+            get { return _expression; }
+            set { ThrowIfFrozen(); _expression = value; }
+        }
+
+        public SourceSpan BeforeAs {
+            get { return _beforeAs; }
+            set { ThrowIfFrozen(); _beforeAs = value; }
+        }
 
         public NameExpression Name {
             get { return _name; }
@@ -31,18 +42,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _beforeName = value; }
         }
 
-        public SourceSpan AsSpan {
-            get {
-                return new SourceSpan(
-                    Span.Start,
-                    new SourceLocation(Span.Start.Index + 2, Span.Start.Line, Span.Start.Column + 2)
-                );
-            }
-        }
+        public SourceSpan AsSpan => new SourceSpan(BeforeAs.End, BeforeName.Start);
 
         internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
             // TODO: Apply formatting options
             BeforeNode.AppendCodeString(output, ast);
+            Expression?.AppendCodeString(output, ast, format);
+            BeforeAs.AppendCodeString(output, ast);
             output.Append("as");
             BeforeName.AppendCodeString(output, ast);
             Name?.AppendCodeString(output, ast, format);
@@ -52,6 +58,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
+                Expression?.Walk(walker);
                 Name?.Walk(walker);
             }
             walker.PostWalk(this);

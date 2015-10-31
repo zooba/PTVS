@@ -25,6 +25,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public partial class BinaryExpression : Expression {
         private Expression _left, _right;
         private PythonOperator _op;
+        private SourceSpan _withinOp;
 
         public BinaryExpression() { }
 
@@ -41,6 +42,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public PythonOperator Operator {
             get { return _op; }
             set { ThrowIfFrozen(); _op = value; }
+        }
+
+        public SourceSpan WithinOperator {
+            get { return _withinOp; }
+            set { ThrowIfFrozen(); _withinOp = value; }
         }
 
         private bool IsComparison() {

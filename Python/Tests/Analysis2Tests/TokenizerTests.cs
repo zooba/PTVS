@@ -63,7 +63,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod]
+        [TestMethod, Priority(0)]
         public void SingleLineTokenization() {
             AssertTokens(
                 Tokenize("a =  b+   c ", PythonLanguageVersion.V35),
@@ -72,7 +72,7 @@ namespace AnalysisTests {
             );
         }
 
-        [TestMethod]
+        [TestMethod, Priority(0)]
         public void MultiLineTokenization() {
             AssertTokens(
                 Tokenize("a=b+c \nd = a + x   \n  ", PythonLanguageVersion.V35),
@@ -84,7 +84,7 @@ namespace AnalysisTests {
             );
         }
 
-        [TestMethod]
+        [TestMethod, Priority(1)]
         public void CommentTokenization() {
             AssertTokens(
                 Tokenize("# a=b+c \n\nd=a   # c\n  #eof", PythonLanguageVersion.V35),
