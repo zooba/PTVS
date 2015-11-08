@@ -119,9 +119,35 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private IEnumerable<Token> GetTokensWorker(string line, int lineStart, int lineNumber) {
-            int c = 0;
-            while (c < line.Length) {
-                var start = new SourceLocation(lineStart + c, lineNumber, c + 1);
+            int i = 0;
+            if (_nesting.Count == 0) {
+                while (i < line.Length) {
+                    char c = line[i];
+                    if (c == ' ' || c == '\t') {
+                        i += 1;
+                    } else {
+                        break;
+                    }
+                }
+
+                var start = new SourceLocation(lineStart, lineNumber, 1);
+                if (i < line.Length && line[i] != '\r' && line[i] != '\n') {
+                    if (line[i] == '#') {
+                        if (i > 0) {
+                            yield return new Token(TokenKind.Whitespace, start, i);
+                        }
+                    } else {
+                        yield return new Token(TokenKind.SignificantWhitespace, start, i);
+                    }
+                } else {
+                    i = 0;
+                }
+            } else if (_nesting.Peek() == TokenKind.ExplicitLineJoin) {
+                _nesting.Pop();
+            }
+
+            while (i < line.Length) {
+                var start = new SourceLocation(lineStart + i, lineNumber, i + 1);
                 int len = 0;
                 var inGroup = TokenKind.Unknown;
 
@@ -136,17 +162,21 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     case TokenKind.RightDoubleQuote:
                     case TokenKind.RightSingleTripleQuote:
                     case TokenKind.RightDoubleTripleQuote:
-                        kind = GetStringLiteralToken(line, c, inGroup, out len);
+                        kind = GetStringLiteralToken(line, i, inGroup, out len);
+                        break;
+                    case TokenKind.ExplicitLineJoin:
+                        Debug.Fail("Unexpected ExplicitLineJoin in nesting");
+                        _nesting.Pop();
                         break;
                 }
 
                 if (kind == TokenKind.Unknown) {
-                    kind = GetNextToken(line, c, out len);
+                    kind = GetNextToken(line, i, out len);
                 }
 
                 var token = new Token(kind, start, len);
                 yield return token;
-                c += len;
+                i += len;
 
                 if (inGroup == kind) {
                     _nesting.Pop();
@@ -154,6 +184,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 var endGroup = kind.GetGroupEnding();
                 if (endGroup != TokenKind.Unknown) {
                     _nesting.Push(endGroup);
+                }
+
+                if (kind == TokenKind.ExplicitLineJoin) {
+                    _nesting.Push(kind);
                 }
             }
         }
@@ -349,9 +383,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     end += 1;
                 }
                 length = end - start;
-                if (start == 0 && _nesting.Count == 0) {
-                    return TokenKind.SignificantWhitespace;
-                }
                 return TokenKind.Whitespace;
             }
 

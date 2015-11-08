@@ -1351,6 +1351,8 @@ namespace AnalysisTests {
                                 )
                             )
                         ),
+                        Empty,
+                        Empty,
                         CheckFuncDef("g", NoParameters,
                             CheckSuite(
                                 CheckFuncDef("f", NoParameters,
@@ -1358,9 +1360,12 @@ namespace AnalysisTests {
                                         CheckNonlocal("fob")
                                     )
                                 ),
+                                Empty,
                                 CheckAssignment(Fob, One)
                             )
                         ),
+                        Empty,
+                        Empty,
                         CheckFuncDef("f", NoParameters,
                             CheckSuite(
                                 CheckClassDef("C",
@@ -1372,6 +1377,7 @@ namespace AnalysisTests {
                                 CheckAssignment(Fob, Two)
                             )
                         ),
+                        Empty,
                         CheckClassDef("X",
                             CheckSuite(
                                 CheckFuncDef("f", new[] { CheckParameter("x") },
@@ -1387,29 +1393,16 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 ParseErrors("NonlocalStmt.py", version,
-                    new ErrorInfo("unexpected token 'fob'", 67, 5, 18, 70, 5, 21),
-                    new ErrorInfo("unexpected token '<newline>'", 70, 5, 21, 80, 6, 9),
-                    new ErrorInfo("unexpected token 'nonlocal'", 80, 6, 9, 88, 6, 17),
-                    new ErrorInfo("unexpected token 'fob'", 144, 11, 18, 147, 11, 21),
-                    new ErrorInfo("unexpected token '<newline>'", 147, 11, 21, 149, 12, 1),
-                    new ErrorInfo("unexpected token '<NL>'", 149, 12, 1, 155, 13, 5),
-                    new ErrorInfo("unexpected token 'fob'", 209, 18, 18, 212, 18, 21),
-                    new ErrorInfo("unexpected token '<newline>'", 212, 18, 21, 222, 19, 9),
-                    new ErrorInfo("unexpected token 'fob'", 222, 19, 9, 225, 19, 12),
-                    new ErrorInfo("unexpected token '='", 226, 19, 13, 227, 19, 14),
-                    new ErrorInfo("unexpected token '1'", 228, 19, 15, 229, 19, 16),
-                    new ErrorInfo("unexpected token '<newline>'", 229, 19, 16, 235, 20, 5),
-                    new ErrorInfo("unexpected token '<dedent>'", 229, 19, 16, 235, 20, 5),
-                    new ErrorInfo("unexpected token '__class__'", 288, 24, 18, 297, 24, 27),
-                    new ErrorInfo("unexpected token '<newline>'", 297, 24, 27, 299, 25, 1),
-                    new ErrorInfo("unexpected token '<dedent>'", 297, 24, 27, 299, 25, 1),
-                    new ErrorInfo("unexpected end of file", 299, 25, 1, 299, 25, 1),
-                    new ErrorInfo("unexpected end of file", 299, 25, 1, 299, 25, 1)
+                    new ErrorInfo("invalid syntax", 58, 5, 9, 70, 5, 21),
+                    new ErrorInfo("invalid syntax", 80, 6, 9, 97, 6, 26),
+                    new ErrorInfo("invalid syntax", 135, 11, 9, 147, 11, 21),
+                    new ErrorInfo("invalid syntax", 200, 18, 9, 212, 18, 21),
+                    new ErrorInfo("invalid syntax", 279, 24, 9, 297, 24, 27)
                 );
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void NonlocalStmtIllegal() {
             foreach (var version in V3Versions) {
                 ParseErrors("NonlocalStmtIllegal.py", version,
@@ -2140,7 +2133,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AssignStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2150,7 +2143,7 @@ namespace AnalysisTests {
                         CheckAssignment(CheckMemberExpr(Fob, "oar"), One),
                         CheckAssignment(Fob, One),
                         CheckAssignment(CheckParenExpr(Fob), One),
-                        CheckAssignment(CheckTupleExpr(Fob, Oar), CheckTupleExpr(One, Two)),
+                        CheckAssignment(CheckParenExpr(CheckTupleExpr(Fob, Oar)), CheckTupleExpr(One, Two)),
                         CheckAssignment(CheckTupleExpr(Fob, Oar), CheckTupleExpr(One, Two)),
                         CheckAssignment(CheckTupleExpr(Fob, Oar), Baz),
                         CheckAssignment(CheckListExpr(Fob, Oar), CheckTupleExpr(One, Two)),
@@ -3075,12 +3068,12 @@ namespace AnalysisTests {
 
         private static void CheckDecorators(Action<Expression>[] decorators, DecoratorStatement foundDecorators) {
             if (decorators != null) {
-                Assert.AreEqual(decorators.Length, foundDecorators.Decorators.Count);
+                Assert.AreEqual(decorators.Length, foundDecorators?.Decorators.Count ?? 0);
                 for (int i = 0; i < decorators.Length; i++) {
                     decorators[i](foundDecorators.Decorators[i]);
                 }
             } else {
-                Assert.AreEqual(null, foundDecorators);
+                Assert.AreEqual(0, foundDecorators?.Decorators.Count ?? 0);
             }
         }
 
@@ -3094,12 +3087,12 @@ namespace AnalysisTests {
                 }
 
                 if (bases != null) {
-                    Assert.AreEqual(bases.Length, classDef.Bases.Count);
+                    Assert.AreEqual(bases.Length, classDef.Bases?.Count ?? 0);
                     for (int i = 0; i < bases.Length; i++) {
                         bases[i](classDef.Bases[i]);
                     }
                 } else {
-                    Assert.AreEqual(0, classDef.Bases.Count);
+                    Assert.AreEqual(0, classDef.Bases?.Count ?? 0);
                 }
 
                 body(classDef.Body);
@@ -3383,7 +3376,7 @@ namespace AnalysisTests {
                 Assert.IsInstanceOfType(expr, typeof(AssignmentStatement));
                 var assign = (AssignmentStatement)expr;
 
-                Assert.AreEqual(assign.Left.Count, lhs.Length);
+                Assert.AreEqual(lhs.Length, assign.Left.Count);
                 for (int i = 0; i < lhs.Length; i++) {
                     lhs[i](assign.Left[i]);
                 }

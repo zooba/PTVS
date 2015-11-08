@@ -21,6 +21,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private bool _singleLine;
         private ErrorSink _errors;
         private Token _eofToken;
+        private Stack<ScopeStatement> _scopes;
 
         public Parser(Tokenization tokenization) {
             _tokenization = tokenization;
@@ -30,7 +31,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private void Reset() {
             _tokenEnumerator = _tokenization.AllTokens.GetEnumerator();
             _lookahead = new List<Token>();
-            IsInAsyncFunction = false;
+            _scopes = new Stack<ScopeStatement>();
         }
 
         #region Language Features
@@ -45,7 +46,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private bool HasTrueDivision => _version.Is3x() || _future.HasFlag(FutureOptions.TrueDivision);
 
-        private bool IsInAsyncFunction { get; set; }
+        private bool HasNonlocal => _version.Is3x();
+
+        private ScopeStatement CurrentScope => _scopes.Any() ? _scopes.Peek() : null;
+
+        private bool IsInAsyncFunction => CurrentScope?.IsAsync ?? false;
+
+        private bool IsInFunction => CurrentScope is FunctionDefinition;
+
+        private bool IsInClass => CurrentScope is ClassDefinition;
 
         #endregion
 
@@ -132,15 +141,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
 
             // Check the significant whitespace (if any)
-            p2 = PeekAhead(2);
-            if (p2.Is(TokenKind.SignificantWhitespace)) {
-                if (p2.Span.Length >= _currentIndent.Length) {
-                    // Keep going if it's an unexpected indent - we'll add the
-                    // error when we read the whitespace.
-                    return PeekAhead(3);
-                }
-            } else if (_currentIndent.Length == 0) {
-                return PeekAhead(2);
+            int lookaheadCount = 1;
+            while (!(p2 = PeekAhead(++lookaheadCount)).IsAny(TokenKind.SignificantWhitespace, TokenKind.EndOfFile)) {
+            }
+            if (p2.Is(TokenKind.SignificantWhitespace) && p2.Span.Length >= _currentIndent.Length) {
+                // Keep going if it's an unexpected indent - we'll add the
+                // error when we read the whitespace.
+                return PeekAhead(lookaheadCount + 1);
             }
 
             // Whitespace does not match expectation
@@ -260,7 +267,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 case TokenKind.KeywordGlobal:
                     return ParseGlobalStmt();
                 case TokenKind.KeywordNonlocal:
-                    return ParseNonlocalStmt();
+                    if (HasNonlocal) {
+                        return ParseNonlocalStmt();
+                    }
+                    goto default;
                 case TokenKind.KeywordRaise:
                     return ParseRaiseStmt();
                 case TokenKind.KeywordAssert:
@@ -452,7 +462,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             Read(TokenKind.RightParenthesis);
             stmt.BeforeColon = ReadWhitespace();
             Read(TokenKind.Colon);
-            stmt.Body = ParseSuite();
+            _scopes.Push(stmt);
+            try {
+                stmt.Body = ParseSuite();
+            } finally {
+                _scopes.Pop();
+            }
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
             MaybeReadComment(stmt);
@@ -473,7 +488,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
             stmt.BeforeColon = ReadWhitespace();
             Read(TokenKind.Colon);
-            stmt.Body = ParseSuite();
+            _scopes.Push(stmt);
+            try {
+                stmt.Body = ParseSuite();
+            } finally {
+                _scopes.Pop();
+            }
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
             MaybeReadComment(stmt);
@@ -555,6 +575,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private Statement ParseNonlocalStmt() {
             var start = Read(TokenKind.KeywordNonlocal).Start;
+
+            if (CurrentScope == null) {
+                ReportError("nonlocal declaration not allowed at module level", Current.Span);
+            }
+
             var stmt = new NonlocalStatement();
 
             do {
@@ -610,23 +635,34 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseExprStmt() {
-            var expr = ParseSingleExpression();
+            var expr = ParseExpression();
             if (!Peek.Is(TokenUsage.Assignment)) {
                 return WithComment(new ExpressionStatement(expr));
             }
 
-            var op = Next().Kind;
+            var op = Peek.Kind;
             if (op == TokenKind.Assign) {
+                var targets = new List<Expression>();
+                while (Peek.Is(TokenKind.Assign)) {
+                    Next();
+                    targets.Add(expr);
+                    var assignErr = expr.CheckAssign();
+                    if (!string.IsNullOrEmpty(assignErr)) {
+                        ReportError(assignErr, expr.Span);
+                    }
+                    expr = ParseExpression();
+                }
+
                 return WithComment(new AssignmentStatement() {
-                    Left = (expr as TupleExpression)?.Items ?? new[] { expr },
-                    Right = ParseExpression(),
-                    Span = new SourceSpan(expr.Span.Start, Current.Span.End)
+                    Left = targets,
+                    Right = expr,
+                    Span = new SourceSpan(targets[0].Span.Start, Current.Span.End)
                 });
             }
 
             return WithComment(new AugmentedAssignStatement {
                 Left = expr,
-                Operator = op.GetBinaryOperator(),
+                Operator = Next().Kind.GetBinaryOperator(),
                 Right = ParseExpression()
             });
 
@@ -1135,6 +1171,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     // pass
                 } else if (HasPrintFunction && Peek.Is(TokenKind.KeywordPrint)) {
                     // pass
+                } else if (!HasNonlocal && Peek.Is(TokenKind.KeywordNonlocal)) {
+                    // pass
                 } else if (Peek.IsAny(TokenUsage.EndGroup, TokenUsage.EndStatement)) {
                     return new EmptyExpression {
                         Span = new SourceSpan(Peek.Span.Start, Peek.Span.Start)
@@ -1419,6 +1457,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         return null;
                     }
                     name = Current.Is(TokenKind.KeywordAsync) ? "async" : "await";
+                    break;
+                case TokenKind.KeywordNonlocal:
+                    if (HasNonlocal) {
+                        ThrowError(error, errorAt);
+                        return null;
+                    }
+                    name = "nonlocal";
                     break;
                 default:
                     ThrowError(error, errorAt);

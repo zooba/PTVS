@@ -67,7 +67,7 @@ namespace AnalysisTests {
         public void SingleLineTokenization() {
             AssertTokens(
                 Tokenize("a =  b+   c ", PythonLanguageVersion.V35),
-                "Name:a", "Whitespace: ", "Assign:=", "Whitespace:  ", "Name:b", "Add:+",
+                "SignificantWhitespace:", "Name:a", "Whitespace: ", "Assign:=", "Whitespace:  ", "Name:b", "Add:+",
                 "Whitespace:   ", "Name:c", "Whitespace: ", "EndOfFile:"
             );
         }
@@ -76,11 +76,11 @@ namespace AnalysisTests {
         public void MultiLineTokenization() {
             AssertTokens(
                 Tokenize("a=b+c \nd = a + x   \n  ", PythonLanguageVersion.V35),
-                "Name:a", "Assign:=", "Name:b", "Add:+", "Name:c", "Whitespace: ",
+                "SignificantWhitespace:", "Name:a", "Assign:=", "Name:b", "Add:+", "Name:c", "Whitespace: ",
                 "NewLine:\\n",
-                "Name:d", "Whitespace: ", "Assign:=", "Whitespace: ", "Name:a", "Whitespace: ",
-                "Add:+", "Whitespace: ", "Name:x", "Whitespace:   ", "NewLine:\\n",
-                "SignificantWhitespace:  ", "EndOfFile:"
+                "SignificantWhitespace:", "Name:d", "Whitespace: ", "Assign:=", "Whitespace: ", "Name:a",
+                "Whitespace: ", "Add:+", "Whitespace: ", "Name:x", "Whitespace:   ", "NewLine:\\n",
+                "Whitespace:  ", "EndOfFile:"
             );
         }
 
@@ -88,34 +88,36 @@ namespace AnalysisTests {
         public void CommentTokenization() {
             AssertTokens(
                 Tokenize("# a=b+c \n\nd=a   # c\n  #eof", PythonLanguageVersion.V35),
-                "Comment:# a=b+c ", "NewLine:\\n", "NewLine:\\n",
-                "Name:d", "Assign:=", "Name:a", "Whitespace:   ", "Comment:# c", "NewLine:\\n",
-                "SignificantWhitespace:  ", "Comment:#eof", "EndOfFile:"
+                "Comment:# a=b+c ", "NewLine:\\n",
+                "NewLine:\\n",
+                "SignificantWhitespace:", "Name:d", "Assign:=", "Name:a", "Whitespace:   ", "Comment:# c", "NewLine:\\n",
+                "Whitespace:  ", "Comment:#eof", "EndOfFile:"
             );
 
             AssertTokens(
                 Tokenize(new FileSourceDocument(PythonTestData.GetTestDataSourcePath("Grammar\\Comments.py")), PythonLanguageVersion.V35),
                     "Comment:# Above", "NewLine:\\r\\n",
-                    "Name:a", "NewLine:\\r\\n",
+                    "SignificantWhitespace:", "Name:a", "NewLine:\\r\\n",
                     "NewLine:\\r\\n",
-                    "Name:a", "Whitespace: ", "Comment:# After", "NewLine:\\r\\n",
+                    "SignificantWhitespace:", "Name:a", "Whitespace: ", "Comment:# After", "NewLine:\\r\\n",
                     "NewLine:\\r\\n",
-                    "KeywordDef:def", "Whitespace: ", "Name:f", "LeftParenthesis:(", "NewLine:\\r\\n",
+                    "SignificantWhitespace:", "KeywordDef:def", "Whitespace: ", "Name:f", "LeftParenthesis:(", "NewLine:\\r\\n",
                     "Whitespace:    ", "Name:a", "Comma:,", "Whitespace: ", "Comment:#param", "NewLine:\\r\\n",
                     "RightParenthesis:)", "Colon::", "Whitespace: ", "Comment:#suite", "NewLine:\\r\\n",
                     "SignificantWhitespace:    ", "KeywordPass:pass", "Whitespace: ", "Comment:#stmt", "NewLine:\\r\\n",
                     "Comment:#func", "NewLine:\\r\\n",
                     "SignificantWhitespace:    ", "KeywordPass:pass", "NewLine:\\r\\n",
-                    "SignificantWhitespace:    ", "Comment:#func", "NewLine:\\r\\n",
+                    "Whitespace:    ", "Comment:#func", "NewLine:\\r\\n",
                     "Comment:#notfunc", "NewLine:\\r\\n",
                     "NewLine:\\r\\n",
-                    "Name:a", "NewLine:\\r\\n",
+                    "SignificantWhitespace:", "Name:a", "NewLine:\\r\\n",
                     "Comment:# Below", "NewLine:\\r\\n",
                     "NewLine:\\r\\n",
-                    "KeywordIf:if", "Whitespace: ", "KeywordTrue:True", "Colon::", "NewLine:\\r\\n",
-                    "SignificantWhitespace:    ", "Comment:#block", "NewLine:\\r\\n",
+                    "SignificantWhitespace:", "KeywordIf:if", "Whitespace: ", "KeywordTrue:True", "Colon::", "NewLine:\\r\\n",
+                    "Whitespace:    ", "Comment:#block", "NewLine:\\r\\n",
                     "SignificantWhitespace:    ", "KeywordPass:pass", "NewLine:\\r\\n",
-                    "NewLine:\\r\\n", "Comment:#eof", "EndOfFile:"
+                    "NewLine:\\r\\n",
+                    "Comment:#eof", "EndOfFile:"
                 );
         }
     }
