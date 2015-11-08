@@ -92,8 +92,6 @@
     <Compile Include="Parsing\Ast\CommentExpression.cs" />
     <Compile Include="Parsing\Ast\CompoundStatement.cs" />
     <Compile Include="Parsing\Ast\Comprehension.cs" />
-    <Compile Include="Parsing\Ast\ComprehensionFor.cs" />
-    <Compile Include="Parsing\Ast\ComprehensionIf.cs" />
     <Compile Include="Parsing\Ast\ConditionalExpression.cs" />
     <Compile Include="Parsing\Ast\ConstantExpression.cs" />
     <Compile Include="Parsing\Ast\ContinueStatement.cs" />

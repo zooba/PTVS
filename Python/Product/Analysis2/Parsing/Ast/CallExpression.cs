@@ -20,39 +20,49 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-
     public class CallExpression : Expression {
-        private readonly Expression _target;
-        private readonly Arg[] _args;
+        private Expression _target;
+        private IList<Arg> _args;
 
-        public CallExpression(Expression target, Arg[] args) {
-            _target = target;
-            _args = args;
+        public CallExpression() { }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _args = FreezeList(_args);
         }
 
         public Expression Target {
             get { return _target; }
+            set { ThrowIfFrozen(); _target = value; }
         }
 
         public IList<Arg> Args {
             get { return _args; }
-        } 
+            set { ThrowIfFrozen(); _args = value; }
+        }
+
+        public void AddArgument(Arg arg) {
+            if (_args == null) {
+                _args = new List<Arg>();
+            }
+            _args.Add(arg);
+        }
 
         public bool NeedsLocalsDictionary() {
             NameExpression nameExpr = _target as NameExpression;
             if (nameExpr == null) return false;
 
-            if (_args.Length == 0) {
+            if (_args.Count == 0) {
                 if (nameExpr.Name == "locals") return true;
                 if (nameExpr.Name == "vars") return true;
                 if (nameExpr.Name == "dir") return true;
                 return false;
-            } else if (_args.Length == 1 && (nameExpr.Name == "dir" || nameExpr.Name == "vars")) {
+            } else if (_args.Count == 1 && (nameExpr.Name == "dir" || nameExpr.Name == "vars")) {
                 if (_args[0].Name == "*" || _args[0].Name == "**") {
                     // could be splatting empty list or dict resulting in 0-param call which needs context
                     return true;
                 }
-            } else if (_args.Length == 2 && (nameExpr.Name == "dir" || nameExpr.Name == "vars")) {
+            } else if (_args.Count == 2 && (nameExpr.Name == "dir" || nameExpr.Name == "vars")) {
                 if (_args[0].Name == "*" && _args[1].Name == "**") {
                     // could be splatting empty list and dict resulting in 0-param call which needs context
                     return true;
@@ -74,9 +84,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_target != null) {
-                    _target.Walk(walker);
-                }
+                _target?.Walk(walker);
                 if (_args != null) {
                     foreach (Arg arg in _args) {
                         arg.Walk(walker);

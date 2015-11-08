@@ -26,7 +26,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private NameExpression _name;
         private ParameterKind _kind;
         private Expression _defaultValue, _annotationOrSublist;
-        private bool _hasComma;
+        private bool _hasCommaBeforeComment, _hasCommaAfterNode;
 
         public Parameter() { }
 
@@ -54,9 +54,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _annotationOrSublist = value; }
         }
 
-        public bool HasComma {
-            get { return _hasComma; }
-            set { ThrowIfFrozen(); _hasComma = value; }
+        public bool HasCommaBeforeComment {
+            get { return _hasCommaBeforeComment; }
+            set { ThrowIfFrozen(); _hasCommaBeforeComment = value; }
+        }
+
+        public bool HasCommaAfterNode {
+            get { return _hasCommaAfterNode; }
+            set { ThrowIfFrozen(); _hasCommaAfterNode = value; }
         }
 
         public bool IsEmpty => _name == null;

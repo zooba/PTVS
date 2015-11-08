@@ -19,24 +19,27 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public sealed class MemberExpression : Expression {
-        private readonly Expression _target;
-        private readonly string _name;
+        private Expression _target;
+        private NameExpression _name;
 
-        public MemberExpression(Expression target, string name) {
-            _target = target;
-            _name = name;
-        }
+        public MemberExpression() { }
 
         public Expression Target {
             get { return _target; }
+            set { ThrowIfFrozen(); _target = value; }
+        }
+
+        public NameExpression NameExpression {
+            get { return _name; }
+            set { ThrowIfFrozen(); _name = value; }
         }
 
         public string Name {
-            get { return _name; }
+            get { return NameExpression?.Name; }
         }
 
         public override string ToString() {
-            return base.ToString() + ":" + _name;
+            return base.ToString() + ":" + (Name ?? "(null)");
         }
 
         internal override string CheckAssign() {
@@ -49,9 +52,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_target != null) {
-                    _target.Walk(walker);
-                }
+                _target?.Walk(walker);
             }
             walker.PostWalk(this);
         }

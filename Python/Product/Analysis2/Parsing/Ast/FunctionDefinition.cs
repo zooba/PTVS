@@ -20,86 +20,65 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-
     public class FunctionDefinition : ScopeStatement {
         protected Statement _body;
-        private readonly NameExpression/*!*/ _name;
-        private readonly Parameter[] _parameters;
+        private NameExpression _name;
+        private ParameterList _parameters;
         private Expression _returnAnnotation;
         private DecoratorStatement _decorators;
-        private bool _generator;                        // The function is a generator
-        private bool _coroutine;
-        private bool _isLambda;
+        private bool _generator, _coroutine;
+        private IList<Expression> _returns;
 
-        private PythonVariable _variable;               // The variable corresponding to the function name or null for lambdas
-        internal PythonVariable _nameVariable;          // the variable that refers to the global __name__
-        internal bool _hasReturn;
-        private int _headerIndex;
+        private PythonVariable _variable;      // The variable corresponding to the function name or null for lambdas
+        internal PythonVariable _nameVariable; // the variable that refers to the global __name__
 
-        internal static readonly object WhitespaceAfterAsync = new object();
+        public FunctionDefinition(TokenKind kind) : base(kind) { }
 
-        public FunctionDefinition(NameExpression name, Parameter[] parameters)
-            : this(name, parameters, (Statement)null) {
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _parameters?.Freeze();
+            _returns = FreezeList(_returns);
         }
 
-        public FunctionDefinition(NameExpression name, Parameter[] parameters, Statement body, DecoratorStatement decorators = null) {
-            if (name == null) {
-                _name = new NameExpression("<lambda>");
-                _isLambda = true;
-            } else {
-                _name = name;
-            }
+        public bool IsLambda => Kind == TokenKind.KeywordLambda;
 
-            _parameters = parameters;
-            _body = body;
-            _decorators = decorators;
-        }
-
-        public bool IsLambda {
-            get {
-                return _isLambda;
-            }
-        }
-
-        public IList<Parameter> Parameters {
+        public ParameterList Parameters {
             get { return _parameters; }
+            set { ThrowIfFrozen(); _parameters = value; }
         }
 
-        internal override int ArgCount {
-            get {
-                return _parameters.Length;
-            }
-        }
+        internal override int ArgCount => _parameters?.Parameters?.Count ?? 0;
 
         public Expression ReturnAnnotation {
             get { return _returnAnnotation; }
-            set { _returnAnnotation = value; }
+            set { ThrowIfFrozen(); _returnAnnotation = value; }
         }
 
-        public override Statement Body {
-            get { return _body; }
-        }
-
-        internal void SetBody(Statement body) {
-            _body = body;
-        }
-
-        public int HeaderIndex {
-            get { return _headerIndex; }
-            set { _headerIndex = value; }
-        }
-
-        public override string/*!*/ Name {
-            get { return _name.Name ?? ""; }
+        public override string Name {
+            get { return _name?.Name ?? ""; }
         }
 
         public NameExpression NameExpression {
             get { return _name; }
+            set { ThrowIfFrozen(); _name = value; }
         }
 
         public DecoratorStatement Decorators {
             get { return _decorators; }
-            internal set { _decorators = value; }
+            internal set { ThrowIfFrozen(); _decorators = value; }
+        }
+
+        public IList<Expression> Returns {
+            get { return _returns; }
+            set { ThrowIfFrozen(); _returns = value; }
+        }
+
+        internal void AddReturn(Expression expr) {
+            if (Returns == null) {
+                Returns = new List<Expression> { expr };
+            } else {
+                Returns.Add(expr);
+            }
         }
 
         /// <summary>
@@ -109,7 +88,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         /// </summary>
         public bool IsGenerator {
             get { return _generator; }
-            set { _generator = value; }
+            set { ThrowIfFrozen(); _generator = value; }
         }
 
         /// <summary>
@@ -118,7 +97,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         /// </summary>
         public bool IsCoroutine {
             get { return _coroutine; }
-            set { _coroutine = value; }
+            set { ThrowIfFrozen(); _coroutine = value; }
         }
 
         /// <summary>
@@ -234,23 +213,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_parameters != null) {
-                    foreach (Parameter p in _parameters) {
-                        p.Walk(walker);
-                    }
-                }
-                if (_decorators != null) {
-                    _decorators.Walk(walker);
-                }
-                if (_body != null) {
-                    _body.Walk(walker);
-                }
+                _parameters?.Walk(walker);
+                _decorators?.Walk(walker);
+                _body?.Walk(walker);
             }
             walker.PostWalk(this);
-        }
-
-        public SourceLocation Header {
-            get { return GlobalParent.IndexToLocation(_headerIndex); }
         }
     }
 }

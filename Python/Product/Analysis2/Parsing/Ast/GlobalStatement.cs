@@ -20,14 +20,25 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class GlobalStatement : Statement {
-        private readonly NameExpression[] _names;
+        private IList<NameExpression> _names;
 
-        public GlobalStatement(NameExpression[] names) {
-            _names = names;
+        public GlobalStatement() { }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _names = FreezeList(_names);
         }
 
         public IList<NameExpression> Names {
             get { return _names; }
+            set { ThrowIfFrozen(); _names = value; }
+        }
+
+        internal void AddName(NameExpression name) {
+            if (_names == null) {
+                _names = new List<NameExpression>();
+            }
+            _names.Add(name);
         }
 
         public override void Walk(PythonWalker walker) {

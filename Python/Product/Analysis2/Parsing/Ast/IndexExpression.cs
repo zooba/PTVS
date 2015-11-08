@@ -15,24 +15,29 @@
 // permissions and limitations under the License.
 
 
+using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class IndexExpression : Expression {
-        private readonly Expression _target;
-        private readonly Expression _index;
+        private Expression _target;
+        private IList<Arg> _indices;
 
-        public IndexExpression(Expression target, Expression index) {
-            _target = target;
-            _index = index;
+        public IndexExpression() { }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _indices = FreezeList(_indices);
         }
 
         public Expression Target {
             get { return _target; }
+            set { ThrowIfFrozen(); _target = value; }
         }
 
-        public Expression Index {
-            get { return _index; }
+        public IList<Arg> Indices {
+            get { return _indices; }
+            set { ThrowIfFrozen(); _indices = value; }
         }
 
         internal override string CheckAssign() {
@@ -45,20 +50,18 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_target != null) {
-                    _target.Walk(walker);
-                }
-                if (_index != null) {
-                    _index.Walk(walker);
+                _target?.Walk(walker);
+                if (_indices != null) {
+                    foreach (var i in _indices) {
+                        i.Walk(walker);
+                    }
                 }
             }
             walker.PostWalk(this);
         }
 
         private bool IsSlice {
-            get {
-                return _index is SliceExpression;
-            }
+            get { return _indices?[0].Expression is SliceExpression; }
         }
     }
 }

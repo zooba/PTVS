@@ -400,12 +400,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
 
             char c = line[end];
-            if (c != '.') {
-                return kind;
+            if (c == '.') {
+                kind = TokenKind.LiteralFloat;
+                end += 1;
             }
-
-            kind = TokenKind.LiteralFloat;
-            end += 1;
             ReadDecimals(line, ref end);
             kind = MaybeReadExponent(line, kind, ref end);
             if (kind != TokenKind.Error) {
@@ -450,9 +448,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     end = line.Length;
                     return TokenKind.Error;
                 }
+
+                kind = TokenKind.LiteralFloat;
                 ReadDecimals(line, ref end);
             }
-            return TokenKind.LiteralFloat;
+            return kind;
         }
 
         private static TokenKind MaybeReadImaginary(string line, TokenKind kind, ref int end) {

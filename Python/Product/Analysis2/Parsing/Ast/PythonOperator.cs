@@ -95,19 +95,45 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         public static PythonOperator GetBinaryOperator(this TokenKind kind) {
             switch (kind) {
-                case TokenKind.Add: return PythonOperator.Add;
-                case TokenKind.Subtract: return PythonOperator.Subtract;
-                case TokenKind.Multiply: return PythonOperator.Multiply;
-                case TokenKind.MatMultiply: return PythonOperator.MatMultiply;
-                case TokenKind.Divide: return PythonOperator.Divide;
-                case TokenKind.Mod: return PythonOperator.Mod;
-                case TokenKind.BitwiseAnd: return PythonOperator.BitwiseAnd;
-                case TokenKind.BitwiseOr: return PythonOperator.BitwiseOr;
-                case TokenKind.ExclusiveOr: return PythonOperator.BitwiseXor;
-                case TokenKind.LeftShift: return PythonOperator.LeftShift;
-                case TokenKind.RightShift: return PythonOperator.RightShift;
-                case TokenKind.Power: return PythonOperator.Power;
-                case TokenKind.FloorDivide: return PythonOperator.FloorDivide;
+                case TokenKind.Add:
+                case TokenKind.AddEqual:
+                    return PythonOperator.Add;
+                case TokenKind.Subtract:
+                case TokenKind.SubtractEqual:
+                    return PythonOperator.Subtract;
+                case TokenKind.Multiply:
+                case TokenKind.MultiplyEqual:
+                    return PythonOperator.Multiply;
+                case TokenKind.MatMultiply:
+                case TokenKind.MatMultiplyEqual:
+                    return PythonOperator.MatMultiply;
+                case TokenKind.Divide:
+                case TokenKind.DivideEqual:
+                    return PythonOperator.Divide;
+                case TokenKind.Mod:
+                case TokenKind.ModEqual:
+                    return PythonOperator.Mod;
+                case TokenKind.BitwiseAnd:
+                case TokenKind.BitwiseAndEqual:
+                    return PythonOperator.BitwiseAnd;
+                case TokenKind.BitwiseOr:
+                case TokenKind.BitwiseOrEqual:
+                    return PythonOperator.BitwiseOr;
+                case TokenKind.ExclusiveOr:
+                case TokenKind.ExclusiveOrEqual:
+                    return PythonOperator.BitwiseXor;
+                case TokenKind.LeftShift:
+                case TokenKind.LeftShiftEqual:
+                    return PythonOperator.LeftShift;
+                case TokenKind.RightShift:
+                case TokenKind.RightShiftEqual:
+                    return PythonOperator.RightShift;
+                case TokenKind.Power:
+                case TokenKind.PowerEqual:
+                    return PythonOperator.Power;
+                case TokenKind.FloorDivide:
+                case TokenKind.FloorDivideEqual:
+                    return PythonOperator.FloorDivide;
                 case TokenKind.LessThan: return PythonOperator.LessThan;
                 case TokenKind.LessThanOrEqual: return PythonOperator.LessThanOrEqual;
                 case TokenKind.GreaterThan: return PythonOperator.GreaterThan;

@@ -19,29 +19,24 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class AssertStatement : Statement {
-        private readonly Expression _test, _message;
+        private Expression _test, _message;
 
-        public AssertStatement(Expression test, Expression message) {
-            _test = test;
-            _message = message;
-        }
+        public AssertStatement() { }
 
         public Expression Test {
             get { return _test; }
+            set { ThrowIfFrozen(); _test = value; }
         }
 
         public Expression Message {
             get { return _message; }
+            set { ThrowIfFrozen(); _message = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_test != null) {
-                    _test.Walk(walker);
-                }
-                if (_message != null) {
-                    _message.Walk(walker);
-                }
+                _test?.Walk(walker);
+                _message?.Walk(walker);
             }
             walker.PostWalk(this);
         }

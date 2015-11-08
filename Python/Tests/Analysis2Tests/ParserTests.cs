@@ -1116,7 +1116,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void DelStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1126,7 +1126,7 @@ namespace AnalysisTests {
                         CheckDelStmt(Fob, Oar),
                         CheckDelStmt(CheckMemberExpr(Fob, "oar")),
                         CheckDelStmt(CheckIndexExpression(Fob, Oar)),
-                        CheckDelStmt(CheckTupleExpr(Fob, Oar)),
+                        CheckDelStmt(CheckParenExpr(CheckTupleExpr(Fob, Oar))),
                         CheckDelStmt(CheckListExpr(Fob, Oar)),
                         CheckDelStmt(CheckParenExpr(Fob))
                     )
@@ -1146,7 +1146,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void DelStmtIllegal() {
             foreach (var version in AllVersions) {
                 ParseErrors("DelStmtIllegal.py", version,
@@ -1316,7 +1316,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void GlobalStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1333,7 +1333,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void NonlocalStmt() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -1409,7 +1409,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void NonlocalStmtIllegal() {
             foreach (var version in V3Versions) {
                 ParseErrors("NonlocalStmtIllegal.py", version,
@@ -1588,7 +1588,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AssertStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1634,15 +1634,15 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void GenComp() {
             foreach (var version in AllVersions) {
                 CheckAst(
                     ParseFileNoErrors("GenComp.py", version),
                     CheckSuite(
-                        CheckExprStmt(CheckGeneratorComp(Fob, CompFor(Fob, Oar))),
-                        CheckExprStmt(CheckGeneratorComp(Fob, CompFor(Fob, Oar), CompIf(Baz))),
-                        CheckExprStmt(CheckGeneratorComp(Fob, CompFor(Fob, Oar), CompFor(Baz, Quox))),
+                        CheckExprStmt(CheckParenExpr(CheckGeneratorComp(Fob, CompFor(Fob, Oar)))),
+                        CheckExprStmt(CheckParenExpr(CheckGeneratorComp(Fob, CompFor(Fob, Oar), CompIf(Baz)))),
+                        CheckExprStmt(CheckParenExpr(CheckGeneratorComp(Fob, CompFor(Fob, Oar), CompFor(Baz, Quox)))),
                         CheckCallStmt(Baz, PositionalArg(CheckGeneratorComp(Fob, CompFor(Fob, Oar))))
                     )
                 );
@@ -1892,7 +1892,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void Calls() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1911,11 +1911,11 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void CallsIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFileNoErrors("CallsIllegal.py", version),
+                    ParseFileIgnoreErrors("CallsIllegal.py", version),
                     CheckSuite(
                         CheckCallStmt(Fob, NamedArg("oar", One), NamedArg("oar", Two)),
                         CheckCallStmt(Fob, NamedArg(null, Two))
@@ -1926,7 +1926,7 @@ namespace AnalysisTests {
             foreach (var version in AllVersions) {
                 ParseErrors("CallsIllegal.py",
                     version,
-                    new ErrorInfo("duplicate keyword argument", 20, 1, 21, 21, 1, 22),
+                    new ErrorInfo("keyword argument repeated", 13, 1, 14, 16, 1, 17),
                     new ErrorInfo("expected name", 27, 2, 5, 28, 2, 6)
                 );
             }
@@ -2373,7 +2373,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void ConditionalExpr() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2418,7 +2418,7 @@ namespace AnalysisTests {
 
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void EllipsisExpr() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -2432,12 +2432,8 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 ParseErrors("Ellipsis.py", version,
-                    new ErrorInfo("unexpected token '.'", 4, 1, 5, 5, 1, 6),
-                    new ErrorInfo("syntax error", 6, 1, 7, 7, 1, 8),
-                    new ErrorInfo("syntax error", 7, 1, 8, 8, 1, 9),
-                    new ErrorInfo("unexpected token '.'", 14, 2, 5, 15, 2, 6),
-                    new ErrorInfo("syntax error", 16, 2, 7, 17, 2, 8),
-                    new ErrorInfo("syntax error", 17, 2, 8, 19, 3, 1)
+                    new ErrorInfo("unexpected token '.'", 4, 1, 5, 8, 1, 9),
+                    new ErrorInfo("unexpected token '.'", 14, 2, 5, 17, 2, 8)
                 );
             }
         }
@@ -3208,7 +3204,7 @@ namespace AnalysisTests {
                 var call = (CallExpression)expr;
                 target(call.Target);
 
-                Assert.AreEqual(args.Length, call.Args.Count);
+                Assert.AreEqual(args.Length, call.Args?.Count ?? 0);
                 for (int i = 0; i < args.Length; i++) {
                     args[i](call.Args[i]);
                 }
@@ -3302,23 +3298,35 @@ namespace AnalysisTests {
         }
 
         private static Action<Arg> ListArg(Action<Expression> value) {
-            return NamedArg("*", value);
+            return arg => {
+                Assert.IsInstanceOfType(arg.Expression, typeof(StarredExpression));
+                var starArg = (StarredExpression)arg.Expression;
+                Assert.IsTrue(starArg.IsStar);
+                value(starArg.Expression);
+            };
         }
 
         private static Action<Arg> DictArg(Action<Expression> value) {
-            return NamedArg("**", value);
+            return arg => {
+                Assert.IsInstanceOfType(arg.Expression, typeof(StarredExpression));
+                var starArg = (StarredExpression)arg.Expression;
+                Assert.IsTrue(starArg.IsDoubleStar);
+                value(starArg.Expression);
+            };
         }
 
         private static Action<Statement> CheckIndexStmt(Action<Expression> target, Action<Expression> index) {
             return CheckExprStmt(CheckIndexExpression(target, index));
         }
 
-        private static Action<Expression> CheckIndexExpression(Action<Expression> target, Action<Expression> index) {
+        private static Action<Expression> CheckIndexExpression(Action<Expression> target, params Action<Expression>[] indices) {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(IndexExpression));
                 var indexExpr = (IndexExpression)expr;
                 target(indexExpr.Target);
-                index(indexExpr.Index);
+                for (int i = 0; i < indexExpr.Indices.Count; i++) {
+                    indices[i](indexExpr.Indices[i].Expression);
+                }
             };
         }
 

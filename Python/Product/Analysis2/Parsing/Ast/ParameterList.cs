@@ -21,6 +21,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _parameters = value; }
         }
 
+        public int Count => _parameters?.Count ?? 0;
+
+        public Parameter this[int index] => _parameters?[index];
+
         internal void AddParameter(Parameter parameter) {
             if (_parameters == null) {
                 _parameters = new List<Parameter>();

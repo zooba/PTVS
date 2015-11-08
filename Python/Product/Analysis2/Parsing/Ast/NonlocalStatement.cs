@@ -16,19 +16,30 @@
 
 
 using System.Collections.Generic;
-using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public class NonlocalStatement : Statement {
-        private readonly NameExpression[] _names;
+        private IList<NameExpression> _names;
 
-        public NonlocalStatement(NameExpression[] names) {
-            _names = names;
+        public NonlocalStatement() { }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _names = FreezeList(_names);
         }
 
         public IList<NameExpression> Names {
             get { return _names; }
+            set { ThrowIfFrozen(); _names = value; }
+        }
+
+        internal void AddName(NameExpression name) {
+            if (Names == null) {
+                Names = new List<NameExpression> { name };
+            } else {
+                Names.Add(name);
+            }
         }
 
         public override void Walk(PythonWalker walker) {

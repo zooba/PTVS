@@ -40,6 +40,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             return "can't assign to literal";
         }
 
+        internal override string CheckDelete() {
+            return "can't delete literal";
+        }
+
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
             }

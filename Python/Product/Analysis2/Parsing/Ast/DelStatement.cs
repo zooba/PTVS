@@ -21,14 +21,25 @@ using System.Text;
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public class DelStatement : Statement {
-        private readonly Expression[] _expressions;
+        private IList<Expression> _expressions;
 
-        public DelStatement(Expression[] expressions) {
-            _expressions = expressions;
+        public DelStatement() { }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _expressions = FreezeList(_expressions);
         }
 
         public IList<Expression> Expressions {
             get { return _expressions; }
+            set { ThrowIfFrozen(); _expressions = value; }
+        }
+
+        public void AddExpression(Expression expr) {
+            if (_expressions == null) {
+                _expressions = new List<Expression>();
+            }
+            _expressions.Add(expr);
         }
 
         public override void Walk(PythonWalker walker) {

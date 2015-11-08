@@ -23,6 +23,47 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class ComprehensionIterator : Node {
     }
 
+    public class ComprehensionIf : ComprehensionIterator {
+        private Expression _test;
+
+        public ComprehensionIf() { }
+
+        public Expression Test {
+            get { return _test; }
+            set { ThrowIfFrozen(); _test = value; }
+        }
+
+        public override void Walk(PythonWalker walker) {
+            if (walker.Walk(this)) {
+                _test?.Walk(walker);
+            }
+            walker.PostWalk(this);
+        }
+    }
+
+    public class ComprehensionFor : ComprehensionIterator {
+        private Expression _lhs, _list;
+
+        public ComprehensionFor() { }
+
+        public Expression Left {
+            get { return _lhs; }
+            set { ThrowIfFrozen(); _lhs = value; }
+        }
+
+        public Expression List {
+            get { return _list; }
+            set { ThrowIfFrozen(); _list = value; }
+        }
+        public override void Walk(PythonWalker walker) {
+            if (walker.Walk(this)) {
+                _lhs?.Walk(walker);
+                _list?.Walk(walker);
+            }
+            walker.PostWalk(this);
+        }
+    }
+
     public abstract class Comprehension : Expression {
         private IList<ComprehensionIterator> _iterators;
 
@@ -86,23 +127,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     }
 
     public sealed class DictionaryComprehension : Comprehension {
-        private SliceExpression _value;
+        private Expression _key, _value;
 
         public Expression Key {
-            get { return _value.SliceStart; }
-            set { ThrowIfFrozen(); _value.SliceStart = value; }
+            get { return _key; }
+            set { ThrowIfFrozen(); _key = value; }
         }
 
         public Expression Value {
-            get { return _value.SliceStop; }
-            set { ThrowIfFrozen(); _value.SliceStop = value; }
+            get { return _value; }
+            set { ThrowIfFrozen(); _value = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_value != null) {
-                    _value.Walk(walker);
-                }
+                _key?.Walk(walker);
+                _value?.Walk(walker);
 
                 if (Iterators != null) {
                     foreach (ComprehensionIterator ci in Iterators) {

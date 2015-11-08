@@ -19,39 +19,30 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ConditionalExpression : Expression {
-        private readonly Expression _testExpr;
-        private readonly Expression _trueExpr;
-        private readonly Expression _falseExpr;
+        private Expression _testExpr, _trueExpr, _falseExpr;
 
-        public ConditionalExpression(Expression testExpression, Expression trueExpression, Expression falseExpression) {
-            this._testExpr = testExpression;
-            this._trueExpr = trueExpression;
-            this._falseExpr = falseExpression;
-        }
+        public ConditionalExpression() { }
 
         public Expression FalseExpression {
             get { return _falseExpr; }
+            set { ThrowIfFrozen(); _falseExpr = value; }
         }
 
         public Expression Test {
             get { return _testExpr; }
+            set { ThrowIfFrozen(); _testExpr = value; }
         }
 
         public Expression TrueExpression {
             get { return _trueExpr; }
+            set { ThrowIfFrozen(); _trueExpr = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_testExpr != null) {
-                    _testExpr.Walk(walker);
-                }
-                if (_trueExpr != null) {
-                    _trueExpr.Walk(walker);
-                }
-                if (_falseExpr != null) {
-                    _falseExpr.Walk(walker);
-                }
+                _testExpr?.Walk(walker);
+                _trueExpr?.Walk(walker);
+                _falseExpr?.Walk(walker);
             }
             walker.PostWalk(this);
         }

@@ -19,16 +19,19 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class StarredExpression : Expression {
+        private readonly TokenKind _kind;
         private readonly Expression _expr;
 
-        public StarredExpression(Expression expr) {
+        public StarredExpression(TokenKind kind, Expression expr) {
+            _kind = kind;
             _expr = expr;
         }
 
+        public bool IsStar => _kind == TokenKind.Multiply;
+        public bool IsDoubleStar => _kind == TokenKind.Power;
+
         public Expression Expression {
-            get {
-                return _expr;
-            }
+            get { return _expr; }
         }
 
         public override void Walk(PythonWalker walker) {

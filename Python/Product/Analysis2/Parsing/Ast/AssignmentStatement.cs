@@ -22,20 +22,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class AssignmentStatement : Statement {
         // _left.Length is 1 for simple assignments like "x = 1"
         // _left.Length will be 3 for "x = y = z = 1"
-        private readonly Expression[] _left;
-        private readonly Expression _right;
+        private IList<Expression> _left;
+        private Expression _right;
 
-        public AssignmentStatement(Expression[] left, Expression right) {
-            _left = left;
-            _right = right;
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _left = FreezeList(_left);
         }
 
         public IList<Expression> Left {
             get { return _left; }
+            set { ThrowIfFrozen(); _left = value; }
         }
 
         public Expression Right {
             get { return _right; }
+            set { ThrowIfFrozen(); _right = value; }
         }
 
         public override void Walk(PythonWalker walker) {
@@ -43,7 +45,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 foreach (Expression e in _left) {
                     e.Walk(walker);
                 }
-                _right.Walk(walker);
+                _right?.Walk(walker);
             }
             walker.PostWalk(this);
         }

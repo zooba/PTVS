@@ -36,6 +36,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public bool IsAsync => _afterAsync.Length > 0;
 
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _body?.Freeze();
+            _test?.Freeze();
+        }
+
         public Statement Body {
             get { return _body; }
             set { ThrowIfFrozen(); _body = value; }

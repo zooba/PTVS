@@ -21,7 +21,7 @@ using System.Diagnostics;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
-    public abstract class ScopeStatement : Statement {
+    public abstract class ScopeStatement : CompoundStatement {
         private bool _importStar;                   // from module import *
         private bool _unqualifiedExec;              // exec "code"
         private bool _nestedFreeVariables;          // nested function with free variable
@@ -41,13 +41,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         internal const string NameForExec = "module: <exec>";
 
+        protected ScopeStatement(TokenKind kind) : base(kind) { }
+
         public ScopeStatement Parent {
             get { return _parent; }
             set { _parent = value; }
-        }
-
-        public abstract Statement Body {
-            get;
         }
 
         internal bool ContainsImportStar {
@@ -143,9 +141,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         internal virtual int ArgCount {
-            get {
-                return 0;
-            }
+            get { return 0; }
         }
 
         public PythonAst GlobalParent {

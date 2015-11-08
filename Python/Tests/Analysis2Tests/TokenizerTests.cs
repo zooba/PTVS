@@ -84,7 +84,7 @@ namespace AnalysisTests {
             );
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void CommentTokenization() {
             AssertTokens(
                 Tokenize("# a=b+c \n\nd=a   # c\n  #eof", PythonLanguageVersion.V35),

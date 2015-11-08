@@ -62,7 +62,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 #endif
         }
 
-        protected virtual void OnFreeze() { }
+        protected virtual void OnFreeze() {
+            _comment?.Freeze();
+        }
 
         [Conditional("DEBUG")]
         protected void ThrowIfFrozen() {

@@ -21,10 +21,8 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ClassDefinition : ScopeStatement {
-        private int _headerIndex;
-        private readonly NameExpression/*!*/ _name;
-        private Statement _body;
-        private readonly Arg[] _bases;
+        private NameExpression _name;
+        private IList<Arg> _bases;
         private DecoratorStatement _decorators;
 
         private PythonVariable _variable;           // Variable corresponding to the class name
@@ -33,40 +31,30 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private PythonVariable _modNameVariable;    // Variable for the module's __name__
         private PythonVariable _classVariable;      // Variable for the classes __class__ cell var on 3.x
 
-        public ClassDefinition(NameExpression/*!*/ name, Arg[] bases, Statement body) {           
-            _name = name;
-            _bases = bases;
-            _body = body;
+        public ClassDefinition() : base(TokenKind.KeywordClass) { }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _bases = FreezeList(_bases);
         }
 
-        public int HeaderIndex {
-            get { return _headerIndex; }
-            set { _headerIndex = value; }
+        public override string Name {
+            get { return _name?.Name ?? ""; }
         }
 
-        public override string/*!*/ Name {
-            get { return _name.Name ?? ""; }
-        }
-
-        public NameExpression/*!*/ NameExpression {
+        public NameExpression NameExpression {
             get { return _name; }
+            set { ThrowIfFrozen(); _name = value; }
         }
 
         public IList<Arg> Bases {
             get { return _bases; }
-        }
-
-        public override Statement Body {
-            get { return _body; }
+            set { ThrowIfFrozen(); _bases = value; }
         }
 
         public DecoratorStatement Decorators {
-            get {
-                return _decorators;
-            }
-            internal set {
-                _decorators = value;
-            }
+            get { return _decorators; }
+            internal set { ThrowIfFrozen(); _decorators = value; }
         }
 
         /// <summary>
@@ -164,23 +152,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_decorators != null) {
-                    _decorators.Walk(walker);
-                }
+                _decorators?.Walk(walker);
                 if (_bases != null) {
                     foreach (var b in _bases) {
                         b.Walk(walker);
                     }
                 }
-                if (_body != null) {
-                    _body.Walk(walker);
-                }
+                Body?.Walk(walker);
             }
             walker.PostWalk(this);
-        }
-
-        public SourceLocation Header {
-            get { return GlobalParent.IndexToLocation(_headerIndex); }
         }
     }
 }

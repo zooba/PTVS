@@ -178,6 +178,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     stmt = ParseExprStmt();
                 }
 
+                Debug.Assert(stmt != null);
                 Debug.Assert(stmt.BeforeNode.Length == 0);
                 stmt.BeforeNode = ws;
 
@@ -432,11 +433,51 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseFuncDef(bool isCoroutine) {
-            return null;
+            var start = Peek.Span.Start;
+            var afterAsync = default(SourceSpan);
+            if (isCoroutine) {
+                Read(TokenKind.KeywordAsync);
+                afterAsync = ReadWhitespace();
+            }
+            Read(TokenKind.KeywordDef);
+
+            var stmt = new FunctionDefinition(TokenKind.KeywordDef) {
+                IsCoroutine = isCoroutine,
+                AfterAsync = afterAsync,
+                NameExpression = ReadName()
+            };
+
+            Read(TokenKind.LeftParenthesis);
+            stmt.Parameters = ParseParameterList();
+            Read(TokenKind.RightParenthesis);
+            stmt.BeforeColon = ReadWhitespace();
+            Read(TokenKind.Colon);
+            stmt.Body = ParseSuite();
+
+            stmt.Span = new SourceSpan(start, Current.Span.End);
+            MaybeReadComment(stmt);
+            return stmt;
         }
 
         private Statement ParseClassDef() {
-            return null;
+            var start = Peek.Span.Start;
+            Read(TokenKind.KeywordClass);
+
+            var stmt = new ClassDefinition {
+                NameExpression = ReadName()
+            };
+
+            if (TryRead(TokenKind.LeftParenthesis)) {
+                stmt.Bases = ParseArgumentList(TokenKind.RightParenthesis, true);
+                Read(TokenKind.RightParenthesis);
+            }
+            stmt.BeforeColon = ReadWhitespace();
+            Read(TokenKind.Colon);
+            stmt.Body = ParseSuite();
+
+            stmt.Span = new SourceSpan(start, Current.Span.End);
+            MaybeReadComment(stmt);
+            return stmt;
         }
 
         private Statement ParseWithStmt(bool isAsync) {
@@ -456,9 +497,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParsePrintStmt() {
-            var stmt = new PrintStatement {
-                Span = Read(TokenKind.KeywordPrint)
-            };
+            var start = Read(TokenKind.KeywordPrint).Start;
+
+            var stmt = new PrintStatement();
 
             if (PeekNonWhitespace.Is(TokenKind.RightShift)) {
                 stmt.BeforeLeftShift = ReadWhitespace();
@@ -466,6 +507,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 stmt.BeforeDestination = ReadWhitespace();
                 stmt.Destination = ParseSingleExpression();
                 if (!TryRead(TokenKind.Comma)) {
+                    stmt.Span = new SourceSpan(start, Current.Span.End);
                     return stmt;
                 }
             }
@@ -483,6 +525,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 stmt.AddExpression(expr);
             }
 
+            stmt.Span = new SourceSpan(start, Current.Span.End);
             return stmt;
         }
 
@@ -499,11 +542,27 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseGlobalStmt() {
-            return null;
+            var start = Read(TokenKind.KeywordGlobal).Start;
+            var stmt = new GlobalStatement();
+
+            do {
+                stmt.AddName(ReadName());
+            } while (TryRead(TokenKind.Comma));
+
+            stmt.Span = new SourceSpan(start, Current.Span.End);
+            return WithCommentAndWhitespace(stmt);
         }
 
         private Statement ParseNonlocalStmt() {
-            return null;
+            var start = Read(TokenKind.KeywordNonlocal).Start;
+            var stmt = new NonlocalStatement();
+
+            do {
+                stmt.AddName(ReadName());
+            } while (TryRead(TokenKind.Comma));
+
+            stmt.Span = new SourceSpan(start, Current.Span.End);
+            return WithCommentAndWhitespace(stmt);
         }
 
         private Statement ParseRaiseStmt() {
@@ -511,7 +570,18 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseAssertStmt() {
-            return null;
+            var start = Read(TokenKind.KeywordAssert).Start;
+            var stmt = new AssertStatement {
+                Test = ParseSingleExpression()
+            };
+
+            if (TryRead(TokenKind.Comma)) {
+                stmt.Message = ParseSingleExpression();
+            }
+
+            stmt.Span = new SourceSpan(start, Current.Span.End);
+
+            return WithComment(stmt);
         }
 
         private Statement ParseExecStmt() {
@@ -519,7 +589,20 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseDelStmt() {
-            return null;
+            var stmt = new DelStatement {
+                Span = Read(TokenKind.KeywordDel)
+            };
+
+            do {
+                var expr = ParseSingleExpression();
+                var delError = expr.CheckDelete();
+                if (!string.IsNullOrEmpty(delError)) {
+                    ReportError(delError, expr.Span);
+                }
+                stmt.AddExpression(expr);
+            } while (TryRead(TokenKind.Comma));
+
+            return WithComment(stmt);
         }
 
         private Statement ParseYieldStmt() {
@@ -527,7 +610,26 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseExprStmt() {
-            return new ExpressionStatement(ParseSingleExpression());
+            var expr = ParseSingleExpression();
+            if (!Peek.Is(TokenUsage.Assignment)) {
+                return WithComment(new ExpressionStatement(expr));
+            }
+
+            var op = Next().Kind;
+            if (op == TokenKind.Assign) {
+                return WithComment(new AssignmentStatement() {
+                    Left = (expr as TupleExpression)?.Items ?? new[] { expr },
+                    Right = ParseExpression(),
+                    Span = new SourceSpan(expr.Span.Start, Current.Span.End)
+                });
+            }
+
+            return WithComment(new AugmentedAssignStatement {
+                Left = expr,
+                Operator = op.GetBinaryOperator(),
+                Right = ParseExpression()
+            });
+
         }
 
 
@@ -559,6 +661,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private Expression ParseExpression() {
             var expr = ParseSingleExpression();
+
             if (!Peek.Is(TokenKind.Comma)) {
                 return expr;
             }
@@ -577,7 +680,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return tuple;
         }
 
-        private Expression ParseSingleExpression() {
+        private Expression ParseSingleExpression(bool allowIfExpr = true, bool allowGenerator = true) {
             if (PeekNonWhitespace.Is(TokenKind.KeywordLambda)) {
                 return ParseLambda();
             }
@@ -585,8 +688,34 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var ws = ReadWhitespace();
             var expr = ParseComparison();
 
+            MaybeReadComment(expr);
+
+            if (allowIfExpr && Peek.Is(TokenKind.KeywordIf)) {
+                expr.Freeze();
+                var condExpr = new ConditionalExpression { TrueExpression = expr };
+                Read(TokenKind.KeywordIf);
+                condExpr.Test = ParseSingleExpression();
+                Read(TokenKind.KeywordElse);
+                condExpr.FalseExpression = ParseSingleExpression();
+                condExpr.Span = new SourceSpan(expr.Span.Start, Current.Span.End);
+                expr = condExpr;
+            }
+
+            MaybeReadComment(expr);
+
+            if (allowGenerator && Peek.Is(TokenKind.KeywordFor)) {
+                expr.Freeze();
+                var genExpr = new GeneratorExpression {
+                    Item = expr,
+                    Iterators = ReadComprehension()
+                };
+
+                genExpr.Span = new SourceSpan(expr.Span.Start, Current.Span.End);
+                expr = genExpr;
+            }
+
             expr.BeforeNode = ws;
-            expr.Comment = ReadComment();
+            MaybeReadComment(expr);
             expr.Freeze();
             return expr;
         }
@@ -680,13 +809,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     p.DefaultValue = ParseSingleExpression();
                 }
 
-                if (TryRead(TokenKind.Comma)) {
-                    p.HasComma = true;
-                }
-
+                p.HasCommaBeforeComment = TryRead(TokenKind.Comma);
                 p.Comment = ReadComment();
-                p.Comment?.Freeze();
                 p.AfterNode = ReadWhitespace();
+                p.HasCommaAfterNode = TryRead(TokenKind.Comma);
                 p.Freeze();
 
                 parameters.AddParameter(p);
@@ -695,6 +821,41 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             parameters.Comment = ReadComment();
             parameters.Freeze();
             return parameters;
+        }
+
+        private List<Arg> ParseArgumentList(TokenKind closing, bool allowNames) {
+            var args = new List<Arg>();
+            var names = new HashSet<string>();
+
+            while (!Peek.Is(closing)) {
+                var a = new Arg();
+
+                var expr = ParseSingleExpression();
+
+                if (allowNames && TryRead(TokenKind.Assign)) {
+                    var name = (expr as NameExpression)?.Name;
+                    if (string.IsNullOrEmpty(name)) {
+                        ReportError("expected name", expr.Span);
+                    } else if (!names.Add(name)) {
+                        ReportError("keyword argument repeated", expr.Span);
+                    }
+                    a.NameExpression = expr;
+                    a.Expression = ParseSingleExpression();
+                } else {
+                    a.Expression = expr;
+                }
+
+                MaybeReadComment(a.Expression);
+
+                a.Comment = ReadComment();
+                a.AfterNode = ReadWhitespace();
+                a.HasCommaAfterNode = TryRead(TokenKind.Comma);
+                a.Freeze();
+
+                args.Add(a);
+            }
+
+            return args;
         }
 
         private Expression ParseComparison() {
@@ -735,14 +896,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             rhs.BeforeNode = ws;
             rhs.Freeze();
 
-            return new BinaryExpression {
+            return WithCommentAndWhitespace(new BinaryExpression {
                 Left = expr,
                 Operator = op,
                 WithinOperator = withinOp,
-                Right = rhs,
-                Comment = ReadComment(),
-                AfterNode = ReadWhitespace()
-            };
+                Right = rhs
+            });
         }
 
         private Expression ParseNotTest() {
@@ -762,13 +921,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Expression ParseStarName() {
-            if (TryRead(TokenKind.Multiply)) {
+            if (TryRead(TokenKind.Multiply) || TryRead(TokenKind.Power)) {
                 var start = Current.Span.Start;
+                var kind = Current.Kind;
                 var ws = ReadWhitespace();
                 var expr = ParsePrimaryWithTrailers();
                 expr.BeforeNode = ws;
                 expr.Freeze();
-                return new StarredExpression(expr) {
+                return new StarredExpression(kind, expr) {
                     Span = new SourceSpan(start, expr.Span.End)
                 };
             }
@@ -777,13 +937,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Expression ParseStarExpression() {
-            if (TryRead(TokenKind.Multiply)) {
+            if (TryRead(TokenKind.Multiply) || TryRead(TokenKind.Power)) {
                 var start = Current.Span.Start;
+                var kind = Current.Kind;
                 var ws = ReadWhitespace();
                 var expr = ParseExpr();
                 expr.BeforeNode = ws;
                 expr.Freeze();
-                return new StarredExpression(expr) {
+                return new StarredExpression(kind, expr) {
                     Span = new SourceSpan(start, expr.Span.End)
                 };
             }
@@ -811,13 +972,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     rhs.BeforeNode = ws;
                     rhs.Freeze();
 
-                    expr = new BinaryExpression {
+                    expr = WithCommentAndWhitespace(new BinaryExpression {
                         Left = expr,
                         Operator = op,
-                        Right = rhs,
-                        Comment = ReadComment(),
-                        AfterNode = ReadWhitespace()
-                    };
+                        Right = rhs
+                    });
                 }
             }
             return expr;
@@ -843,8 +1002,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         ThrowError();
                         return null;
                 }
-                expr.Comment = ReadComment();
-                expr.AfterNode = ReadWhitespace();
+                MaybeReadComment(expr);
                 if (unaryExpr == null) {
                     topExpr = unaryExpr = expr;
                 } else {
@@ -863,9 +1021,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 } else {
                     awaitExpr.Expression = ParsePower();
                 }
-                awaitExpr.Comment = ReadComment();
-                awaitExpr.AfterNode = ReadWhitespace();
-                return awaitExpr;
+                return WithCommentAndWhitespace(awaitExpr);
             }
 
             if (unaryExpr != null) {
@@ -884,21 +1040,58 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 rhs.BeforeNode = ws;
                 rhs.Freeze();
 
-                expr = new BinaryExpression {
+                expr = WithCommentAndWhitespace(new BinaryExpression {
                     Left = expr,
                     Operator = PythonOperator.Power,
-                    Right = rhs,
-                    Comment = ReadComment(),
-                    AfterNode = ReadWhitespace()
-                };
+                    Right = rhs
+                });
             }
             return expr;
         }
 
         private Expression ParsePrimaryWithTrailers() {
             var expr = ParseGroup();
-            // TODO: trailers
-            return expr;
+            var start = expr.Span.Start;
+
+            while (true) {
+                switch (PeekNonWhitespace.Kind) {
+                    case TokenKind.Comment:
+                        expr = WithComment(expr);
+                        break;
+                    case TokenKind.Dot:
+                        expr.AfterNode = ReadWhitespace();
+                        expr.Freeze();
+                        Read(TokenKind.Dot);
+                        expr = new MemberExpression {
+                            Target = expr,
+                            NameExpression = ReadName()
+                        };
+                        expr.Span = new SourceSpan(start, Current.Span.End);
+                        break;
+                    case TokenKind.LeftParenthesis:
+                        expr.AfterNode = ReadWhitespace();
+                        expr.Freeze();
+                        Read(TokenKind.LeftParenthesis);
+                        expr = new CallExpression {
+                            Target = expr,
+                            Args = ParseArgumentList(TokenKind.RightParenthesis, true)
+                        };
+                        expr.Span = new SourceSpan(start, Read(TokenKind.RightParenthesis).End);
+                        break;
+                    case TokenKind.LeftBracket:
+                        expr.AfterNode = ReadWhitespace();
+                        expr.Freeze();
+                        Read(TokenKind.LeftBracket);
+                        expr = new IndexExpression {
+                            Target = expr,
+                            Indices = ParseArgumentList(TokenKind.RightBracket, false)
+                        };
+                        expr.Span = new SourceSpan(start, Read(TokenKind.RightBracket).End);
+                        break;
+                    default:
+                        return expr;
+                }
+            }
         }
 
         private Expression ParseGroup() {
@@ -906,7 +1099,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 return ParsePrimary();
             }
 
-            var start = Current.Span.Start;
+            var start = Peek.Span.Start;
 
             switch (Peek.Kind) {
                 case TokenKind.LeftBracket:
@@ -993,20 +1186,34 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     if (!BigInteger.TryParse(_tokenization.GetTokenText(Next()), out biValue)) {
                         ThrowError();
                     }
-                    return new ConstantExpression {
+                    return WithCommentAndWhitespace(new ConstantExpression {
                         Span = Current.Span,
                         Value = (int.MinValue < biValue && biValue < int.MaxValue) ?
                             (object)(int)biValue :
-                            (object)biValue,
-                        Comment = ReadComment(),
-                        AfterNode = ReadWhitespace()
-                    };
+                            (object)biValue
+                    });
+                case TokenKind.LiteralFloat:
+                    double dValue;
+                    if (!double.TryParse(_tokenization.GetTokenText(Next()), out dValue)) {
+                        ThrowError();
+                    }
+                    return WithCommentAndWhitespace(new ConstantExpression {
+                        Span = Current.Span,
+                        Value = dValue
+                    });
+
+                case TokenKind.Ellipsis:
+                    if (_version.Is2x()) {
+                        ThrowError("unexpected token '.'");
+                    }
+                    return WithCommentAndWhitespace(new ConstantExpression {
+                        Span = Next().Span,
+                        Value = Ellipsis.Value
+                    });
                 default:
-                    return new ErrorExpression {
-                        Span = Peek.Span,
-                        Comment = ReadComment(),
-                        AfterNode = ReadWhitespace()
-                    };
+                    return WithCommentAndWhitespace(new ErrorExpression {
+                        Span = Peek.Span
+                    });
             }
         }
 
@@ -1101,7 +1308,28 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private List<ComprehensionIterator> ReadComprehension() {
-            return null;
+            var iterators = new List<ComprehensionIterator>();
+            while (Peek.IsAny(TokenKind.KeywordFor, TokenKind.KeywordIf)) {
+                ComprehensionIterator it = null;
+                var start = Peek.Span.Start;
+
+                if (TryRead(TokenKind.KeywordFor)) {
+                    it = new ComprehensionFor {
+                        Left = ParseAssignmentTarget()
+                    };
+                    Read(TokenKind.KeywordIn);
+                    ((ComprehensionFor)it).List = ParseSingleExpression(allowIfExpr: false, allowGenerator: false);
+                } else if (TryRead(TokenKind.KeywordIf)) {
+                    it = new ComprehensionIf {
+                        Test = ParseSingleExpression(allowIfExpr: false, allowGenerator: false)
+                    };
+                }
+
+                MaybeReadComment(it);
+                it.Span = new SourceSpan(start, Current.Span.End);
+                iterators.Add(it);
+            }
+            return iterators;
         }
 
         private void ReadCompoundStatement(CompoundStatement stmt) {
@@ -1131,6 +1359,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return new SourceSpan(start, end);
         }
 
+        private void MaybeReadComment(Node node) {
+            if (Peek.Is(TokenKind.Comment)) {
+                Debug.Assert(node.Comment == null, "Already read one comment");
+                node.Comment = ReadComment();
+            }
+            MaybeReadWhitespaceAfterNode(node);
+        }
+
+
+        private void MaybeReadWhitespaceAfterNode(Node node) {
+            if (Peek.Is(TokenKind.Whitespace)) {
+                Debug.Assert(node.AfterNode.Length == 0, "Already read whitespace");
+                node.AfterNode = ReadWhitespace();
+            }
+        }
+
         private CommentExpression ReadComment() {
             if (PeekNonWhitespace.Is(TokenCategory.Comment)) {
                 return new CommentExpression {
@@ -1151,6 +1395,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private T WithComment<T>(T target) where T : Node {
             target.Comment = ReadComment();
+            return target;
+        }
+
+        private T WithCommentAndWhitespace<T>(T target) where T : Node {
+            MaybeReadComment(target);
             return target;
         }
 

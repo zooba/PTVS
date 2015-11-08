@@ -26,7 +26,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     /// Top-level ast for all Python code.  Holds onto the body and the line mapping information.
     /// </summary>
     public sealed class PythonAst : ScopeStatement /*, ILocationResolver*/ {
-        private readonly Statement _body;
         private readonly Tokenization _tokenization;
         private readonly Dictionary<Node, Dictionary<object, object>> _attributes = new Dictionary<Node, Dictionary<object, object>>();
         private string _privatePrefix;
@@ -41,12 +40,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public PythonAst(
             Statement body,
             Tokenization tokenization
-        ) {
+        ) : base(TokenKind.Unknown) {
             if (body == null) {
                 throw new ArgumentNullException("body");
             }
             _tokenization = tokenization;
-            _body = body;
+            Body = body;
         }
 
         internal void SetErrors(ErrorResult[] errors) {
@@ -78,13 +77,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _body.Walk(walker);
+                Body.Walk(walker);
             }
             walker.PostWalk(this);
-        }
-
-        public override Statement Body {
-            get { return _body; }
         }
 
         public PythonLanguageVersion LanguageVersion {

@@ -19,36 +19,34 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class AugmentedAssignStatement : Statement {
-        private readonly PythonOperator _op;
-        private readonly Expression _left;
-        private readonly Expression _right;
+        private PythonOperator _op;
+        private Expression _left, _right;
 
-        public AugmentedAssignStatement(PythonOperator op, Expression left, Expression right) {
-            _op = op;
-            _left = left; 
-            _right = right;
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _left?.Freeze();
+            _right?.Freeze();
         }
 
         public PythonOperator Operator {
             get { return _op; }
+            set { ThrowIfFrozen(); _op = value; }
         }
 
         public Expression Left {
             get { return _left; }
+            set { ThrowIfFrozen(); _left = value; }
         }
 
         public Expression Right {
             get { return _right; }
+            set { ThrowIfFrozen(); _right = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_left != null) {
-                    _left.Walk(walker);
-                }
-                if (_right != null) {
-                    _right.Walk(walker);
-                }
+                _left?.Walk(walker);
+                _right?.Walk(walker);
             }
             walker.PostWalk(this);
         }
