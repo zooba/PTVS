@@ -56,5 +56,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             }
             walker.PostWalk(this);
         }
+
+        internal override string CheckName => "slice literal";
     }
 }

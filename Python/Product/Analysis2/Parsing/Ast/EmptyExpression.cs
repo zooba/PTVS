@@ -20,5 +20,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public EmptyExpression() { }
 
         public override void Walk(PythonWalker walker) { }
+
+        internal override string CheckName => "empty expression";
     }
 }

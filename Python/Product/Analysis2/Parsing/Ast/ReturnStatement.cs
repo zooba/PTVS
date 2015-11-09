@@ -15,25 +15,11 @@
 // permissions and limitations under the License.
 
 
-using System.Text;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class ReturnStatement : Statement {
-        private readonly Expression _expression;
-
-        public ReturnStatement(Expression expression) {
-            _expression = expression;
-        }
-
-        public Expression Expression {
-            get { return _expression; }
-        }
-
+    public class ReturnStatement : StatementWithExpression {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

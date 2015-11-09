@@ -42,19 +42,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             return base.ToString() + ":" + (Name ?? "(null)");
         }
 
-        internal override string CheckAssign() {
-            return null;
-        }
-
-        internal override string CheckDelete() {
-            return null;
-        }
-
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 _target?.Walk(walker);
             }
             walker.PostWalk(this);
         }
+
+        internal override string CheckName => null;
     }
 }

@@ -181,6 +181,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 if (inGroup == kind) {
                     _nesting.Pop();
                 }
+
+                if (kind.GetUsage() == TokenUsage.BeginStatement) {
+                    // Grouping has gone bad, so reset
+                    _nesting.Clear();
+                }
+
                 var endGroup = kind.GetGroupEnding();
                 if (endGroup != TokenKind.Unknown) {
                     _nesting.Push(endGroup);
@@ -315,21 +321,19 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         kind = TokenKind.LiteralBinary;
                     } else if (_version.Is2x()) {
                         // Numbers starting with '0' in Python 2.x are octal
-                        end += 1;
                         ReadWhile(line, ref end, OctalDigits);
-                        MaybeReadLongSuffix(line, ref end);
+                        kind = MaybeReadLongSuffix(line, TokenKind.LiteralOctal, ref end);
                         length = end - start;
-                        return TokenKind.LiteralOctal;
+                        return kind;
                     } else {
                         // Numbers starting with '0' in Python 3.x are zero
-                        end += 1;
                         ReadWhile(line, ref end, '0');
                         length = end - start;
                         return TokenKind.LiteralDecimal;
                     }
 
                     if (_version.Is2x()) {
-                        MaybeReadLongSuffix(line, ref end);
+                        kind = MaybeReadLongSuffix(line, kind, ref end);
                     }
                     length = end - start;
                     if (length <= 2) {
@@ -343,8 +347,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 ReadDecimals(line, ref end);
                 // Will change kind if necessary
                 kind = MaybeReadFloatingPoint(line, kind, ref end);
-                if (kind == TokenKind.LiteralDecimal && _version.Is2x()) {
-                    MaybeReadLongSuffix(line, ref end);
+                if (_version.Is2x()) {
+                    kind = MaybeReadLongSuffix(line, kind, ref end);
                 }
                 length = end - start;
                 return kind;
@@ -443,14 +447,17 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return kind;
         }
 
-        private static void MaybeReadLongSuffix(string line, ref int end) {
-            if (end >= line.Length) {
-                return;
+        private static TokenKind MaybeReadLongSuffix(string line, TokenKind kind, ref int end) {
+            if (end >= line.Length || kind != TokenKind.LiteralDecimal) {
+                return kind;
             }
 
             if (line[end] == 'l' || line[end] == 'L') {
                 end += 1;
+                kind = TokenKind.LiteralDecimalLong;
             }
+
+            return kind;
         }
 
         private static TokenKind MaybeReadExponent(string line, TokenKind kind, ref int end) {
@@ -566,7 +573,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private static readonly IReadOnlyList<Dictionary<char, TokenKind>> OperatorMap = CreateOperatorMap();
 
         private static Dictionary<char, TokenKind>[] CreateOperatorMap() {
-            var topLevelMap = new Dictionary<char, TokenKind>[4];
+            var topLevelMap = new Dictionary<char, TokenKind>[5];
 
             // c2 == '\0'
             topLevelMap[0] = new Dictionary<char, TokenKind> {
@@ -618,6 +625,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 { '>', TokenKind.RightShiftEqual },
             };
 
+            // c2 == '>'
+            topLevelMap[4] = new Dictionary<char, TokenKind> {
+                { '-', TokenKind.Arrow },
+                { '<', TokenKind.LessThanGreaterThan },
+            };
+
             return topLevelMap;
         }
 
@@ -632,11 +645,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var map = OperatorMap[0];
             operatorLength = 1;
 
-            if (c1 == '<' && c2 == '>') {
-                operatorLength = 2;
-                return TokenKind.LessThanGreaterThan;
-            }
-
             if (c2 == '=') {
                 map = OperatorMap[1];
                 operatorLength = 2;
@@ -648,6 +656,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     map = OperatorMap[2];
                     operatorLength = 2;
                 }
+            } else if (c2 == '>') {
+                map = OperatorMap[4];
+                operatorLength = 2;
             }
 
             return map.TryGetValue(c1, out result) ? result : defaultKind;
@@ -690,6 +701,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             { "True", TokenKind.KeywordTrue },
             { "False", TokenKind.KeywordFalse },
             { "nonlocal", TokenKind.KeywordNonlocal },
+            { "None", TokenKind.KeywordNone },
         };
 
         #endregion

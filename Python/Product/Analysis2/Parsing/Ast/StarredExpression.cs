@@ -40,12 +40,24 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             }
         }
 
-        internal override string CheckAssign() {
-            return null;
+        internal override void CheckAssign(Parser parser) {
+            if (!parser.HasStarUnpacking) {
+                parser.ReportError("invalid syntax", Span);
+            }
         }
 
-        internal override string CheckAugmentedAssign() {
-            return "invalid syntax";
+        internal override void CheckAugmentedAssign(Parser parser) {
+            parser.ReportError("illegal expression for augmented assignment", Span);
         }
+
+        internal override void CheckDelete(Parser parser) {
+            if (parser.HasGeneralUnpacking) {
+                parser.ReportError("can't use starred expression here", Span);
+            } else {
+                parser.ReportError("invalid syntax", Span);
+            }
+        }
+
+        internal override string CheckName => null;
     }
 }

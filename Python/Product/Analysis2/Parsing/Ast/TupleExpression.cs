@@ -22,11 +22,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class TupleExpression : SequenceExpression {
         public TupleExpression() { }
 
-        internal override string CheckAssign() {
+        internal override void CheckAssign(Parser parser) {
             if (Items.Count == 0) {
-                return "can't assign to ()";
+                parser.ReportError("can't assign to ()", Span);
+            } else {
+                base.CheckAssign(parser);
             }
-            return base.CheckAssign();
         }
 
         public override void Walk(PythonWalker walker) {

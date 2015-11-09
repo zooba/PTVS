@@ -15,6 +15,7 @@
 // permissions and limitations under the License.
 
 
+using System;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
@@ -43,8 +44,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             walker.PostWalk(this);
         }
 
-        internal override string CheckAugmentedAssign() {
-            return CheckAssign();
-        }
+        internal override string CheckName => "yield from expression";
     }
 }

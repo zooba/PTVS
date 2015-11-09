@@ -159,6 +159,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         KeywordTrue = 0x61 | TokenUsage.Primary | TokenCategory.Keyword,
         KeywordFalse = 0x62 | TokenUsage.Primary | TokenCategory.Keyword,
         KeywordNonlocal = 0x63 | TokenUsage.BeginStatement | TokenCategory.Keyword,
+        KeywordNone = 0x64 | TokenUsage.Primary | TokenCategory.Keyword,
 
         LiteralString = 0x70 | TokenUsage.None | TokenCategory.StringLiteral,
         LiteralBinary = 0x71 | TokenUsage.Primary | TokenCategory.NumericLiteral,
@@ -166,7 +167,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         LiteralHex = 0x73 | TokenUsage.Primary | TokenCategory.NumericLiteral,
         LiteralOctal = 0x74 | TokenUsage.Primary | TokenCategory.NumericLiteral,
         LiteralFloat = 0x75 | TokenUsage.Primary | TokenCategory.NumericLiteral,
-        LiteralImaginary = 0x76 | TokenUsage.Primary | TokenCategory.NumericLiteral
+        LiteralImaginary = 0x76 | TokenUsage.Primary | TokenCategory.NumericLiteral,
+        LiteralDecimalLong = 0x77 | TokenUsage.Primary | TokenCategory.NumericLiteral,
+        LiteralHexLong = 0x78 | TokenUsage.Primary | TokenCategory.NumericLiteral,
+        LiteralOctalLong = 0x79 | TokenUsage.Primary | TokenCategory.NumericLiteral
     }
 
     public static class TokenKindExtensions {

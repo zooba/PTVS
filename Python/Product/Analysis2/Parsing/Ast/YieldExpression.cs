@@ -23,27 +23,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     //    x = yield z
     // The return value (x) is provided by calling Generator.Send()
     public class YieldExpression : Expression {
-        private readonly Expression _expression;
+        private Expression _expression;
 
-        public YieldExpression(Expression expression) {
-            _expression = expression;
-        }
+        public YieldExpression() { }
 
         public Expression Expression {
             get { return _expression; }
+            set { ThrowIfFrozen(); _expression = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
+                _expression?.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
-        internal override string CheckAugmentedAssign() {
-            return CheckAssign();
-        }
+        internal override string CheckName => "yield expression";
     }
 }

@@ -74,13 +74,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             return false;
         }
 
-        internal override string CheckAssign() {
-            return "can't assign to function call";
-        }
-
-        internal override string CheckDelete() {
-            return "can't delete function call";
-        }
+        internal override string CheckName => "function call";
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {

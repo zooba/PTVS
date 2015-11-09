@@ -101,6 +101,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             }
             walker.PostWalk(this);
         }
+
+        internal override string CheckName => "list comprehension";
     }
 
     public sealed class SetComprehension : Comprehension {
@@ -124,6 +126,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             }
             walker.PostWalk(this);
         }
+
+        internal override string CheckName => "set comprehension";
     }
 
     public sealed class DictionaryComprehension : Comprehension {
@@ -152,5 +156,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             }
             walker.PostWalk(this);
         }
+
+        internal override string CheckName => "set comprehension";
     }
 }

@@ -32,16 +32,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _value = value; }
         }
 
-        internal override string CheckAssign() {
+        internal override string CheckName => "literal";
+
+        internal override void CheckAssign(Parser parser) {
             if (_value == null) {
-                return "assignment to None";
+                parser.ReportError("assignment to None", Span);
+                return;
             }
 
-            return "can't assign to literal";
-        }
-
-        internal override string CheckDelete() {
-            return "can't delete literal";
+            base.CheckAssign(parser);
         }
 
         public override void Walk(PythonWalker walker) {

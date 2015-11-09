@@ -15,9 +15,6 @@
 // permissions and limitations under the License.
 
 
-using System.Collections.Generic;
-using System.Text;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public sealed class GeneratorExpression : Comprehension {
         private Expression _item;
@@ -27,23 +24,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _item = value; }
         }
 
-        internal override string CheckAssign() {
-            return "can't assign to generator expression";
-        }
-
-        internal override string CheckAugmentedAssign() {
-            return CheckAssign();
-        }
-
-        internal override string CheckDelete() {
-            return "can't delete generator expression";
-        }
+        internal override string CheckName => "generator expression";
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_item != null) {
-                    _item.Walk(walker);
-                }
+                _item?.Walk(walker);
 
                 if (Iterators != null) {
                     foreach (ComprehensionIterator ci in Iterators) {

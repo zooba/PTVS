@@ -16,7 +16,6 @@
 
 
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class SequenceExpression : Expression {
@@ -41,36 +40,23 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             _items.Add(expr);
         }
 
-        internal override string CheckAssign() {
+        internal override void CheckAssign(Parser parser) {
             for (int i = 0; i < Items.Count; i++) {
-                Expression e = Items[i];
-                if (e.CheckAssign() != null) {
-                    // we don't return the same message here as CPython doesn't seem to either, 
-                    // for example ((yield a), 2,3) = (2,3,4) gives a different error than
-                    // a = yield 3 = yield 4.
-                    return "can't assign to " + e.GetType().Name;
-                }
+                Items[i].CheckAssign(parser);
             }
-            return null;
-
         }
 
-        internal override string CheckDelete() {
+        internal override void CheckDelete(Parser parser) {
             for (int i = 0; i < Items.Count; i++) {
-                Expression e = Items[i];
-                if (e.CheckDelete() != null) {
-                    // we don't return the same message here as CPython doesn't seem to either, 
-                    // for example ((yield a), 2,3) = (2,3,4) gives a different error than
-                    // a = yield 3 = yield 4.
-                    return "can't delete " + e.GetType().Name;
-                }
+                Items[i].CheckDelete(parser);
             }
-            return null;
         }
 
-        internal override string CheckAugmentedAssign() {
-            return "illegal expression for augmented assignment";
+        internal override void CheckAugmentedAssign(Parser parser) {
+            parser.ReportError("illegal expression for augmented assignment", Span);
         }
+
+        internal override string CheckName => null;
 
         private static bool IsComplexAssignment(Expression expr) {
             return !(expr is NameExpression);

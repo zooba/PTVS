@@ -24,6 +24,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         protected Statement _body;
         private NameExpression _name;
         private ParameterList _parameters;
+        private SourceSpan _beforeReturnAnnotation;
         private Expression _returnAnnotation;
         private DecoratorStatement _decorators;
         private bool _generator, _coroutine;
@@ -48,6 +49,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         internal override int ArgCount => _parameters?.Parameters?.Count ?? 0;
+
+        public SourceSpan BeforeReturnAnnotation {
+            get { return _beforeReturnAnnotation; }
+            set { ThrowIfFrozen(); _beforeReturnAnnotation = value; }
+        }
 
         public Expression ReturnAnnotation {
             get { return _returnAnnotation; }

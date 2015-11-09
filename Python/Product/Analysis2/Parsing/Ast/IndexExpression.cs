@@ -40,13 +40,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _indices = value; }
         }
 
-        internal override string CheckAssign() {
-            return null;
-        }
-
-        internal override string CheckDelete() {
-            return null;
-        }
+        internal override string CheckName => null;
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {

@@ -44,7 +44,7 @@ namespace AnalysisTests {
             PythonTestData.Deploy(includeTestData: false);
         }
 
-        internal static readonly PythonLanguageVersion[] AllVersions = new[] { PythonLanguageVersion.V24, PythonLanguageVersion.V25, PythonLanguageVersion.V26, PythonLanguageVersion.V27, PythonLanguageVersion.V30, PythonLanguageVersion.V31, PythonLanguageVersion.V32, PythonLanguageVersion.V33, PythonLanguageVersion.V34, PythonLanguageVersion.V35 };
+        internal static readonly PythonLanguageVersion[] AllVersions = new[] { PythonLanguageVersion.V25, PythonLanguageVersion.V26, PythonLanguageVersion.V27, PythonLanguageVersion.V30, PythonLanguageVersion.V31, PythonLanguageVersion.V32, PythonLanguageVersion.V33, PythonLanguageVersion.V34, PythonLanguageVersion.V35 };
         internal static readonly PythonLanguageVersion[] V25AndUp = AllVersions.Where(v => v >= PythonLanguageVersion.V25).ToArray();
         internal static readonly PythonLanguageVersion[] V26AndUp = AllVersions.Where(v => v >= PythonLanguageVersion.V26).ToArray();
         internal static readonly PythonLanguageVersion[] V27AndUp = AllVersions.Where(v => v >= PythonLanguageVersion.V27).ToArray();
@@ -89,73 +89,6 @@ namespace AnalysisTests {
                     new ErrorInfo("no binding for nonlocal '__class__' found", 23, 2, 14, 32, 2, 23)
                 );
             }
-
-            ParseErrors("AllErrors.py",
-                PythonLanguageVersion.V24,
-                new ErrorInfo("future statement does not support import *", 0, 1, 1, 24, 1, 25),
-                new ErrorInfo("future feature is not defined: *", 0, 1, 1, 24, 1, 25),
-                new ErrorInfo("not a chance", 26, 2, 1, 55, 2, 30),
-                new ErrorInfo("future feature is not defined: unknown", 57, 3, 1, 87, 3, 31),
-                new ErrorInfo("default value must be specified here", 106, 5, 16, 107, 5, 17),
-                new ErrorInfo("non-keyword arg after keyword arg", 134, 8, 12, 135, 8, 13),
-                new ErrorInfo("only one * allowed", 147, 9, 10, 149, 9, 12),
-                new ErrorInfo("only one ** allowed", 162, 10, 11, 165, 10, 14),
-                new ErrorInfo("keywords must come before ** args", 180, 11, 13, 186, 11, 19),
-                new ErrorInfo("unexpected token 'pass'", 197, 14, 1, 201, 14, 5),
-                new ErrorInfo("unexpected token '42'", 217, 17, 11, 219, 17, 13),
-                new ErrorInfo("unexpected token '42'", 251, 20, 10, 253, 20, 12),
-                new ErrorInfo("'break' outside loop", 278, 25, 1, 283, 25, 6),
-                new ErrorInfo("'continue' not properly in loop", 285, 26, 1, 293, 26, 9),
-                new ErrorInfo("print statement expected expression to be printed", 297, 28, 1, 311, 28, 15),
-                new ErrorInfo("'continue' not supported inside 'finally' clause", 374, 34, 9, 382, 34, 17),
-                new ErrorInfo("expected expression after del", 386, 36, 1, 389, 36, 4),
-                new ErrorInfo("can't delete binary operator", 396, 37, 5, 399, 37, 8),
-                new ErrorInfo("can't delete unary operator", 405, 38, 5, 407, 38, 7),
-                new ErrorInfo("can't delete or expression", 413, 39, 5, 421, 39, 13),
-                new ErrorInfo("can't delete and expression", 427, 40, 5, 436, 40, 14),
-                new ErrorInfo("can't delete dictionary display", 442, 41, 5, 444, 41, 7),
-                new ErrorInfo("can't delete literal", 450, 42, 5, 454, 42, 9),
-                new ErrorInfo("can't delete literal", 460, 43, 5, 464, 43, 9),
-                new ErrorInfo("can't assign to literal", 468, 45, 1, 472, 45, 5),
-                new ErrorInfo("can't assign to literal", 482, 46, 1, 486, 46, 5),
-                new ErrorInfo("'return' outside function", 498, 48, 1, 504, 48, 7),
-                new ErrorInfo("'return' with argument inside generator", 539, 53, 5, 548, 53, 14),
-                new ErrorInfo("misplaced yield", 552, 55, 1, 557, 55, 6),
-                new ErrorInfo("'return' with argument inside generator", 581, 59, 5, 590, 59, 14),
-                new ErrorInfo("'return' with argument inside generator", 596, 60, 5, 606, 60, 15),
-                new ErrorInfo("invalid syntax", 657, 68, 5, 658, 68, 6),
-                new ErrorInfo("invalid syntax", 661, 68, 9, 662, 68, 10),
-                new ErrorInfo("illegal expression for augmented assignment", 674, 70, 1, 676, 70, 3),
-                new ErrorInfo("missing module name", 692, 72, 6, 698, 72, 12),
-                new ErrorInfo("from __future__ imports must occur at the beginning of the file", 749, 78, 1, 780, 78, 32),
-                new ErrorInfo("unexpected token 'blazzz'", 797, 82, 10, 803, 82, 16),
-                new ErrorInfo("invalid syntax, from cause not allowed in 2.x.", 837, 87, 11, 845, 87, 19),
-                new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 861, 93, 1, 866, 93, 6),
-                new ErrorInfo("invalid syntax, parameter annotations require 3.x", 890, 96, 8, 894, 96, 12),
-                new ErrorInfo("default value must be specified here", 924, 99, 15, 925, 99, 16),
-                new ErrorInfo("positional parameter after * args not allowed", 953, 102, 13, 959, 102, 19),
-                new ErrorInfo("duplicate * args arguments", 987, 105, 13, 988, 105, 14),
-                new ErrorInfo("duplicate * args arguments", 1017, 108, 13, 1018, 108, 14),
-                new ErrorInfo("unexpected token ','", 1045, 111, 11, 1046, 111, 12),
-                new ErrorInfo("unexpected token '42'", 1107, 117, 11, 1109, 117, 13),
-                new ErrorInfo("duplicate argument 'abc' in function definition", 1143, 120, 12, 1146, 120, 15),
-                new ErrorInfo("duplicate argument 'abc' in function definition", 1177, 123, 16, 1180, 123, 19),
-                new ErrorInfo("unexpected token '42'", 1208, 127, 7, 1210, 127, 9),
-                new ErrorInfo("default 'except' must be last", 1242, 132, 1, 1248, 132, 7),
-                new ErrorInfo("'as' requires Python 2.6 or later", 1328, 139, 18, 1330, 139, 20),
-                new ErrorInfo("invalid syntax", 1398, 147, 2, 1403, 147, 7),
-                new ErrorInfo("invalid syntax", 1404, 147, 8, 1409, 147, 13),
-                new ErrorInfo("unexpected token 'b'", 1417, 148, 7, 1418, 148, 8),
-                new ErrorInfo("invalid syntax", 1431, 149, 7, 1433, 149, 9),
-                new ErrorInfo("invalid syntax", 1431, 149, 7, 1433, 149, 9),
-                new ErrorInfo("invalid syntax", 1436, 150, 2, 1441, 150, 7),
-                new ErrorInfo("invalid syntax", 1442, 150, 8, 1444, 150, 10),
-                new ErrorInfo("invalid syntax", 1451, 152, 4, 1453, 152, 6),
-                new ErrorInfo("expected name", 1459, 154, 3, 1461, 154, 5),
-                new ErrorInfo("unexpected token '42'", 1476, 156, 7, 1478, 156, 9),
-                new ErrorInfo("invalid syntax, set literals require Python 2.7 or later.", 1511, 160, 12, 1512, 160, 13),
-                new ErrorInfo("invalid syntax, set literals require Python 2.7 or later.", 1521, 161, 7, 1522, 161, 8)
-            );
 
             ParseErrors("AllErrors.py",
                 PythonLanguageVersion.V25,
@@ -1048,17 +981,11 @@ namespace AnalysisTests {
                     ParseFileNoErrors("ForStmt.py", version),
                     CheckSuite(
                         CheckForStmt(Fob, Oar, CheckSuite(Pass)),
-                        Empty,
                         CheckForStmt(CheckTupleExpr(Fob, Oar), Baz, CheckSuite(Pass)),
-                        Empty,
                         CheckForStmt(Fob, Oar, CheckSuite(Pass), CheckSuite(Pass)),
-                        Empty,
                         CheckForStmt(Fob, Oar, CheckSuite(Break)),
-                        Empty,
                         CheckForStmt(Fob, Oar, CheckSuite(Continue)),
-                        Empty,
                         CheckForStmt(CheckListExpr(CheckListExpr(Fob), CheckListExpr(Oar)), Baz, CheckSuite(Pass)),
-                        Empty,
                         CheckForStmt(CheckParenExpr(CheckTupleExpr(CheckParenExpr(Fob), CheckParenExpr(Oar))), Baz, CheckSuite(Pass))
                     )
                 );
@@ -1072,11 +999,8 @@ namespace AnalysisTests {
                     ParseFileNoErrors("WithStmt.py", version),
                     CheckSuite(
                         CheckWithStmt(Fob, CheckSuite(Pass)),
-                        Empty,
                         CheckWithStmt(CheckAsExpression(Fob, Oar), CheckSuite(Pass)),
-                        Empty,
                         CheckWithStmt(CheckTupleExpr(Fob, Oar), CheckSuite(Pass)),
-                        Empty,
                         CheckWithStmt(CheckTupleExpr(
                             CheckAsExpression(Fob, Oar),
                             CheckAsExpression(Baz, Quox)
@@ -1192,14 +1116,6 @@ namespace AnalysisTests {
                     )
                 );
             }
-
-            ParseErrors("YieldExpr.py", PythonLanguageVersion.V24,
-                new ErrorInfo("invalid syntax", 19, 2, 10, 21, 3, 1),
-                new ErrorInfo("unexpected token 'yield'", 43, 5, 11, 48, 5, 16)
-                // [(yield oar) for ...] should be an error, but it is not raised.
-                // V24 is not supported by PTVS, so don't fail the test because of this.
-                //new ErrorInfo("unexpected token 'yield'", 74, 8, 13, 79, 8, 18)
-            );
         }
 
         [TestMethod, Priority(1)]
@@ -1265,9 +1181,6 @@ namespace AnalysisTests {
         [TestMethod, Priority(1)]
         public void YieldFromStmtIllegal() {
             foreach (var version in V25_V27Versions.Concat(V30_V32Versions)) {
-                if (version == PythonLanguageVersion.V24) {
-                    continue;
-                }
                 ParseErrors("YieldFromStmtIllegal.py", version,
                     new ErrorInfo("misplaced yield", 0, 1, 1, 5, 1, 6),
                     new ErrorInfo("invalid syntax", 6, 1, 7, 10, 1, 11),
@@ -1351,8 +1264,6 @@ namespace AnalysisTests {
                                 )
                             )
                         ),
-                        Empty,
-                        Empty,
                         CheckFuncDef("g", NoParameters,
                             CheckSuite(
                                 CheckFuncDef("f", NoParameters,
@@ -1360,12 +1271,9 @@ namespace AnalysisTests {
                                         CheckNonlocal("fob")
                                     )
                                 ),
-                                Empty,
                                 CheckAssignment(Fob, One)
                             )
                         ),
-                        Empty,
-                        Empty,
                         CheckFuncDef("f", NoParameters,
                             CheckSuite(
                                 CheckClassDef("C",
@@ -1377,7 +1285,6 @@ namespace AnalysisTests {
                                 CheckAssignment(Fob, Two)
                             )
                         ),
-                        Empty,
                         CheckClassDef("X",
                             CheckSuite(
                                 CheckFuncDef("f", new[] { CheckParameter("x") },
@@ -1425,7 +1332,6 @@ namespace AnalysisTests {
                     ParseFileNoErrors("WhileStmt.py", version),
                     CheckSuite(
                         CheckWhileStmt(One, CheckSuite(Pass)),
-                        Empty,
                         CheckWhileStmt(One, CheckSuite(Pass), CheckSuite(Pass))
                     )
                 );
@@ -1442,8 +1348,6 @@ namespace AnalysisTests {
                             CheckSuite(Pass),
                             CheckHandler(null, CheckSuite(Pass))
                         ),
-                        Empty,
-                        Empty,
                         CheckTryStmt(
                             CheckSuite(Pass),
                             CheckHandler(Exception, CheckSuite(Pass))
@@ -1713,11 +1617,7 @@ namespace AnalysisTests {
                     ParseFileNoErrors("IfStmt.py", version),
                     CheckSuite(
                         CheckIfStmt(CheckIf(One, CheckSuite(Pass))),
-                        Empty,
-                        Empty,
                         CheckIfStmt(CheckIf(One, CheckSuite(Pass)), CheckIf(Two, CheckSuite(Pass))),
-                        Empty,
-                        Empty,
                         CheckIfStmt(CheckIf(One, CheckSuite(Pass)), CheckElse(CheckSuite(Pass)))
                     )
                 );
@@ -1939,7 +1839,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void FuncDef() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1959,7 +1859,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void FuncDefV2() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -1972,12 +1872,12 @@ namespace AnalysisTests {
 
             foreach (var version in V3Versions) {
                 ParseErrors("FuncDefV2.py", version,
-                    new ErrorInfo("sublist parameters are not supported in 3.x", 9, 1, 10, 14, 1, 15)
+                    new ErrorInfo("sublist parameters are not supported in 3.x", 10, 1, 11, 14, 1, 15)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void FuncDefV3() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -1996,7 +1896,7 @@ namespace AnalysisTests {
                         CheckFuncDef("f", new[] { CheckParameter("a", annotation: One) }, CheckSuite(Pass), returnAnnotation: One),
 
                         CheckFuncDef("f", new[] { CheckParameter("a", defaultValue: Two, annotation: One) }, CheckSuite(Pass)),
-                        CheckFuncDef("f", new[] { CheckParameter("a", ParameterKind.KeywordOnly) }, CheckSuite(Pass))
+                        CheckFuncDef("f", new[] { CheckParameter(null, ParameterKind.List), CheckParameter("a", ParameterKind.KeywordOnly) }, CheckSuite(Pass))
 
                     )
                 );
@@ -2005,44 +1905,33 @@ namespace AnalysisTests {
             foreach (var version in V2Versions) {
                 ParseErrors("FuncDefV3.py", version,
                     new ErrorInfo("positional parameter after * args not allowed", 10, 1, 11, 11, 1, 12),
-                    new ErrorInfo("positional parameter after * args not allowed", 30, 2, 11, 35, 2, 16),
-                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 53, 4, 8, 56, 4, 11),
-                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 72, 5, 8, 74, 5, 10),
-                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 93, 6, 9, 95, 6, 11),
-                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 113, 7, 8, 116, 7, 11),
-                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 119, 7, 14, 121, 7, 16),
-                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 127, 7, 22, 129, 7, 24),
-                    new ErrorInfo("unexpected token '-'", 151, 9, 9, 152, 9, 10),
-                    new ErrorInfo("unexpected token '>'", 152, 9, 10, 153, 9, 11),
-                    new ErrorInfo("invalid syntax", 154, 9, 12, 155, 9, 13),
-                    new ErrorInfo("unexpected token ':'", 155, 9, 13, 156, 9, 14),
-                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 172, 11, 8, 175, 11, 11),
-                    new ErrorInfo("unexpected token '-'", 177, 11, 13, 178, 11, 14),
-                    new ErrorInfo("unexpected token '>'", 178, 11, 14, 179, 11, 15),
-                    new ErrorInfo("invalid syntax", 180, 11, 16, 181, 11, 17),
-                    new ErrorInfo("unexpected token ':'", 181, 11, 17, 182, 11, 18),
-                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 198, 13, 8, 201, 13, 11),
-                    new ErrorInfo("unexpected token ','", 223, 15, 8, 224, 15, 9),
-                    new ErrorInfo("unexpected token 'a'", 225, 15, 10, 226, 15, 11),
-                    new ErrorInfo("unexpected token 'a'", 225, 15, 10, 226, 15, 11),
-                    new ErrorInfo("unexpected token ')'", 226, 15, 11, 227, 15, 12),
-                    new ErrorInfo("unexpected token ':'", 227, 15, 12, 228, 15, 13)
+                    new ErrorInfo("positional parameter after * args not allowed", 30, 2, 11, 31, 2, 12),
+                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 55, 4, 10, 56, 4, 11),
+                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 75, 5, 11, 76, 5, 12),
+                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 96, 6, 12, 97, 6, 13),
+                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 115, 7, 10, 116, 7, 11),
+                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 122, 7, 17, 123, 7, 18),
+                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 130, 7, 25, 131, 7, 26),
+                    new ErrorInfo("invalid syntax, function annotations require 3.x", 154, 9, 12, 155, 9, 13),
+                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 174, 11, 10, 175, 11, 11),
+                    new ErrorInfo("invalid syntax, function annotations require 3.x", 180, 11, 16, 181, 11, 17),
+                    new ErrorInfo("invalid syntax, parameter annotations require 3.x", 200, 13, 10, 201, 13, 11),
+                    new ErrorInfo("positional parameter after * args not allowed", 225, 15, 10, 226, 15, 11)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void FuncDefV3Illegal() {
             foreach (var version in V3Versions) {
                 ParseErrors("FuncDefV3Illegal.py", version,
-                    new ErrorInfo("unexpected token ')'", 7, 1, 8, 8, 1, 9),
-                    new ErrorInfo("unexpected token ':'", 8, 1, 9, 9, 1, 10),
-                    new ErrorInfo("named arguments must follow bare *", 22, 2, 7, 26, 2, 11)
+                    new ErrorInfo("named arguments must follow bare *", 6, 1, 7, 7, 1, 8),
+                    new ErrorInfo("named arguments must follow bare *", 22, 2, 7, 23, 2, 8)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void CoroutineDef() {
             foreach (var version in V35AndUp) {
                 CheckAst(
@@ -2056,25 +1945,17 @@ namespace AnalysisTests {
                 );
 
                 ParseErrors("CoroutineDefIllegal.py", version,
-                    new ErrorInfo("'yield' inside async function", 20, 2, 5, 25, 2, 10),
-                    new ErrorInfo("'yield' inside async function", 40, 3, 9, 45, 3, 14),
-                    new ErrorInfo("unexpected token 'for'", 74, 6, 11, 77, 6, 14),
-                    new ErrorInfo("unexpected token ':'", 88, 6, 25, 89, 6, 26),
-                    new ErrorInfo("unexpected token '<newline>'", 89, 6, 26, 99, 7, 9),
-                    new ErrorInfo("unexpected token '<indent>'", 89, 6, 26, 99, 7, 9),
-                    new ErrorInfo("unexpected token '<dedent>'", 105, 8, 1, 107, 9, 1),
-                    new ErrorInfo("unexpected token 'async'", 107, 9, 1, 112, 9, 6),
-                    new ErrorInfo("unexpected token 'with'", 162, 13, 11, 166, 13, 15),
-                    new ErrorInfo("unexpected token ':'", 170, 13, 19, 171, 13, 20),
-                    new ErrorInfo("unexpected token '<newline>'", 171, 13, 20, 181, 14, 9),
-                    new ErrorInfo("unexpected token '<indent>'", 171, 13, 20, 181, 14, 9),
-                    new ErrorInfo("unexpected token '<dedent>'", 187, 15, 1, 189, 16, 1),
-                    new ErrorInfo("unexpected token 'async'", 189, 16, 1, 194, 16, 6)
+                    new ErrorInfo("'yield' in async function", 20, 2, 5, 25, 2, 10),
+                    new ErrorInfo("'yield' in async function", 40, 3, 9, 45, 3, 14),
+                    new ErrorInfo("'async for' outside of async function", 68, 6, 5, 73, 6, 10),
+                    new ErrorInfo("'async for' outside of async function", 107, 9, 1, 112, 9, 6),
+                    new ErrorInfo("'async with' outside of async function", 156, 13, 5, 161, 13, 10),
+                    new ErrorInfo("'async with' outside of async function", 189, 16, 1, 194, 16, 6)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void ClassDef() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2085,9 +1966,9 @@ namespace AnalysisTests {
                         CheckClassDef("C", CheckSuite(Pass), new[] { CheckArg("list"), CheckArg("object") }),
                         CheckClassDef("C",
                             CheckSuite(
-                                CheckClassDef("_C__D",
+                                CheckClassDef(n => { Assert.AreEqual("__D", n.Name); Assert.AreEqual("_C", n.Prefix); },
                                     CheckSuite(
-                                        CheckClassDef("_D__E",
+                                        CheckClassDef(n => { Assert.AreEqual("__E", n.Name); Assert.AreEqual("_D", n.Prefix); },
                                             CheckSuite(Pass)
                                         )
                                     )
@@ -2154,7 +2035,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AssignStmt2x() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -2167,7 +2048,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AssignStmt25() {
             foreach (var version in V25AndUp) {
                 CheckAst(
@@ -2184,16 +2065,9 @@ namespace AnalysisTests {
                     )
                 );
             }
-
-            ParseErrors("AssignStmt25.py", PythonLanguageVersion.V24,
-                new ErrorInfo("unexpected token 'yield'", 20, 2, 11, 25, 2, 16),
-                new ErrorInfo("invalid syntax", 26, 2, 17, 27, 2, 18),
-                new ErrorInfo("unexpected token 'yield'", 40, 3, 12, 45, 3, 17),
-                new ErrorInfo("invalid syntax", 46, 3, 18, 47, 3, 19)
-            );
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AssignStmtV3() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -2209,15 +2083,15 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 ParseErrors("AssignStmtV3.py", version,
-                    new ErrorInfo("invalid syntax", 1, 1, 2, 4, 1, 5),
-                    new ErrorInfo("invalid syntax", 35, 2, 7, 38, 2, 10),
-                    new ErrorInfo("invalid syntax", 65, 3, 8, 68, 3, 11),
-                    new ErrorInfo("invalid syntax", 91, 4, 3, 94, 4, 6)
+                    new ErrorInfo("invalid syntax", 0, 1, 1, 4, 1, 5),
+                    new ErrorInfo("invalid syntax", 34, 2, 6, 38, 2, 10),
+                    new ErrorInfo("invalid syntax", 64, 3, 7, 68, 3, 11),
+                    new ErrorInfo("invalid syntax", 90, 4, 2, 94, 4, 6)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AssignStmtIllegalV3() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -2230,13 +2104,13 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 ParseErrors("AssignStmtIllegalV3.py", version,
-                    new ErrorInfo("invalid syntax", 6, 1, 7, 9, 1, 10),
-                    new ErrorInfo("invalid syntax", 12, 1, 13, 15, 1, 16)
+                    new ErrorInfo("invalid syntax", 5, 1, 6, 9, 1, 10),
+                    new ErrorInfo("invalid syntax", 11, 1, 12, 15, 1, 16)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AssignStmtIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2246,11 +2120,11 @@ namespace AnalysisTests {
                         CheckAssignment(CheckCallExpression(Fob), One),
                         CheckAssignment(None, One),
                         CheckAssignment(Two, One),
-                        CheckAssignment(CheckGeneratorComp(Fob, CompFor(Fob, Oar)), One),
+                        CheckAssignment(CheckParenExpr(CheckGeneratorComp(Fob, CompFor(Fob, Oar))), One),
                         CheckAssignment(CheckTupleExpr(Fob, Oar), PythonOperator.Add, One),
                         CheckFuncDef("f", NoParameters,
                             CheckSuite(
-                                CheckAssignment(CheckYieldExpr(Fob), One)
+                                CheckAssignment(CheckParenExpr(CheckYieldExpr(Fob)), One)
                             )
                         )
                     )
@@ -2259,18 +2133,18 @@ namespace AnalysisTests {
 
             foreach (var version in AllVersions) {
                 ParseErrors("AssignStmtIllegal.py", version,
-                    new ErrorInfo("can't assign to binary operator", 0, 1, 1, 9, 1, 10),
+                    new ErrorInfo("can't assign to operator", 0, 1, 1, 9, 1, 10),
                     new ErrorInfo("can't assign to function call", 15, 2, 1, 20, 2, 6),
                     new ErrorInfo("assignment to None", 26, 3, 1, 30, 3, 5),
                     new ErrorInfo("can't assign to literal", 36, 4, 1, 37, 4, 2),
-                    new ErrorInfo("can't assign to generator expression", 43, 5, 1, 63, 5, 21),
+                    new ErrorInfo("can't assign to generator expression", 44, 5, 2, 62, 5, 20),
                     new ErrorInfo("illegal expression for augmented assignment", 69, 6, 1, 77, 6, 9),
-                    new ErrorInfo("can't assign to yield expression", 98, 8, 5, 109, 8, 16)
+                    new ErrorInfo("can't assign to yield expression", 99, 8, 6, 108, 8, 15)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AwaitStmt() {
             var AwaitFob = CheckAwaitExpression(Fob);
             foreach (var version in V35AndUp) {
@@ -2289,29 +2163,28 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AwaitStmtPreV35() {
             foreach (var version in AllVersions.Except(V35AndUp)) {
                 ParseErrors("AwaitStmt.py", version,
-                    new ErrorInfo("unexpected token 'def'", 6, 1, 7, 9, 1, 10),
-                    new ErrorInfo("unexpected token ':'", 16, 1, 17, 17, 1, 18),
-                    new ErrorInfo("unexpected indent", 23, 2, 5, 28, 2, 10),
-                    new ErrorInfo("unexpected token 'fob'", 29, 2, 11, 32, 2, 14),
-                    new ErrorInfo("unexpected token 'fob'", 44, 3, 11, 47, 3, 14),
-                    new ErrorInfo("unexpected token 'fob'", 62, 4, 12, 65, 4, 15),
-                    new ErrorInfo("unexpected token 'fob'", 62, 4, 12, 65, 4, 15),
-                    new ErrorInfo("unexpected token ')'", 65, 4, 15, 66, 4, 16),
-                    new ErrorInfo("unexpected token '('", 66, 4, 16, 67, 4, 17),
-                    new ErrorInfo("unexpected token ')'", 67, 4, 17, 68, 4, 18),
-                    new ErrorInfo("unexpected token 'fob'", 84, 5, 15, 87, 5, 18),
-                    new ErrorInfo("unexpected token 'fob'", 104, 6, 16, 107, 6, 19),
-                    new ErrorInfo("unexpected token 'fob'", 125, 7, 17, 128, 7, 20),
-                    new ErrorInfo("unexpected token '<dedent>'", 128, 7, 20, 130, 8, 1)
+                    new ErrorInfo("invalid syntax", 0, 1, 1, 17, 1, 18),
+                    new ErrorInfo("unexpected indent", 19, 2, 1, 23, 2, 5),
+                    new ErrorInfo("invalid syntax", 29, 2, 11, 32, 2, 14),
+                    new ErrorInfo("unexpected indent", 34, 3, 1, 38, 3, 5),
+                    new ErrorInfo("invalid syntax", 44, 3, 11, 49, 3, 16),
+                    new ErrorInfo("unexpected indent", 51, 4, 1, 55, 4, 5),
+                    new ErrorInfo("invalid syntax", 62, 4, 12, 68, 4, 18),
+                    new ErrorInfo("unexpected indent", 70, 5, 1, 74, 5, 5),
+                    new ErrorInfo("invalid syntax", 84, 5, 15, 87, 5, 18),
+                    new ErrorInfo("unexpected indent", 89, 6, 1, 93, 6, 5),
+                    new ErrorInfo("invalid syntax", 104, 6, 16, 107, 6, 19),
+                    new ErrorInfo("unexpected indent", 109, 7, 1, 113, 7, 5),
+                    new ErrorInfo("invalid syntax", 125, 7, 17, 128, 7, 20)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AwaitAsyncNames() {
             var Async = CheckNameExpr("async");
             var Await = CheckNameExpr("await");
@@ -2343,25 +2216,24 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void AwaitStmtIllegal() {
-            //foreach (var version in V35AndUp) {
-            //    CheckAst(
-            //        ParseFileNoErrors("AwaitStmtIllegal.py", version),
-            //        CheckSuite(
-            //        )
-            //    );
-            //}
+            foreach (var version in V35AndUp) {
+                CheckAst(
+                    ParseFileIgnoreErrors("AwaitStmtIllegal.py", version),
+                    CheckSuite(
+                        CheckErrorStmt(),
+                        CheckFuncDef("quox", NoParameters, CheckSuite(CheckErrorStmt())),
+                        CheckClassDef("quox", CheckSuite(CheckErrorStmt()))
+                    )
+                );
+            }
 
             foreach (var version in V35AndUp) {
                 ParseErrors("AwaitStmtIllegal.py", version,
                     new ErrorInfo("invalid syntax", 6, 1, 7, 10, 1, 11),
-                    new ErrorInfo("unexpected token 'fob'", 37, 4, 11, 40, 4, 14),
-                    new ErrorInfo("unexpected token '<newline>'", 40, 4, 14, 42, 5, 1),
-                    new ErrorInfo("unexpected token '<NL>'", 42, 5, 1, 44, 6, 1),
-                    new ErrorInfo("unexpected token 'fob'", 67, 7, 11, 70, 7, 14),
-                    new ErrorInfo("unexpected token '<newline>'", 70, 7, 14, 72, 8, 1),
-                    new ErrorInfo("unexpected token '<NL>'", 72, 8, 1, 74, 9, 1)
+                    new ErrorInfo("invalid syntax", 37, 4, 11, 40, 4, 14),
+                    new ErrorInfo("invalid syntax", 67, 7, 11, 70, 7, 14)
                 );
             }
         }
@@ -2442,22 +2314,15 @@ namespace AnalysisTests {
                     )
                 );
 
-                if (version == PythonLanguageVersion.V24) {
-                    ParseErrors("FromFuture25.py", version,
-                        new ErrorInfo("future feature is not defined: with_statement", 0, 1, 1, 37, 1, 38),
-                        new ErrorInfo("future feature is not defined: absolute_import", 39, 2, 1, 77, 2, 39)
-                    );
-                } else {
-                    CheckAst(
-                        ParseFileNoErrors("FromFuture25.py", version),
-                        CheckSuite(
-                            CheckFromImport("__future__", new[] { "with_statement" }),
-                            CheckFromImport("__future__", new[] { "absolute_import" })
-                        )
-                    );
-                }
+                CheckAst(
+                    ParseFileNoErrors("FromFuture25.py", version),
+                    CheckSuite(
+                        CheckFromImport("__future__", new[] { "with_statement" }),
+                        CheckFromImport("__future__", new[] { "absolute_import" })
+                    )
+                );
 
-                if (version == PythonLanguageVersion.V24 || version == PythonLanguageVersion.V25) {
+                if (version == PythonLanguageVersion.V25) {
                     ParseErrors("FromFuture26.py", version,
                         new ErrorInfo("future feature is not defined: print_function", 0, 1, 1, 37, 1, 38),
                         new ErrorInfo("future feature is not defined: unicode_literals", 39, 2, 1, 78, 2, 40)
@@ -2723,21 +2588,18 @@ namespace AnalysisTests {
             return stmt => {
                 Assert.IsInstanceOfType(stmt, typeof(SuiteStatement));
                 SuiteStatement suite = (SuiteStatement)stmt;
-                int max = suite.Statements.Count;
-                while (max > 0 && suite.Statements[max - 1] is EmptyStatement) {
-                    max -= 1;
-                }
-                for (int i = 0; i < max && i < statements.Length; i++) {
+                var suiteStatements = suite.Statements.Where(s => !(s is EmptyStatement)).ToList();
+                for (int i = 0; i < suiteStatements.Count && i < statements.Length; i++) {
                     try {
-                        statements[i](suite.Statements[i]);
+                        statements[i](suiteStatements[i]);
                     } catch (AssertFailedException e) {
                         Trace.TraceError(e.ToString());
                         throw new AssertFailedException(String.Format("Suite Item {0}: {1}", i, e.Message), e);
                     }
                 }
 
-                var extras = string.Join(Environment.NewLine, suite.Statements.Skip(statements.Length));
-                Assert.AreEqual(statements.Length, max, "Extra statements:" + Environment.NewLine + extras);
+                var extras = string.Join(Environment.NewLine, suiteStatements.Skip(statements.Length));
+                Assert.AreEqual(statements.Length, suiteStatements.Count, "Extra statements:" + Environment.NewLine + extras);
             };
         }
 
@@ -3024,7 +2886,7 @@ namespace AnalysisTests {
                 if (retVal != null) {
                     retVal(retStmt.Expression);
                 } else {
-                    Assert.AreEqual(null, retStmt.Expression);
+                    Assert.IsInstanceOfType(retStmt.Expression, typeof(EmptyExpression));
                 }
             };
         }
@@ -3078,12 +2940,18 @@ namespace AnalysisTests {
         }
 
         private static Action<Statement> CheckClassDef(string name, Action<Statement> body, Action<Arg>[] bases = null, Action<Expression>[] decorators = null) {
+            return CheckClassDef(n => {
+                Assert.AreEqual(name ?? "", n?.Name ?? "");
+            }, body, bases, decorators);
+        }
+
+        private static Action<Statement> CheckClassDef(Action<NameExpression> name, Action<Statement> body, Action<Arg>[] bases = null, Action<Expression>[] decorators = null) {
             return stmt => {
                 Assert.IsInstanceOfType(stmt, typeof(ClassDefinition));
                 var classDef = (ClassDefinition)stmt;
 
                 if (name != null) {
-                    Assert.AreEqual(name, classDef.Name);
+                    name(classDef.NameExpression);
                 }
 
                 if (bases != null) {
@@ -3101,9 +2969,14 @@ namespace AnalysisTests {
             };
         }
 
+
         private static Action<Parameter> CheckParameter(string name, ParameterKind kind = ParameterKind.Normal, Action<Expression> defaultValue = null, Action<Expression> annotation = null) {
             return param => {
-                Assert.AreEqual(name, param.Name);
+                if (name == null) {
+                    Assert.IsTrue(string.IsNullOrEmpty(param.Name), "Expected null/empty, not '" + param.Name + "'");
+                } else {
+                    Assert.AreEqual(name, param.Name);
+                }
                 Assert.AreEqual(kind, param.Kind);
 
                 if (defaultValue != null) {

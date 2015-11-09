@@ -19,32 +19,33 @@ using System;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-
     public class ParenthesisExpression : Expression {
         private Expression _expression;
-
-        public ParenthesisExpression() { }
 
         public Expression Expression {
             get { return _expression; }
             set { ThrowIfFrozen(); _expression = value; }
         }
 
-        internal override string CheckAssign() {
-            return _expression.CheckAssign();
+        internal override void CheckAssign(Parser parser) {
+            _expression.CheckAssign(parser);
         }
 
-        internal override string CheckDelete() {
-            return _expression.CheckDelete();
+        internal override void CheckAugmentedAssign(Parser parser) {
+            _expression.CheckAugmentedAssign(parser);
+        }
+
+        internal override void CheckDelete(Parser parser) {
+            _expression.CheckDelete(parser);
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
+                _expression?.Walk(walker);
             }
             walker.PostWalk(this);
         }
+
+        internal override string CheckName => null;
     }
 }

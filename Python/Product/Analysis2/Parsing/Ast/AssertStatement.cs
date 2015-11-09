@@ -15,28 +15,16 @@
 // permissions and limitations under the License.
 
 
-using System.Text;
+using System.Linq;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class AssertStatement : Statement {
-        private Expression _test, _message;
-
-        public AssertStatement() { }
-
-        public Expression Test {
-            get { return _test; }
-            set { ThrowIfFrozen(); _test = value; }
-        }
-
-        public Expression Message {
-            get { return _message; }
-            set { ThrowIfFrozen(); _message = value; }
-        }
+    public class AssertStatement : StatementWithExpression {
+        public Expression Test => (Expression as TupleExpression)?.Items?[0] ?? Expression;
+        public Expression Message => (Expression as TupleExpression)?.Items?.ElementAtOrDefault(1);
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _test?.Walk(walker);
-                _message?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

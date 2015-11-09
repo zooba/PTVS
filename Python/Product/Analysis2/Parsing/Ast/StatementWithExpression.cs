@@ -14,36 +14,22 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class StringExpression : Expression {
-        private IList<Expression> _parts;
-
-        public IList<Expression> Parts {
-            get { return _parts; }
-            set { ThrowIfFrozen(); _parts = value; }
-        }
+    public abstract class StatementWithExpression : Statement {
+        private Expression _expression;
 
         protected override void OnFreeze() {
-            _parts = FreezeList(_parts);
+            base.OnFreeze();
+            _expression?.Freeze();
         }
 
-        public void AddPart(Expression expression) {
-            if (_parts == null) {
-                _parts = new List<Expression>();
-            }
-            _parts.Add(expression);
+        public Expression Expression {
+            get { return _expression; }
+            set { ThrowIfFrozen(); _expression = value; }
         }
 
         public override void Walk(PythonWalker walker) {
-            if (walker.Walk(this)) {
-            }
-            walker.PostWalk(this);
+            _expression?.Walk(walker);
         }
-
-        internal override string CheckName => "literal";
     }
 }

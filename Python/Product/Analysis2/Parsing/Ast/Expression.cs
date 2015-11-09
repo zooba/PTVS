@@ -21,20 +21,24 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         internal Expression() {
         }
 
-        internal virtual string CheckAssign() {
-            return "can't assign to " + GetType().Name;
-        }
+        internal abstract string CheckName { get; }
 
-        internal virtual string CheckAugmentedAssign() {
-            if (CheckAssign() != null) {
-                return "illegal expression for augmented assignment";
+        internal virtual void CheckAssign(Parser parser) {
+            var name = CheckName;
+            if (!string.IsNullOrEmpty(name)) {
+                parser.ReportError("can't assign to " + name, Span);
             }
-
-            return null;
         }
 
-        internal virtual string CheckDelete() {
-            return "can't delete " + GetType().Name;
+        internal virtual void CheckAugmentedAssign(Parser parser) {
+            CheckAssign(parser);
+        }
+
+        internal virtual void CheckDelete(Parser parser) {
+            var name = CheckName;
+            if (!string.IsNullOrEmpty(name)) {
+                parser.ReportError("can't delete " + name, Span);
+            }
         }
     }
 }
