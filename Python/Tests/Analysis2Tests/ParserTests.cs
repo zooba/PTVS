@@ -1075,7 +1075,7 @@ namespace AnalysisTests {
             foreach (var version in AllVersions) {
                 ParseErrors("DelStmtIllegal.py", version,
                     new ErrorInfo("can't delete literal", 4, 1, 5, 5, 1, 6),
-                    new ErrorInfo("can't delete generator expression", 11, 2, 5, 31, 2, 25),
+                    new ErrorInfo("can't delete generator expression", 12, 2, 6, 30, 2, 24),
                     new ErrorInfo("can't delete function call", 37, 3, 5, 45, 3, 13)
                 );
             }
@@ -1916,7 +1916,7 @@ namespace AnalysisTests {
                     new ErrorInfo("invalid syntax, parameter annotations require 3.x", 174, 11, 10, 175, 11, 11),
                     new ErrorInfo("invalid syntax, function annotations require 3.x", 180, 11, 16, 181, 11, 17),
                     new ErrorInfo("invalid syntax, parameter annotations require 3.x", 200, 13, 10, 201, 13, 11),
-                    new ErrorInfo("positional parameter after * args not allowed", 225, 15, 10, 226, 15, 11)
+                    new ErrorInfo("invalid syntax", 224, 15, 9, 233, 15, 18)
                 );
             }
         }
