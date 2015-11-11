@@ -16,25 +16,35 @@
 
 
 using System.Collections.Generic;
-using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-
     public class SetExpression : Expression {
-        private readonly Expression[] _items;
+        private IList<Expression> _items;
 
-        public SetExpression(params Expression[] items) {
-            _items = items;
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _items = FreezeList(_items);
         }
 
         public IList<Expression> Items {
             get { return _items; }
+            set { ThrowIfFrozen(); _items = value; }
+        }
+
+        internal void AddItem(Expression item) {
+            if (_items == null) {
+                _items = new List<Expression> { item };
+            } else {
+                _items.Add(item);
+            }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                foreach (Expression s in _items) {
-                    s.Walk(walker);
+                if (_items != null) {
+                    foreach (Expression s in _items) {
+                        s?.Walk(walker);
+                    }
                 }
             }
             walker.PostWalk(this);

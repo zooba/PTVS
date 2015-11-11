@@ -643,7 +643,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void Keywords25() {
             foreach (var version in V24_V25Versions) {
                 CheckAst(
@@ -658,16 +658,13 @@ namespace AnalysisTests {
             foreach (var version in V26AndUp) {
                 ParseErrors("Keywords25.py",
                     version,
-                    new ErrorInfo("unexpected token '='", 5, 1, 6, 6, 1, 7),
-                    new ErrorInfo("invalid syntax", 7, 1, 8, 8, 1, 9),
-                    new ErrorInfo("unexpected token '<newline>'", 8, 1, 9, 10, 2, 1),
-                    new ErrorInfo("unexpected token 'as'", 10, 2, 1, 12, 2, 3),
-                    new ErrorInfo("can't assign to ErrorExpression", 10, 2, 1, 12, 2, 3)
+                    new ErrorInfo("invalid syntax", 5, 1, 6, 8, 1, 9),
+                    new ErrorInfo("invalid syntax", 10, 2, 1, 16, 2, 7)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void Keywords2x() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -688,7 +685,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void Keywords30() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -915,11 +912,15 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void Delimiters() {
             foreach (var version in AllVersions) {
+                var ast = version.Is3x() ?
+                    ParseFileNoErrors("Delimiters.py", version) :
+                    ParseFileIgnoreErrors("Delimiters.py", version);
+
                 CheckAst(
-                    ParseFileNoErrors("Delimiters.py", version),
+                    ast,
                     CheckSuite(
                         CheckCallStmt(One, PositionalArg(Two)),
                         CheckIndexStmt(One, Two),
@@ -1710,7 +1711,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void DecoratorsFuncDef() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1725,22 +1726,22 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void DecoratorsAsyncFuncDef() {
             foreach (var version in V35AndUp) {
                 CheckAst(
                     ParseFileNoErrors("DecoratorsAsyncFuncDef.py", version),
                     CheckSuite(
-                        CheckCoroutineDef(CheckFuncDef("f", NoParameters, CheckSuite(Pass), new[] { Fob })),
-                        CheckCoroutineDef(CheckFuncDef("f", NoParameters, CheckSuite(Pass), new[] { CheckMemberExpr(Fob, "oar") })),
-                        CheckCoroutineDef(CheckFuncDef("f", NoParameters, CheckSuite(Pass), new[] { CheckCallExpression(Fob, PositionalArg(Oar)) })),
-                        CheckCoroutineDef(CheckFuncDef("f", NoParameters, CheckSuite(Pass), new[] { Fob, Oar }))
+                        CheckFuncDef("f", NoParameters, CheckSuite(Pass), new[] { Fob }, isAsync: true),
+                        CheckFuncDef("f", NoParameters, CheckSuite(Pass), new[] { CheckMemberExpr(Fob, "oar") }, isAsync: true),
+                        CheckFuncDef("f", NoParameters, CheckSuite(Pass), new[] { CheckCallExpression(Fob, PositionalArg(Oar)) }, isAsync: true),
+                        CheckFuncDef("f", NoParameters, CheckSuite(Pass), new[] { Fob, Oar }, isAsync: true)
                     )
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void DecoratorsClassDef() {
             foreach (var version in V26AndUp) {
                 CheckAst(
@@ -1757,30 +1758,34 @@ namespace AnalysisTests {
             foreach (var version in V24_V25Versions) {
                 ParseErrors("DecoratorsClassDef.py",
                     version,
-                    new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 6, 2, 1, 11, 2, 6),
-                    new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 33, 5, 1, 38, 5, 6),
-                    new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 63, 9, 1, 68, 9, 6),
-                    new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 92, 13, 1, 97, 13, 6)
+                    new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 0, 1, 1, 4, 1, 5),
+                    new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 23, 4, 1, 31, 4, 9),
+                    new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 52, 8, 1, 61, 8, 10),
+                    new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 86, 12, 1, 90, 12, 5)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void DecoratorsIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFileNoErrors("DecoratorsIllegal.py", version),
+                    ParseFileIgnoreErrors("DecoratorsIllegal.py", version),
                     CheckSuite(
-                        CheckErrorStmt(),
+                        stmt => { Assert.IsInstanceOfType(stmt, typeof(DecoratorStatement)); },
                         CheckAssignment(Fob, One)
                     )
                 );
             }
 
             foreach (var version in AllVersions) {
+                var msg = "invalid decorator, must be applied to function";
+                if (version >= PythonLanguageVersion.V26) {
+                    msg += " or class";
+                }
                 ParseErrors("DecoratorsIllegal.py",
                     version,
-                    new ErrorInfo("unexpected token 'fob'", 6, 2, 1, 9, 2, 4)
+                    new ErrorInfo(msg, 0, 1, 1, 4, 1, 5)
                 );
             }
         }
@@ -1937,10 +1942,10 @@ namespace AnalysisTests {
                 CheckAst(
                     ParseFileNoErrors("CoroutineDef.py", version),
                     CheckSuite(
-                        CheckCoroutineDef(CheckFuncDef("f", NoParameters, CheckSuite(
+                        CheckFuncDef("f", NoParameters, CheckSuite(
                             CheckAsyncForStmt(CheckForStmt(Fob, Oar, CheckSuite(Pass))),
                             CheckAsyncWithStmt(CheckWithStmt(Baz, CheckSuite(Pass)))
-                        )))
+                        ), isAsync: true)
                     )
                 );
 
@@ -2150,14 +2155,14 @@ namespace AnalysisTests {
             foreach (var version in V35AndUp) {
                 CheckAst(
                     ParseFileNoErrors("AwaitStmt.py", version),
-                    CheckSuite(CheckCoroutineDef(CheckFuncDef("quox", NoParameters, CheckSuite(
+                    CheckSuite(CheckFuncDef("quox", NoParameters, CheckSuite(
                         CheckExprStmt(AwaitFob),
                         CheckExprStmt(CheckAwaitExpression(CheckCallExpression(Fob))),
                         CheckExprStmt(CheckCallExpression(CheckParenExpr(AwaitFob))),
                         CheckBinaryStmt(One, PythonOperator.Add, AwaitFob),
                         CheckBinaryStmt(One, PythonOperator.Power, AwaitFob),
                         CheckBinaryStmt(One, PythonOperator.Power, CheckUnaryExpression(PythonOperator.Negate, AwaitFob))
-                    ))))
+                    ), isAsync: true))
                 );
                 ParseErrors("AwaitStmt.py", version);
             }
@@ -2891,14 +2896,25 @@ namespace AnalysisTests {
             };
         }
 
-        private static Action<Statement> CheckFuncDef(string name, Action<Parameter>[] args, Action<Statement> body, Action<Expression>[] decorators = null, Action<Expression> returnAnnotation = null) {
+        private static Action<Statement> CheckFuncDef(string name, Action<Parameter>[] args, Action<Statement> body, Action<Expression>[] decorators = null, Action<Expression> returnAnnotation = null, bool isAsync = false) {
             return stmt => {
-                Assert.IsInstanceOfType(stmt, typeof(FunctionDefinition));
-                var funcDef = (FunctionDefinition)stmt;
+                var s = stmt;
+                if (decorators != null) {
+                    foreach (var d in decorators) {
+                        Assert.IsInstanceOfType(s, typeof(DecoratorStatement));
+                        var ds = (DecoratorStatement)s;
+                        d(ds.Decorator);
+                        s = ds.Inner;
+                    }
+                }
+                Assert.IsInstanceOfType(s, typeof(FunctionDefinition));
+                var funcDef = (FunctionDefinition)s;
 
                 if (name != null) {
                     Assert.AreEqual(name, funcDef.Name);
                 }
+
+                Assert.AreEqual(isAsync, funcDef.IsAsync);
 
                 Assert.AreEqual(args.Length, funcDef.Parameters.Count);
                 for (int i = 0; i < args.Length; i++) {
@@ -2912,31 +2928,7 @@ namespace AnalysisTests {
                 } else {
                     Assert.AreEqual(null, funcDef.ReturnAnnotation);
                 }
-
-                CheckDecorators(decorators, funcDef.Decorators);
             };
-        }
-
-        private static Action<Statement> CheckCoroutineDef(Action<Statement> checkFuncDef) {
-            return stmt => {
-                Assert.IsInstanceOfType(stmt, typeof(FunctionDefinition));
-                var funcDef = (FunctionDefinition)stmt;
-
-                Assert.IsTrue(funcDef.IsCoroutine);
-
-                checkFuncDef(stmt);
-            };
-        }
-
-        private static void CheckDecorators(Action<Expression>[] decorators, DecoratorStatement foundDecorators) {
-            if (decorators != null) {
-                Assert.AreEqual(decorators.Length, foundDecorators?.Decorators.Count ?? 0);
-                for (int i = 0; i < decorators.Length; i++) {
-                    decorators[i](foundDecorators.Decorators[i]);
-                }
-            } else {
-                Assert.AreEqual(0, foundDecorators?.Decorators.Count ?? 0);
-            }
         }
 
         private static Action<Statement> CheckClassDef(string name, Action<Statement> body, Action<Arg>[] bases = null, Action<Expression>[] decorators = null) {
@@ -2947,8 +2939,18 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckClassDef(Action<NameExpression> name, Action<Statement> body, Action<Arg>[] bases = null, Action<Expression>[] decorators = null) {
             return stmt => {
-                Assert.IsInstanceOfType(stmt, typeof(ClassDefinition));
-                var classDef = (ClassDefinition)stmt;
+                var s = stmt;
+                if (decorators != null) {
+                    foreach (var d in decorators) {
+                        Assert.IsInstanceOfType(s, typeof(DecoratorStatement));
+                        var ds = (DecoratorStatement)s;
+                        d(ds.Decorator);
+                        s = ds.Inner;
+                    }
+                }
+
+                Assert.IsInstanceOfType(s, typeof(ClassDefinition));
+                var classDef = (ClassDefinition)s;
 
                 if (name != null) {
                     name(classDef.NameExpression);
@@ -2964,8 +2966,6 @@ namespace AnalysisTests {
                 }
 
                 body(classDef.Body);
-
-                CheckDecorators(decorators, classDef.Decorators);
             };
         }
 
@@ -3089,19 +3089,19 @@ namespace AnalysisTests {
                 if (start != null) {
                     start(slice.SliceStart);
                 } else {
-                    Assert.AreEqual(null, slice.SliceStart);
+                    Assert.IsInstanceOfType(slice.SliceStart, typeof(EmptyExpression));
                 }
 
                 if (stop != null) {
                     stop(slice.SliceStop);
                 } else {
-                    Assert.AreEqual(null, slice.SliceStop);
+                    Assert.IsInstanceOfType(slice.SliceStop, typeof(EmptyExpression));
                 }
 
                 if (step != null) {
                     step(slice.SliceStep);
-                } else {
-                    Assert.AreEqual(null, slice.SliceStep);
+                } else if (slice.SliceStep != null) {
+                    Assert.IsInstanceOfType(slice.SliceStep, typeof(EmptyExpression));
                 }
             };
         }

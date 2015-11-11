@@ -16,26 +16,34 @@
 
 
 using System.Collections.Generic;
-using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-
     public class DictionaryExpression : Expression {
-        private readonly SliceExpression[] _items;
+        private IList<SliceExpression> _items;
 
-        public DictionaryExpression(params SliceExpression[] items) {
-            _items = items;
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _items = FreezeList(_items);
         }
 
         public IList<SliceExpression> Items {
             get { return _items; }
+            set { ThrowIfFrozen(); _items = value; }
+        }
+
+        internal void AddItem(SliceExpression expr) {
+            if (_items == null) {
+                _items = new List<SliceExpression> { expr };
+            } else {
+                _items.Add(expr);
+            }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 if (_items != null) {
                     foreach (SliceExpression s in _items) {
-                        s.Walk(walker);
+                        s?.Walk(walker);
                     }
                 }
             }

@@ -20,25 +20,24 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-
     public class DecoratorStatement : Statement {
-        private readonly Expression[] _decorators;
+        private Expression _decorator;
+        private Statement _inner;
 
-        public DecoratorStatement(Expression[] decorators) {
-            _decorators = decorators;
+        public Expression Decorator {
+            get { return _decorator; }
+            set { ThrowIfFrozen(); _decorator = value; }
         }
 
-        public IList<Expression> Decorators {
-            get { return _decorators; }
+        public Statement Inner {
+            get { return _inner; }
+            set { ThrowIfFrozen(); _inner = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                foreach (var decorator in _decorators) {
-                    if (decorator != null) {
-                        decorator.Walk(walker);
-                    }
-                }
+                _decorator?.Walk(walker);
+                _inner?.Walk(walker);
             }
             walker.PostWalk(this);
         }

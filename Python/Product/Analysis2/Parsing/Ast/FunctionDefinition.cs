@@ -15,9 +15,7 @@
 // permissions and limitations under the License.
 
 
-using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class FunctionDefinition : ScopeStatement {
@@ -27,7 +25,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private SourceSpan _beforeReturnAnnotation;
         private Expression _returnAnnotation;
         private DecoratorStatement _decorators;
-        private bool _generator, _coroutine;
+        private bool _generator;
         private IList<Expression> _returns;
 
         private PythonVariable _variable;      // The variable corresponding to the function name or null for lambdas
@@ -95,15 +93,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public bool IsGenerator {
             get { return _generator; }
             set { ThrowIfFrozen(); _generator = value; }
-        }
-
-        /// <summary>
-        /// True if the function is a coroutine. Coroutines are defined using
-        /// 'async def'.
-        /// </summary>
-        public bool IsCoroutine {
-            get { return _coroutine; }
-            set { ThrowIfFrozen(); _coroutine = value; }
         }
 
         /// <summary>

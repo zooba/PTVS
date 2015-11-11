@@ -44,6 +44,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         Whitespace = 0x06 << 16,
         Comment = 0x07 << 16,
         Grouping = 0x08 << 16,
+        Delimiter = 0x09 << 16,
 
         Mask = 0xFF << 16
     }
@@ -118,9 +119,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         LeftBackQuote = 0x37 | TokenUsage.BeginGroup | TokenCategory.Grouping,
         RightBackQuote = 0x37 | TokenUsage.EndGroup | TokenCategory.Grouping,
 
-        Comma = 0x38 | TokenUsage.None | TokenCategory.None,
-        Colon = 0x39 | TokenUsage.None | TokenCategory.None,
-        SemiColon = 0x3A | TokenUsage.EndStatement | TokenCategory.None,
+        Comma = 0x38 | TokenUsage.None | TokenCategory.Delimiter,
+        Colon = 0x39 | TokenUsage.None | TokenCategory.Delimiter,
+        SemiColon = 0x3A | TokenUsage.EndStatement | TokenCategory.Delimiter,
         Assign = 0x3B | TokenUsage.Assignment | TokenCategory.Operator,
 
         KeywordAnd = 0x40 | TokenUsage.BinaryOperator | TokenCategory.Keyword,

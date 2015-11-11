@@ -43,10 +43,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         /// True if the user provided a step parameter (either providing an explicit parameter
         /// or providing an empty step parameter) false if only start and stop were provided.
         /// </summary>
-        public bool StepProvided {
-            get { return _stepProvided; }
-            set { ThrowIfFrozen(); _stepProvided = value; }
-        }
+        public bool StepProvided => _sliceStep != null;
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {

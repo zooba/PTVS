@@ -146,6 +146,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 _nesting.Pop();
             }
 
+            bool firstTokenOnLine = true;
+
             while (i < line.Length) {
                 var start = new SourceLocation(lineStart + i, lineNumber, i + 1);
                 int len = 0;
@@ -172,6 +174,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
                 if (kind == TokenKind.Unknown) {
                     kind = GetNextToken(line, i, out len);
+                }
+
+                if (firstTokenOnLine) {
+                    switch (kind) {
+                        case TokenKind.MatMultiply:
+                            kind = TokenKind.At;
+                            break;
+                    }
+                    firstTokenOnLine = false;
                 }
 
                 var token = new Token(kind, start, len);
