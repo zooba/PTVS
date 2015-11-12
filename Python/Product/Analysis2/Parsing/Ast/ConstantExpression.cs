@@ -59,13 +59,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         private void AppendEscapedString(StringBuilder res, string s, bool escape8bitStrings) {
-            res.Append("'");
+            char quote = s.Contains("'") && !s.Contains("\"") ? '"' : '\'';
+            res.Append(quote);
             foreach (var c in s) {
                 switch (c) {
                     case '\n': res.Append("\\n"); break;
                     case '\r': res.Append("\\r"); break;
                     case '\t': res.Append("\\t"); break;
-                    case '\'': res.Append("\\'"); break;
+                    case '\'': res.Append(quote == c ? "\\'" : "'"); break;
                     case '\\': res.Append("\\\\"); break;
                     default:
                         ushort cp = (ushort)c;
@@ -79,7 +80,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                         break;
                 }
             }
-            res.Append("'");
+            res.Append(quote);
         }
 
         public string GetConstantRepr(PythonLanguageVersion version, bool escape8bitStrings = false) {

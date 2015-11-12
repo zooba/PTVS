@@ -131,6 +131,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         /// <summary>
+        /// Adds a certain number of columns to the location. This never changes
+        /// the line number.
+        /// </summary>
+        public static SourceLocation operator +(SourceLocation left, int right) {
+            return new SourceLocation(left.Index + right, left.Line, left.Column + right);
+        }
+        
+
+        /// <summary>
         /// Compares two specified location values to see if they are equal.
         /// </summary>
         /// <param name="left">One location to compare.</param>

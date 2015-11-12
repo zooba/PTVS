@@ -29,11 +29,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         int _lineStart;
         Stack<TokenKind> _nesting;
 
-        private const string HexDigits = "0123456789ABCDEFabcdef";
-        private const string DecimalDigits = "0123456789";
-        private const string OctalDigits = "01234567";
-        private const string BinaryDigits = "01";
-
         public Tokenizer(PythonLanguageVersion version) {
             _version = version;
             _lineNumber = 0;
@@ -119,6 +114,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private IEnumerable<Token> GetTokensWorker(string line, int lineStart, int lineNumber) {
+            var start = new SourceLocation(lineStart, lineNumber, 1);
             int i = 0;
             if (_nesting.Count == 0) {
                 while (i < line.Length) {
@@ -130,7 +126,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     }
                 }
 
-                var start = new SourceLocation(lineStart, lineNumber, 1);
                 if (i < line.Length && line[i] != '\r' && line[i] != '\n') {
                     if (line[i] == '#') {
                         if (i > 0) {
@@ -149,7 +144,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             bool firstTokenOnLine = true;
 
             while (i < line.Length) {
-                var start = new SourceLocation(lineStart + i, lineNumber, i + 1);
                 int len = 0;
                 var inGroup = TokenKind.Unknown;
 
@@ -185,7 +179,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     firstTokenOnLine = false;
                 }
 
-                var token = new Token(kind, start, len);
+                var token = new Token(kind, start + i, len);
                 yield return token;
                 i += len;
 
@@ -207,6 +201,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     _nesting.Push(kind);
                 }
             }
+
+            if (_nesting.Any() &&
+                (_nesting.Peek() == TokenKind.LeftSingleQuote || _nesting.Peek() == TokenKind.LeftDoubleQuote)) {
+                var lineWithoutNewline = line.TrimEnd('\r', '\n');
+                Debug.Assert(line.Length - lineWithoutNewline.Length <= 2);
+                if (!line.TrimEnd('\r', '\n').EndsWith("\\")) {
+                    yield return new Token(_nesting.Pop(), start + lineWithoutNewline.Length, 0);
+                }
+            }
         }
 
         private TokenKind GetStringLiteralToken(string line, int start, TokenKind inGroup, out int length) {
@@ -216,10 +219,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             switch (inGroup) {
                 case TokenKind.RightSingleQuote:
                 case TokenKind.RightDoubleQuote:
-                    if (start == 0) {
-                        // Unterminated literal, so use regular processing
-                        return inGroup;
-                    }
                     quote = inGroup == TokenKind.RightSingleQuote ? "'" : "\"";
                     break;
                 case TokenKind.RightSingleTripleQuote:
@@ -294,13 +293,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             if (c == '.') {
                 if (end >= line.Length) {
                     return TokenKind.Dot;
-                } else if (DecimalDigits.Contains(line[end])) {
-                    kind = TokenKind.LiteralDecimal;
-                    ReadDecimals(line, ref end);
-                    kind = MaybeReadExponent(line, kind, ref end);
-                    if (kind != TokenKind.Error) {
-                        kind = MaybeReadImaginary(line, kind, ref end);
-                    }
+                } else if (IsDecimalDigit(line[end])) {
+                    end -= 1;
+                    kind = MaybeReadFloatingPoint(line, TokenKind.LiteralDecimal, ref end);
                     length = end - start;
                     return kind;
                 } else if (end + 2 < line.Length && line[end] == '.' && line[end + 1] == '.') {
@@ -311,49 +306,55 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
             }
 
-            if (char.IsNumber(c)) {
-                if (c == '0') {
-                    if (end + 1 >= line.Length) {
-                        length = end - start;
-                        return TokenKind.LiteralDecimal;
-                    }
+            if (IsZeroDigit(c)) {
+                if (end + 1 >= line.Length) {
+                    length = end - start;
+                    return TokenKind.LiteralDecimal;
+                }
 
-                    if (IsNextChar(line, end, 'x') || IsNextChar(line, end, 'X')) {
-                        end += 2;
-                        ReadWhile(line, ref end, HexDigits);
-                        kind = TokenKind.LiteralHex;
-                    } else if (IsNextChar(line, end, 'o') || IsNextChar(line, end, 'O')) {
-                        end += 2;
-                        ReadWhile(line, ref end, OctalDigits);
-                        kind = TokenKind.LiteralOctal;
-                    } else if (IsNextChar(line, end, 'b') || IsNextChar(line, end, 'B')) {
-                        end += 2;
-                        ReadWhile(line, ref end, BinaryDigits);
-                        kind = TokenKind.LiteralBinary;
-                    } else if (_version.Is2x()) {
-                        // Numbers starting with '0' in Python 2.x are octal
-                        ReadWhile(line, ref end, OctalDigits);
+                if (line[end] == 'x' || line[end] == 'X') {
+                    end += 2;
+                    ReadWhile(line, ref end, IsHexDigit);
+                    kind = TokenKind.LiteralHex;
+                } else if (line[end] == 'o' || line[end] == 'O') {
+                    end += 2;
+                    ReadWhile(line, ref end, IsOctalDigit);
+                    kind = TokenKind.LiteralOctal;
+                } else if (line[end] == 'b' || line[end] == 'B') {
+                    end += 2;
+                    ReadWhile(line, ref end, IsBinaryDigit);
+                    kind = TokenKind.LiteralBinary;
+                } else if (_version.Is2x()) {
+                    // Numbers starting with '0' in Python 2.x are either
+                    // float (if there is a decimal point or exponent) or
+                    // else octal.
+                    ReadWhile(line, ref end, IsOctalDigit);
+                    kind = MaybeReadFloatingPoint(line, TokenKind.LiteralDecimal, ref end);
+                    if (kind == TokenKind.LiteralDecimal) {
                         kind = MaybeReadLongSuffix(line, TokenKind.LiteralOctal, ref end);
-                        length = end - start;
-                        return kind;
-                    } else {
-                        // Numbers starting with '0' in Python 3.x are zero
-                        ReadWhile(line, ref end, '0');
-                        length = end - start;
-                        return TokenKind.LiteralDecimal;
-                    }
-
-                    if (_version.Is2x()) {
-                        kind = MaybeReadLongSuffix(line, kind, ref end);
                     }
                     length = end - start;
-                    if (length <= 2) {
-                        // Expect at least "0[xob]."
-                        return TokenKind.Error;
-                    }
+                    return kind;
+                } else {
+                    // Numbers starting with '0' in Python 3.x are zero
+                    ReadWhile(line, ref end, IsZeroDigit);
+                    kind = MaybeReadFloatingPoint(line, TokenKind.LiteralDecimal, ref end);
+                    length = end - start;
                     return kind;
                 }
 
+                if (_version.Is2x()) {
+                    kind = MaybeReadLongSuffix(line, kind, ref end);
+                }
+                length = end - start;
+                if (length <= 2) {
+                    // Expect at least "0[xob]."
+                    return TokenKind.Error;
+                }
+                return kind;
+            }
+
+            if (IsDecimalDigit(c)) {
                 kind = TokenKind.LiteralDecimal;
                 ReadDecimals(line, ref end);
                 // Will change kind if necessary
@@ -412,6 +413,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 end += 1;
             }
             TokenKind kind;
+            if (end < len && (line[end] == '"' || line[end] == '\'')) {
+                char c = line[end];
+                if (IsNextChar(line, end, c) && IsNextChar(line, end, c, 2)) {
+                    end += 3;
+                    return c == '"' ? TokenKind.LeftDoubleTripleQuote : TokenKind.LeftSingleTripleQuote;
+                } 
+                end += 1;
+                return c == '"' ? TokenKind.LeftDoubleQuote : TokenKind.LeftSingleQuote;
+            }
             if (Keywords.TryGetValue(line.Substring(start, end - start), out kind)) {
                 return kind;
             }
@@ -449,8 +459,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             if (c == '.') {
                 kind = TokenKind.LiteralFloat;
                 end += 1;
+                ReadDecimals(line, ref end);
             }
-            ReadDecimals(line, ref end);
             kind = MaybeReadExponent(line, kind, ref end);
             if (kind != TokenKind.Error) {
                 kind = MaybeReadImaginary(line, kind, ref end);
@@ -486,7 +496,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 char c2 = line[end + 1];
                 if (c2 == '+' || c2 == '-') {
                     end += 2;
-                } else if (DecimalDigits.Contains(c2)) {
+                } else if (IsDecimalDigit(c2)) {
                     end += 1;
                 } else {
                     // 'e' belongs to following token
@@ -538,6 +548,42 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private static bool IsNextChar(string line, int index, char c, int offset = 1) {
             int i = index + offset;
             return (i < line.Length) && (line[i] == c);
+        }
+
+        private static bool IsHexDigit(char c) {
+            int v = CharUnicodeInfo.GetDigitValue(c);
+            if (v >= 0 && v <= 9) {
+                return true;
+            }
+            if (c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+                return true;
+            }
+            return false;
+        }
+
+        private static bool IsZeroDigit(char c) {
+            return CharUnicodeInfo.GetDigitValue(c) == 0;
+        }
+
+        private static bool IsDecimalDigit(char c) {
+            return CharUnicodeInfo.GetDigitValue(c) >= 0;
+        }
+
+        private static bool IsOctalDigit(char c) {
+            int v = CharUnicodeInfo.GetDigitValue(c);
+            return v >= 0 && v < 8;
+        }
+
+        private static bool IsBinaryDigit(char c) {
+            int v = CharUnicodeInfo.GetDigitValue(c);
+            return v >= 0 && v < 2;
+        }
+
+        private static void ReadWhile(string line, ref int end, Func<char, bool> allowed) {
+            int len = line.Length;
+            while (end < len && allowed(line[end])) {
+                end += 1;
+            }
         }
 
         private static void ReadWhile(string line, ref int end, string allowed) {

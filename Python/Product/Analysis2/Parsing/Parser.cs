@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
@@ -49,6 +51,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         internal bool HasTrueDivision => _version.Is3x() || _future.HasFlag(FutureOptions.TrueDivision);
 
         internal bool HasConstantBooleans => _version.Is3x();
+
+        internal bool HasUnicodePrefix => _version < PythonLanguageVersion.V30 || _version >= PythonLanguageVersion.V33;
+
+        internal bool HasUnicodeLiterals => _version.Is3x() || _future.HasFlag(FutureOptions.UnicodeLiterals);
 
         internal bool HasClassDecorators => _version >= PythonLanguageVersion.V26;
 
@@ -763,8 +769,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return tuple;
         }
 
-        private Expression ParseExpression() {
-            var expr = ParseSingleExpression();
+        private Expression ParseExpression(bool allowSlice = false) {
+            var expr = ParseSingleExpression(allowSlice: allowSlice);
 
             if (!Peek.Is(TokenKind.Comma)) {
                 return expr;
@@ -775,7 +781,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             tuple.AddItem(expr);
 
             while (TryRead(TokenKind.Comma)) {
-                expr = ParseSingleExpression();
+                expr = ParseSingleExpression(allowSlice: allowSlice);
                 tuple.AddItem(expr);
             }
 
@@ -784,7 +790,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return tuple;
         }
 
-        private Expression ParseSingleExpression(bool allowIfExpr = true, bool allowSlice = true, bool allowGenerator = true) {
+        private Expression ParseSingleExpression(bool allowIfExpr = true, bool allowSlice = false, bool allowGenerator = true) {
             if (PeekNonWhitespace.Is(TokenKind.KeywordLambda)) {
                 return ParseLambda();
             }
@@ -817,6 +823,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     sliceExpr.SliceStep = ParseSingleExpression(allowSlice: false);
                 }
 
+                sliceExpr.Span = new SourceSpan(expr.Span.Start, Current.Span.End);
                 expr = sliceExpr;
             }
 
@@ -983,14 +990,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return parameters;
         }
 
-        private List<Arg> ParseArgumentList(TokenKind closing, bool allowNames) {
+        private List<Arg> ParseArgumentList(TokenKind closing, bool allowNames, bool allowSlice = false) {
             var args = new List<Arg>();
             var names = new HashSet<string>();
 
             while (!Peek.Is(closing)) {
                 var a = new Arg();
 
-                var expr = ParseSingleExpression();
+                var expr = ParseSingleExpression(allowSlice: allowSlice);
 
                 if (allowNames && TryRead(TokenKind.Assign)) {
                     var name = (expr as NameExpression)?.Name;
@@ -1000,15 +1007,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         ReportError("keyword argument repeated", expr.Span);
                     }
                     a.NameExpression = expr;
-                    a.Expression = ParseSingleExpression();
+                    a.Expression = ParseSingleExpression(allowSlice: allowSlice);
                 } else {
                     a.Expression = expr;
                 }
 
-                MaybeReadComment(a.Expression);
-
-                a.Comment = ReadComment();
-                a.AfterNode = ReadWhitespace();
+                MaybeReadComment(a);
                 a.HasCommaAfterNode = TryRead(TokenKind.Comma);
                 a.Freeze();
 
@@ -1286,7 +1290,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         Read(TokenKind.LeftBracket);
                         expr = new IndexExpression {
                             Target = expr,
-                            Indices = ParseArgumentList(TokenKind.RightBracket, false)
+                            Index = ParseExpression(allowSlice: true)
                         };
                         expr.Span = new SourceSpan(start, Read(TokenKind.RightBracket).End);
                         break;
@@ -1449,6 +1453,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         Span = Next().Span,
                         Value = Ellipsis.Value
                     });
+
                 default:
                     return WithCommentAndWhitespace(new ErrorExpression {
                         Span = Peek.Span
@@ -1476,44 +1481,43 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             switch (kind) {
                 case TokenKind.LiteralDecimal:
                 case TokenKind.LiteralDecimalLong:
-                    if (!BigInteger.TryParse(text, out bi)) {
+                    if (!ReadDecimal(text, out bi)) {
                         return false;
                     }
                     break;
 
                 case TokenKind.LiteralOctal:
                 case TokenKind.LiteralOctalLong:
-                    foreach (var c in text.Skip(text.StartsWith("0o", StringComparison.OrdinalIgnoreCase) ? 2 : 1)) {
-                        if (c >= '0' && c < '8') {
-                            bi = bi * 8 + (c - '0');
-                        } else {
-                            return false;
+                    if (text.StartsWith("0o", StringComparison.OrdinalIgnoreCase)) {
+                        if (_version < PythonLanguageVersion.V26) {
+                            ReportError(errorAt: Current.Span);
                         }
+                        text = text.Substring(2);
+                    }
+                    if (!ReadOctal(text, out bi)) {
+                        return false;
                     }
                     break;
 
                 case TokenKind.LiteralHex:
                 case TokenKind.LiteralHexLong:
-                    foreach (var c in text.ToLowerInvariant().Skip(2)) {
-                        if (c >= '0' && c <= '9') {
-                            bi = bi * 16 + (c - '0');
-                        } else if (c >= 'a' && c <= 'f') {
-                            bi = bi * 16 + (c - 'a' + 10);
-                        } else {
-                            return false;
-                        }
+                    if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) {
+                        text = text.Substring(2);
+                    }
+                    if (!ReadHex(text, out bi)) {
+                        return false;
                     }
                     break;
 
                 case TokenKind.LiteralBinary:
-                    foreach (var c in text.Skip(2)) {
-                        if (c == '0') {
-                            bi <<= 1;
-                        } else if (c == '1') {
-                            bi = bi << 1 + 1;
-                        } else {
-                            return false;
+                    if (text.StartsWith("0b", StringComparison.OrdinalIgnoreCase)) {
+                        if (_version < PythonLanguageVersion.V26) {
+                            ReportError(errorAt: Current.Span);
                         }
+                        text = text.Substring(2);
+                    }
+                    if (!ReadBinary(text, out bi)) {
+                        return false;
                     }
                     break;
 
@@ -1529,12 +1533,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     return false;
             }
 
-            if (!reduceType) {
-                value = bi;
-                return true;
-            }
+            value = bi;
 
-            if (int.MinValue < bi && bi < int.MaxValue) {
+            if (reduceType && int.MinValue <= bi && bi <= int.MaxValue) {
                 value = (int)bi;
             }
 
@@ -1542,34 +1543,62 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Expression ParseStringLiteral() {
-            var span = Current.Span;
-
-            Expression expr;
             var parts = new List<Expression>();
-            var open = Next();
+            var start = Peek.Span.Start;
 
-            while (open.Kind.GetUsage() == TokenUsage.BeginGroup) {
+            while (Peek.Is(TokenUsage.BeginGroup) && Peek.Is(TokenCategory.StringLiteral)) {
+                var opening = Next();
+                var openingText = _tokenization.GetTokenText(opening).ToLowerInvariant();
+                bool isRaw = openingText.Contains('r');
+                bool isBytes = openingText.Contains('b');
+                bool isUnicode = openingText.Contains('u');
+                // TODO: Implement formatted string handling
+                //bool isFormatted = text.Contains('f');
+
+                if (openingText.Any(c => c != 'r' && c != 'b' && c != 'u' && c != '\'' && c != '"')) {
+                    ReportError("invalid string prefix", opening.Span);
+                }
+                if (isUnicode) {
+                    if (!HasUnicodePrefix) {
+                        ReportError("invalid syntax", opening.Span);
+                    } else if (isBytes) {
+                        ReportError("b and u prefixes are not compatible", opening.Span);
+                    } else if (_version.Is3x() && isRaw) {
+                        ReportError("r and u prefixes are not compatible", opening.Span);
+                    }
+                }
+                if (!isBytes && !isUnicode) {
+                    isUnicode = HasUnicodeLiterals;
+                    isBytes = !isUnicode;
+                }
+
+                var closing = opening.Kind.GetGroupEnding();
                 var quoteStart = Current.Span.Start;
 
-                SourceLocation? start = null, end = null;
-                string value = string.Empty;
-
+                var fullText = new StringBuilder();
                 while (TryRead(TokenKind.LiteralString)) {
-                    start = start ?? Current.Span.Start;
-                    end = Current.Span.End;
-                    value += _tokenization.GetTokenText(Current);
+                    var text = _tokenization.GetTokenText(Current);
+                    // Exclude newline if escaped
+                    int lastEscape = text.LastIndexOf('\\');
+                    if (lastEscape >= 0 && lastEscape + 1 < text.Length) {
+                        var tail = text.Substring(lastEscape + 1);
+                        if (tail == "\r\n" || tail == "\r" || tail == "\n") {
+                            text = text.Remove(text.Length - (tail.Length + 1));
+                        }
+                    }
+                    if (!isRaw) {
+                        text = ParseStringEscapes(text, Current.Span.Start, isUnicode);
+                    }
+                    fullText.Append(text);
                 }
+                Read(closing);
 
-                if (start.HasValue && end.HasValue) {
-                    expr = new ConstantExpression { Value = value };
-                } else {
-                    expr = new EmptyExpression { };
-                }
-
-                Read(open.Kind.GetGroupEnding());
-                expr.Span = new SourceSpan(quoteStart, Current.Span.End);
-                expr.Comment = ReadComment();
-                expr.AfterNode = ReadWhitespace();
+                var expr = WithCommentAndWhitespace(new ConstantExpression {
+                    Value = isBytes ?
+                        new AsciiString(_tokenization.Encoding.GetBytes(fullText.ToString()), fullText.ToString()) :
+                        (object)fullText.ToString(),
+                    Span = new SourceSpan(quoteStart, Current.Span.End)
+                });
                 expr.Freeze();
 
                 parts.Add(expr);
@@ -1577,8 +1606,104 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             return WithCommentAndWhitespace(new StringExpression {
                 Parts = parts,
-                Span = new SourceSpan(parts.First().Span.Start, parts.Last().Span.End)
+                Span = new SourceSpan(start, Current.Span.End)
             });
+        }
+
+        private string ParseStringEscapes(string str, SourceLocation strStart, bool isUnicode) {
+            int prev = 0;
+            int i;
+            var res = new StringBuilder();
+
+            while (prev < str.Length && (i = str.IndexOf('\\', prev)) >= 0) {
+                if (i > prev) {
+                    res.Append(str.Substring(prev, i - prev - 1));
+                }
+
+                if (i + 1 >= str.Length) {
+                    Debug.Fail("Should never have trailing backslash in string");
+                    res.Append('\\');
+                    break;
+                }
+
+                char c = str[++i];
+                switch (c) {
+                    case '\\': res.Append('\\'); break;
+                    case '\'': res.Append('\''); break;
+                    case '"': res.Append('"'); break;
+                    case 'a': res.Append('\a'); break;
+                    case 'b': res.Append('\b'); break;
+                    case 'f': res.Append('\f'); break;
+                    case 'n': res.Append('\n'); break;
+                    case 'r': res.Append('\r'); break;
+                    case 't': res.Append('\t'); break;
+                    case 'v': res.Append('\v'); break;
+                    case 'x': res.Append(ReadEscape(str, strStart, i - 1, "\\x00", isUnicode)); i += 2; break;
+                    case 'u': res.Append(ReadEscape(str, strStart, i - 1, "\\uxxxx", isUnicode)); i += 4; break;
+                    case 'U': res.Append(ReadEscape(str, strStart, i - 1, "\\Uxxxxxxxx", isUnicode)); i += 8; break;
+                    default:
+                        if (CharUnicodeInfo.GetDigitValue(c) >= 0 && CharUnicodeInfo.GetDigitValue(c) <= 7) {
+                            res.Append(ReadEscape(str, strStart, i - 1, "\\ooo", isUnicode));
+                            i += 2;
+                        } else {
+                            res.Append("\\");
+                            res.Append(c);
+                        }
+                        break;
+                }
+
+                prev = i + 1;
+            }
+
+            if (prev < str.Length) {
+                if (prev == 0) {
+                    res.Append(str);
+                } else {
+                    res.Append(str.Substring(prev));
+                }
+            }
+
+            return res.ToString();
+        }
+
+        private string ReadEscape(string str, SourceLocation strStart, int i, string format, bool isUnicode) {
+            if (i + format.Length > str.Length) {
+                ReportError("truncated " + format + " escape", new SourceSpan(strStart + i, str.Length - i));
+                return str.Substring(i);
+            }
+
+            var span = new SourceSpan(strStart + i, format.Length);
+            var text = str.Substring(i, format.Length);
+            BigInteger bi;
+            string s;
+            switch (format[1]) {
+                case 'x':
+                    if (!ReadHex(text.Substring(2), out bi) || bi > byte.MaxValue) {
+                        ReportError("invalid " + format + "escape", span);
+                        return text;
+                    }
+                    return new string((char)(byte)bi, 1);
+                case 'o':
+                    if (!ReadOctal(text.Substring(1), out bi) || bi > byte.MaxValue) {
+                        ReportError("invalid " + format + "escape", span);
+                        return text;
+                    }
+                    return new string((char)(byte)bi, 1);
+                case 'u':
+                    if (!isUnicode || !ReadHex(text.Substring(2), out bi) || bi > ushort.MaxValue) {
+                        ReportError("invalid " + format + "escape", span);
+                        return text;
+                    }
+                    return new string((char)(ushort)bi, 1);
+                case 'U':
+                    if (!isUnicode || !ReadHex(text.Substring(2), out bi) || bi > ulong.MaxValue) {
+                        ReportError("invalid " + format + "escape", span);
+                        return text;
+                    }
+                    return Encoding.UTF32.GetString(BitConverter.GetBytes((ulong)bi));
+            }
+
+            return text;
         }
 
         private Expression ParseListLiteralOrComprehension() {
@@ -1620,7 +1745,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 });
             }
 
-            var expr = ParseSingleExpression();
+            var expr = ParseSingleExpression(allowSlice: true);
             if (expr is SliceExpression) {
                 expr = ParseDictLiteralOrComprehension(expr);
             } else {
@@ -1656,7 +1781,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
                 Read(TokenKind.Comma);
 
-                expr = ParseSingleExpression(allowGenerator: false);
+                expr = ParseSingleExpression(allowGenerator: false, allowSlice: true);
                 sliceExpr = expr as SliceExpression;
                 if (sliceExpr == null && !(expr is EmptyExpression)) {
                     ReportError(errorAt: expr.Span);
@@ -1665,7 +1790,26 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Expression ParseSetLiteralOrComprehension(Expression expr) {
-            return null;
+            if (TryRead(TokenKind.KeywordFor)) {
+                return new SetComprehension {
+                    Item = expr,
+                    Iterators = ReadComprehension()
+                };
+            }
+
+            var set = new SetExpression();
+
+            while (true) {
+                set.AddItem(expr);
+
+                if (TryRead(TokenKind.RightBrace) || Peek.Is(TokenUsage.EndStatement)) {
+                    return set;
+                }
+
+                Read(TokenKind.Comma);
+
+                expr = ParseSingleExpression(allowGenerator: false, allowSlice: true);
+            }
         }
 
         private List<ComprehensionIterator> ReadComprehension() {
@@ -1852,6 +1996,52 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private static bool IsEndOfStatement(Token token) {
             return token.Is(TokenUsage.EndStatement);
+        }
+
+        #endregion
+
+        #region String Conversions
+
+        private static bool ReadDecimal(string str, out BigInteger value) {
+            return BigInteger.TryParse(
+                str,
+                NumberStyles.None,
+                NumberFormatInfo.InvariantInfo,
+                out value
+            );
+        }
+
+        private static bool ReadHex(string str, out BigInteger value) {
+            return BigInteger.TryParse(
+                "0" + str,
+                NumberStyles.AllowHexSpecifier,
+                NumberFormatInfo.InvariantInfo,
+                out value
+            );
+        }
+
+        private static bool ReadOctal(string str, out BigInteger value) {
+            value = 0;
+            for (int i = 0; i < str.Length; ++i) {
+                int v = CharUnicodeInfo.GetDigitValue(str, i);
+                if (v < 0 || v > 7) {
+                    return false;
+                }
+                value = value * 8 + v;
+            }
+            return true;
+        }
+
+        private static bool ReadBinary(string str, out BigInteger value) {
+            value = 0;
+            for (int i = 0; i < str.Length; ++i) {
+                int v = CharUnicodeInfo.GetDigitValue(str, i);
+                if (v < 0 || v > 1) {
+                    return false;
+                }
+                value = value * 2 + v;
+            }
+            return true;
         }
 
         #endregion

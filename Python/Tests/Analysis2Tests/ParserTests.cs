@@ -462,7 +462,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void Literals() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -494,7 +494,11 @@ namespace AnalysisTests {
                         CheckConstantStmtAndRepr(new Complex(0, .001), "0.001j", version),
                         CheckConstantStmtAndRepr(new Complex(0, 1e100), "1e+100j", version),
                         CheckConstantStmtAndRepr(new Complex(0, 3.14e-10), "3.14e-10j", version),
-                        CheckConstantStmtAndRepr(-2147483648, "-2147483648", version),
+                        CheckUnaryStmt(PythonOperator.Negate, CheckConstant(
+                            new BigInteger(2147483648L),
+                            "2147483648" + (version.Is3x() ? "" : "L"),
+                            version
+                        )),
                         CheckUnaryStmt(PythonOperator.Negate, CheckConstant(100))
                     )
                 );
@@ -529,7 +533,11 @@ namespace AnalysisTests {
                         CheckConstantStmt("raw unicode"),
                         CheckConstantStmt("raw unicode"),
                         CheckConstantStmt("raw unicode"),
-                        CheckConstantStmtAndRepr("\\\'\"\a\b\f\n\r\t\u2026\v\x2A\x2A", "u'\\\\\\\'\"\\x07\\x08\\x0c\\n\\r\\t\\u2026\\x0b**'", PythonLanguageVersion.V27),
+                        CheckConstantStmtAndRepr(
+                            "\\'\"\a\b\f\n\r\t\u2026\v\x2A\x2A",
+                            "u'\\\\\\\'\"\\x07\\x08\\x0c\\n\\r\\t\\u2026\\x0b**'",
+                            PythonLanguageVersion.V27
+                        ),
                         IgnoreStmt(), // u'\N{COLON}',
                         CheckUnaryStmt(PythonOperator.Negate, CheckConstant(new BigInteger(2147483648))),
                         CheckUnaryStmt(PythonOperator.Negate, CheckConstant(new BigInteger(2147483648))),
@@ -542,49 +550,64 @@ namespace AnalysisTests {
             foreach (var version in V30_V32Versions) {
                 ParseErrors("LiteralsV2.py",
                     version,
-                    new ErrorInfo("invalid token", 4, 1, 5, 5, 1, 6),
-                    new ErrorInfo("invalid syntax", 8, 2, 2, 24, 2, 18),
-                    new ErrorInfo("invalid syntax", 27, 3, 2, 43, 3, 18),
-                    new ErrorInfo("invalid syntax", 47, 4, 3, 60, 4, 16),
-                    new ErrorInfo("invalid syntax", 64, 5, 3, 77, 5, 16),
-                    new ErrorInfo("invalid syntax", 81, 6, 3, 94, 6, 16),
-                    new ErrorInfo("invalid syntax", 98, 7, 3, 111, 7, 16),
-                    new ErrorInfo("invalid syntax", 114, 8, 2, 134, 8, 22),
-                    new ErrorInfo("invalid syntax", 137, 9, 2, 157, 9, 22),
-                    new ErrorInfo("invalid syntax", 161, 10, 3, 178, 10, 20),
-                    new ErrorInfo("invalid syntax", 182, 11, 3, 199, 11, 20),
-                    new ErrorInfo("invalid syntax", 203, 12, 3, 220, 12, 20),
-                    new ErrorInfo("invalid syntax", 224, 13, 3, 241, 13, 20),
-                    new ErrorInfo("invalid syntax", 244, 14, 2, 260, 14, 18),
-                    new ErrorInfo("invalid syntax", 263, 15, 2, 279, 15, 18),
-                    new ErrorInfo("invalid syntax", 283, 16, 3, 296, 16, 16),
-                    new ErrorInfo("invalid syntax", 300, 17, 3, 313, 17, 16),
-                    new ErrorInfo("invalid syntax", 317, 18, 3, 330, 18, 16),
-                    new ErrorInfo("invalid syntax", 334, 19, 3, 347, 19, 16),
-                    new ErrorInfo("invalid syntax", 350, 20, 2, 370, 20, 22),
-                    new ErrorInfo("invalid syntax", 373, 21, 2, 393, 21, 22),
-                    new ErrorInfo("invalid syntax", 397, 22, 3, 414, 22, 20),
-                    new ErrorInfo("invalid syntax", 418, 23, 3, 435, 23, 20),
-                    new ErrorInfo("invalid syntax", 439, 24, 3, 456, 24, 20),
-                    new ErrorInfo("invalid syntax", 460, 25, 3, 477, 25, 20),
-                    new ErrorInfo("invalid syntax", 480, 26, 2, 519, 27, 36),
-                    new ErrorInfo("invalid syntax", 522, 28, 2, 533, 28, 13),
-                    new ErrorInfo("invalid token", 546, 29, 12, 547, 29, 13),
-                    new ErrorInfo("invalid token", 560, 30, 12, 561, 30, 13),
-                    new ErrorInfo("invalid token", 563, 31, 1, 567, 31, 5),
-                    new ErrorInfo("invalid token", 573, 32, 5, 574, 32, 6)
+                    new ErrorInfo("invalid syntax", 4, 1, 5, 5, 1, 6),
+                    new ErrorInfo("invalid syntax", 7, 2, 1, 9, 2, 3),
+                    new ErrorInfo("invalid syntax", 26, 3, 1, 28, 3, 3),
+                    new ErrorInfo("invalid syntax", 45, 4, 1, 48, 4, 4),
+                    new ErrorInfo("invalid syntax", 62, 5, 1, 65, 5, 4),
+                    new ErrorInfo("invalid syntax", 79, 6, 1, 82, 6, 4),
+                    new ErrorInfo("invalid syntax", 96, 7, 1, 99, 7, 4),
+                    new ErrorInfo("invalid syntax", 113, 8, 1, 117, 8, 5),
+                    new ErrorInfo("invalid syntax", 136, 9, 1, 140, 9, 5),
+                    new ErrorInfo("invalid syntax", 159, 10, 1, 164, 10, 6),
+                    new ErrorInfo("invalid syntax", 180, 11, 1, 185, 11, 6),
+                    new ErrorInfo("invalid syntax", 201, 12, 1, 206, 12, 6),
+                    new ErrorInfo("invalid syntax", 222, 13, 1, 227, 13, 6),
+                    new ErrorInfo("invalid syntax", 243, 14, 1, 245, 14, 3),
+                    new ErrorInfo("invalid syntax", 262, 15, 1, 264, 15, 3),
+                    new ErrorInfo("invalid syntax", 281, 16, 1, 284, 16, 4),
+                    new ErrorInfo("invalid syntax", 298, 17, 1, 301, 17, 4),
+                    new ErrorInfo("invalid syntax", 315, 18, 1, 318, 18, 4),
+                    new ErrorInfo("invalid syntax", 332, 19, 1, 335, 19, 4),
+                    new ErrorInfo("invalid syntax", 349, 20, 1, 353, 20, 5),
+                    new ErrorInfo("invalid syntax", 372, 21, 1, 376, 21, 5),
+                    new ErrorInfo("invalid syntax", 395, 22, 1, 400, 22, 6),
+                    new ErrorInfo("invalid syntax", 416, 23, 1, 421, 23, 6),
+                    new ErrorInfo("invalid syntax", 437, 24, 1, 442, 24, 6),
+                    new ErrorInfo("invalid syntax", 458, 25, 1, 463, 25, 6),
+                    new ErrorInfo("invalid syntax", 479, 26, 1, 481, 26, 3),
+                    new ErrorInfo("invalid syntax", 521, 28, 1, 523, 28, 3),
+                    new ErrorInfo("invalid syntax", 546, 29, 12, 547, 29, 13),
+                    new ErrorInfo("invalid syntax", 560, 30, 12, 561, 30, 13),
+                    new ErrorInfo("invalid syntax", 564, 31, 2, 567, 31, 5),
+                    new ErrorInfo("invalid syntax", 573, 32, 5, 574, 32, 6)
                 );
             }
 
             foreach (var version in V33AndUp) {
                 ParseErrors("LiteralsV2.py",
                     version,
-                    new ErrorInfo("invalid token", 4, 1, 5, 5, 1, 6),
-                    new ErrorInfo("invalid token", 546, 29, 12, 547, 29, 13),
-                    new ErrorInfo("invalid token", 560, 30, 12, 561, 30, 13),
-                    new ErrorInfo("invalid token", 563, 31, 1, 567, 31, 5),
-                    new ErrorInfo("invalid token", 573, 32, 5, 574, 32, 6)
-                );
+                    new ErrorInfo("invalid syntax", 4, 1, 5, 5, 1, 6),
+                    new ErrorInfo("r and u prefixes are not compatible", 45, 4, 1, 48, 4, 4),
+                    new ErrorInfo("r and u prefixes are not compatible", 62, 5, 1, 65, 5, 4),
+                    new ErrorInfo("r and u prefixes are not compatible", 79, 6, 1, 82, 6, 4),
+                    new ErrorInfo("r and u prefixes are not compatible", 96, 7, 1, 99, 7, 4),
+                    new ErrorInfo("r and u prefixes are not compatible", 159, 10, 1, 164, 10, 6),
+                    new ErrorInfo("r and u prefixes are not compatible", 180, 11, 1, 185, 11, 6),
+                    new ErrorInfo("r and u prefixes are not compatible", 201, 12, 1, 206, 12, 6),
+                    new ErrorInfo("r and u prefixes are not compatible", 222, 13, 1, 227, 13, 6),
+                    new ErrorInfo("r and u prefixes are not compatible", 281, 16, 1, 284, 16, 4),
+                    new ErrorInfo("r and u prefixes are not compatible", 298, 17, 1, 301, 17, 4),
+                    new ErrorInfo("r and u prefixes are not compatible", 315, 18, 1, 318, 18, 4),
+                    new ErrorInfo("r and u prefixes are not compatible", 332, 19, 1, 335, 19, 4),
+                    new ErrorInfo("r and u prefixes are not compatible", 395, 22, 1, 400, 22, 6),
+                    new ErrorInfo("r and u prefixes are not compatible", 416, 23, 1, 421, 23, 6),
+                    new ErrorInfo("r and u prefixes are not compatible", 437, 24, 1, 442, 24, 6),
+                    new ErrorInfo("r and u prefixes are not compatible", 458, 25, 1, 463, 25, 6),
+                    new ErrorInfo("invalid syntax", 546, 29, 12, 547, 29, 13),
+                    new ErrorInfo("invalid syntax", 560, 30, 12, 561, 30, 13),
+                    new ErrorInfo("invalid syntax", 564, 31, 2, 567, 31, 5),
+                    new ErrorInfo("invalid syntax", 573, 32, 5, 574, 32, 6));
                 CheckAst(
                     ParseFileNoErrors("LiteralsV3.py", version),
                     CheckSuite(
@@ -593,28 +616,28 @@ namespace AnalysisTests {
                         CheckConstantStmtAndRepr(new BigInteger(111222333444), "111222333444", version),
                         CheckConstantStmt("unicode string"),
                         CheckConstantStmt("unicode string"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
+                        CheckConstantStmt("raw string"),
+                        CheckConstantStmt("raw string"),
+                        CheckConstantStmt(Encoding.ASCII.GetBytes("byte string")),
+                        CheckConstantStmt(Encoding.ASCII.GetBytes("byte string")),
                         CheckConstantStmt("unicode string"),
                         CheckConstantStmt("unicode string"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
+                        CheckConstantStmt("raw string"),
+                        CheckConstantStmt("raw string"),
+                        CheckConstantStmt(Encoding.ASCII.GetBytes("byte string")),
+                        CheckConstantStmt(Encoding.ASCII.GetBytes("byte string")),
                         CheckConstantStmt("unicode string"),
                         CheckConstantStmt("unicode string"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
+                        CheckConstantStmt("raw string"),
+                        CheckConstantStmt("raw string"),
+                        CheckConstantStmt(Encoding.ASCII.GetBytes("byte string")),
+                        CheckConstantStmt(Encoding.ASCII.GetBytes("byte string")),
                         CheckConstantStmt("unicode string"),
                         CheckConstantStmt("unicode string"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
-                        CheckConstantStmt("raw unicode"),
+                        CheckConstantStmt("raw string"),
+                        CheckConstantStmt("raw string"),
+                        CheckConstantStmt(Encoding.ASCII.GetBytes("byte string")),
+                        CheckConstantStmt(Encoding.ASCII.GetBytes("byte string")),
                         CheckConstantStmtAndRepr("\\\'\"\a\b\f\n\r\t\u2026\v\x2A\x2A", "'\\\\\\'\"\\x07\\x08\\x0c\\n\\r\\t\\u2026\\x0b**'", PythonLanguageVersion.V33),
                         IgnoreStmt()  // u'\N{COLON}'
                     )
@@ -622,7 +645,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void Literals26() {
             foreach (var version in V26AndUp) {
                 CheckAst(
@@ -637,8 +660,8 @@ namespace AnalysisTests {
             foreach (var version in V24_V25Versions) {
                 ParseErrors("Literals26.py",
                     version,
-                    new ErrorInfo("unexpected token 'o720'", 1, 1, 2, 5, 1, 6),
-                    new ErrorInfo("unexpected token 'b100'", 8, 2, 2, 12, 2, 6)
+                    new ErrorInfo("invalid syntax", 0, 1, 1, 5, 1, 6),
+                    new ErrorInfo("invalid syntax", 7, 2, 1, 12, 2, 6)
                 );
             }
         }
@@ -931,7 +954,7 @@ namespace AnalysisTests {
                         CheckIndexStmt(One, CheckSlice(Two, null, Four)),
                         CheckIndexStmt(One, CheckSlice(null, null, Four)),
                         CheckIndexStmt(One, Ellipsis),
-                        CheckIndexStmt(One, CheckTupleExpr(CheckSlice(null, null))),
+                        CheckIndexStmt(One, CheckTupleExpr(CheckSlice(null, null), null)),
                         CheckMemberStmt(Fob, "oar"),
                         CheckAssignment(Fob, One),
                         CheckAssignment(Fob, PythonOperator.Add, One),
@@ -2302,7 +2325,7 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 ParseErrors("Ellipsis.py", version,
-                    new ErrorInfo("unexpected token '.'", 4, 1, 5, 8, 1, 9),
+                    new ErrorInfo("unexpected token '.'", 4, 1, 5, 7, 1, 8),
                     new ErrorInfo("unexpected token '.'", 14, 2, 5, 17, 2, 8)
                 );
             }
@@ -2560,6 +2583,7 @@ namespace AnalysisTests {
         }
 
         private static Parser CreateParser(string filename, PythonLanguageVersion version, Severity indentationInconsistencySeverity = Severity.Ignore) {
+            Trace.TraceInformation("Parsing {0} with {1}", filename, version.ToVersion());
             var tokenization = Tokenization.TokenizeAsync(
                 new FileSourceDocument(PythonTestData.GetTestDataSourcePath("Grammar\\" + filename)),
                 version
@@ -3185,14 +3209,12 @@ namespace AnalysisTests {
             return CheckExprStmt(CheckIndexExpression(target, index));
         }
 
-        private static Action<Expression> CheckIndexExpression(Action<Expression> target, params Action<Expression>[] indices) {
+        private static Action<Expression> CheckIndexExpression(Action<Expression> target, Action<Expression> index) {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(IndexExpression));
                 var indexExpr = (IndexExpression)expr;
                 target(indexExpr.Target);
-                for (int i = 0; i < indexExpr.Indices.Count; i++) {
-                    indices[i](indexExpr.Indices[i].Expression);
-                }
+                index(indexExpr.Index);
             };
         }
 
@@ -3223,7 +3245,11 @@ namespace AnalysisTests {
                 Assert.AreEqual(items.Length, tupleExpr.Items.Count);
 
                 for (int i = 0; i < tupleExpr.Items.Count; i++) {
-                    items[i](tupleExpr.Items[i]);
+                    if (items[i] == null) {
+                        Assert.IsInstanceOfType(tupleExpr.Items[i], typeof(EmptyExpression));
+                    } else {
+                        items[i](tupleExpr.Items[i]);
+                    }
                 }
             };
         }
@@ -3355,23 +3381,34 @@ namespace AnalysisTests {
 
         private static Action<Expression> CheckConstant(object value, string expectedRepr = null, PythonLanguageVersion ver = PythonLanguageVersion.V27) {
             return expr => {
-                Assert.IsInstanceOfType(expr, typeof(ConstantExpression));
+                if (value is byte[] || value is string) {
+                    Assert.IsInstanceOfType(expr, typeof(StringExpression));
+                    var se = (StringExpression)expr;
 
-                if (value is byte[]) {
-                    Assert.AreEqual(typeof(AsciiString), ((ConstantExpression)expr).Value.GetType());
-                    byte[] b1 = (byte[])value;
-                    byte[] b2 = ((AsciiString)((ConstantExpression)expr).Value).Bytes;
-                    Assert.AreEqual(b1.Length, b2.Length);
+                    if (value is byte[]) {
+                        var b1 = (IReadOnlyList<byte>)value;
+                        var b2 = se.ToSimpleByteString();
+                        Assert.AreEqual(b1.Count, b2.Count);
 
-                    for (int i = 0; i < b1.Length; i++) {
-                        Assert.AreEqual(b1[i], b2[i]);
+                        for (int i = 0; i < b1.Count; i++) {
+                            Assert.AreEqual(b1[i], b2[i]);
+                        }
+                    } else {
+                        Assert.AreEqual((string)value, se.ToSimpleString());
+                    }
+
+                    if (expectedRepr != null) {
+                        Assert.AreEqual(expectedRepr, se.GetConstantRepr(ver), "Reprs do not match");
                     }
                 } else {
-                    Assert.AreEqual(value, ((ConstantExpression)expr).Value);
-                }
+                    Assert.IsInstanceOfType(expr, typeof(ConstantExpression));
+                    var ce = (ConstantExpression)expr;
 
-                if (expectedRepr != null) {
-                    Assert.AreEqual(expectedRepr, ((ConstantExpression)expr).GetConstantRepr(ver));
+                    Assert.AreEqual(value, ce.Value, "Values do not match");
+
+                    if (expectedRepr != null) {
+                        Assert.AreEqual(expectedRepr, ce.GetConstantRepr(ver), "Reprs do not match");
+                    }
                 }
             };
         }

@@ -21,23 +21,16 @@ using System.Text;
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class IndexExpression : Expression {
         private Expression _target;
-        private IList<Arg> _indices;
-
-        public IndexExpression() { }
-
-        protected override void OnFreeze() {
-            base.OnFreeze();
-            _indices = FreezeList(_indices);
-        }
+        private Expression _index;
 
         public Expression Target {
             get { return _target; }
             set { ThrowIfFrozen(); _target = value; }
         }
 
-        public IList<Arg> Indices {
-            get { return _indices; }
-            set { ThrowIfFrozen(); _indices = value; }
+        public Expression Index {
+            get { return _index; }
+            set { ThrowIfFrozen(); _index = value; }
         }
 
         internal override string CheckName => null;
@@ -45,17 +38,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 _target?.Walk(walker);
-                if (_indices != null) {
-                    foreach (var i in _indices) {
-                        i.Walk(walker);
-                    }
-                }
+                _index?.Walk(walker);
             }
             walker.PostWalk(this);
-        }
-
-        private bool IsSlice {
-            get { return _indices?[0].Expression is SliceExpression; }
         }
     }
 }

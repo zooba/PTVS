@@ -42,6 +42,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             this._end = end;
         }
 
+        /// <summary>
+        /// Constructs a new span with a specific start location and number of
+        /// columns. This never wraps onto a second line.
+        /// </summary>
+        /// <param name="start">The beginning of the span.</param>
+        /// <param name="columns">The number of columns in the span.</param>
+        public SourceSpan(SourceLocation start, int columns) : this(start, start + columns) { }
+
         public static SourceSpan FromIndexSpan(Tokenization tokenization, IndexSpan span) {
             return new SourceSpan(
                 SourceLocation.FromIndex(tokenization, span.Start),

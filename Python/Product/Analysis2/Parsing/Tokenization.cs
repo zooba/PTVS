@@ -31,6 +31,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private readonly string[] _lines;
         private readonly int[] _lineStarts;
         private readonly PythonLanguageVersion _languageVersion;
+        private readonly Encoding _encoding;
 
         public static async Task<Tokenization> TokenizeAsync(
             ISourceDocument document,
@@ -38,13 +39,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         ) {
             using (var stream = await document.ReadAsync()) {
                 var reader = new PythonSourceStreamReader(stream, false);
-                return await TokenizeAsync(reader, languageVersion);
+                return await TokenizeAsync(reader, languageVersion, reader.Encoding);
             }
         }
 
         private static async Task<Tokenization> TokenizeAsync(
             TextReader reader,
-            PythonLanguageVersion languageVersion
+            PythonLanguageVersion languageVersion,
+            Encoding encoding
         ) {
             var tokenizer = new Tokenizer(languageVersion);
 
@@ -72,7 +74,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 lines.ToArray(),
                 tokens.ToArray(),
                 lineStarts.ToArray(),
-                languageVersion
+                languageVersion,
+                encoding
             );
         }
 
@@ -80,13 +83,17 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             string[] lines,
             Token[][] tokens,
             int[] lineStarts,
-            PythonLanguageVersion languageVersion
+            PythonLanguageVersion languageVersion,
+            Encoding encoding
         ) {
             _lines = lines;
             _tokens = tokens;
             _lineStarts = lineStarts;
             _languageVersion = languageVersion;
+            _encoding = encoding;
         }
+
+        public Encoding Encoding => _encoding;
 
         public string GetTokenText(SourceSpan span) {
             if (span.End.Index == int.MaxValue) {
