@@ -821,7 +821,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void UnaryOperators() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1415,7 +1415,7 @@ namespace AnalysisTests {
             );
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void RaiseStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1453,7 +1453,7 @@ namespace AnalysisTests {
                 ParseErrors(
                     "RaiseStmtV2.py", version,
                     new ErrorInfo("invalid syntax, only exception value is allowed in 3.x.", 9, 1, 10, 14, 1, 15),
-                    new ErrorInfo("invalid syntax, only exception value is allowed in 3.x.", 25, 2, 10, 30, 2, 15)
+                    new ErrorInfo("invalid syntax, only exception value is allowed in 3.x.", 25, 2, 10, 35, 2, 20)
                 );
             }
         }
@@ -2713,9 +2713,9 @@ namespace AnalysisTests {
                 var raiseStmt = (RaiseStatement)stmt;
 
                 if (exceptionType != null) {
-                    exceptionType(raiseStmt.ExceptType);
+                    exceptionType(raiseStmt.Type);
                 } else {
-                    Assert.IsNull(raiseStmt.ExceptType);
+                    EmptyExpr(raiseStmt.Type);
                 }
 
                 if (exceptionValue != null) {
@@ -3031,7 +3031,7 @@ namespace AnalysisTests {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(UnaryExpression));
                 var unary = (UnaryExpression)expr;
-                Assert.AreEqual(unary.Operator, op);
+                Assert.AreEqual(op, unary.Operator);
                 value(unary.Expression);
             };
         }

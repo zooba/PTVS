@@ -795,7 +795,29 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseRaiseStmt() {
-            return null;
+            var start = Read(TokenKind.KeywordRaise).Start;
+            var stmt = new RaiseStatement {
+                Expression = ParseExpression()
+            };
+
+            var te = stmt.Expression as TupleExpression;
+            if (te != null && _version.Is3x()) {
+                ReportError(
+                    "invalid syntax, only exception value is allowed in 3.x.",
+                    te.Count < 1 ? stmt.Expression.Span : new SourceSpan(te.Items[0].Span.End, stmt.Expression.Span.End)
+                );
+            }
+            if (TryRead(TokenKind.KeywordFrom)) {
+                var fromStart = Current.Span.Start;
+                stmt.Cause = ParseExpression();
+                if (_version.Is2x()) {
+                    ReportError("invalid syntax, from cause not allowed in 2.x.", new SourceSpan(fromStart, Current.Span.End));
+                }
+            }
+
+            stmt.Span = new SourceSpan(start, Current.Span.End);
+
+            return WithComment(stmt);
         }
 
         private Statement ParseAssertStmt() {
@@ -1304,7 +1326,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 };
                 switch (Next().Kind) {
                     case TokenKind.Add:
-                        expr.Operator = PythonOperator.Add;
+                        expr.Operator = PythonOperator.Pos;
                         break;
                     case TokenKind.Subtract:
                         expr.Operator = PythonOperator.Negate;

@@ -14,51 +14,64 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class RaiseStatement : StatementWithExpression {
+        private Expression _cause;
 
-using System.Text;
-
-namespace Microsoft.PythonTools.Analysis.Parsing.Ast {    
-    public class RaiseStatement : Statement {
-        private readonly Expression _type, _value, _traceback, _cause;
-
-        public RaiseStatement(Expression exceptionType, Expression exceptionValue, Expression traceBack, Expression cause) {
-            _type = exceptionType;
-            _value = exceptionValue;
-            _traceback = traceBack;
-            _cause = cause;
-        }
-
-        public Expression ExceptType {
+        public Expression Type {
             get {
-                return _type;
+                var te = Expression as TupleExpression;
+                if (te != null) {
+                    if (te.Count >= 1) {
+                        return te.Items[0];
+                    }
+                    return null;
+                }
+
+                return Expression;
             }
         }
 
         public Expression Value {
-            get { return _value; }
+            get {
+                var te = Expression as TupleExpression;
+                if (te != null) {
+                    if (te.Count >= 2) {
+                        return te.Items[1];
+                    }
+                }
+
+                return null;
+            }
         }
 
         public Expression Traceback {
-            get { return _traceback; }
+            get {
+                var te = Expression as TupleExpression;
+                if (te != null) {
+                    if (te.Count >= 3) {
+                        return te.Items[2];
+                    }
+                }
+
+                return null;
+            }
         }
 
         public Expression Cause {
-            get {
-                return _cause;
-            }
+            get { return _cause; }
+            set { ThrowIfFrozen(); _cause = value; }
+        }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _cause?.Freeze();
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_type != null) {
-                    _type.Walk(walker);
-                }
-                if (_value != null) {
-                    _value.Walk(walker);
-                }
-                if (_traceback != null) {
-                    _traceback.Walk(walker);
-                }
+                base.Walk(walker);
+                _cause?.Walk(walker);
             }
             walker.PostWalk(this);
         }
