@@ -1242,10 +1242,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     ReportError("'yield' outside of generator", yieldSpan);
                 }
 
-                var beforeExpr = ReadWhitespace();
-                var expr = ParsePower();
-                expr.BeforeNode = beforeExpr;
-                expr.Freeze();
+                var expr = ParseExpression(allowGenerator: false);
 
                 yieldExpr = new YieldExpression {
                     BeforeNode = ws,

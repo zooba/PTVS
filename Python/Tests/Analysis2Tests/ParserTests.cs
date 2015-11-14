@@ -1078,7 +1078,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void IndexExpr() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1101,7 +1101,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void YieldStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1118,20 +1118,20 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void YieldExpr() {
             foreach (var version in V25AndUp) {
                 CheckAst(
                     ParseFileNoErrors("YieldExpr.py", version),
                     CheckSuite(
                         CheckFuncDef("f", NoParameters, CheckSuite(
-                            CheckYieldStmt(None)
+                            CheckYieldStmt(EmptyExpr)
                         )),
                         CheckFuncDef("f", NoParameters, CheckSuite(
-                            CheckAssignment(Fob, CheckYieldExpr(None))
+                            CheckAssignment(Fob, CheckYieldExpr(EmptyExpr))
                         )),
                         CheckFuncDef("f", NoParameters, CheckSuite(
-                            CheckAssignment(Baz, CheckListComp(CheckYieldExpr(Oar), CompFor(Oar, Fob)))
+                            CheckAssignment(Baz, CheckListComp(CheckParenExpr(CheckYieldExpr(Oar)), CompFor(Oar, Fob)))
                         ))
                     )
                 );
@@ -1142,7 +1142,7 @@ namespace AnalysisTests {
         public void YieldStmtIllegal() {
             foreach (var version in V2Versions.Concat(V30_V32Versions)) {
                 ParseErrors("YieldStmtIllegal.py", version,
-                    new ErrorInfo("misplaced yield", 0, 1, 1, 5, 1, 6),
+                    new ErrorInfo("'yield' outside of generator", 0, 1, 1, 5, 1, 6),
                     new ErrorInfo("'return' with argument inside generator", 25, 4, 5, 34, 4, 14),
                     new ErrorInfo("'return' with argument inside generator", 78, 9, 5, 87, 9, 14)
                 );
@@ -1151,7 +1151,7 @@ namespace AnalysisTests {
             // return inside generator is legal as of 3.3
             foreach (var version in V33AndUp) {
                 ParseErrors("YieldStmtIllegal.py", version,
-                    new ErrorInfo("misplaced yield", 0, 1, 1, 5, 1, 6)
+                    new ErrorInfo("'yield' outside of generator", 0, 1, 1, 5, 1, 6)
                 );
             }
         }
@@ -1848,7 +1848,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void LambdaExpr() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2593,6 +2593,7 @@ namespace AnalysisTests {
         private static Action<Expression> Three = CheckConstant(3);
         private static Action<Expression> Four = CheckConstant(4);
         private static Action<Expression> None = CheckConstant(null);
+        private static Action<Expression> EmptyExpr = CheckEmptyExpr();
         private static Action<Expression> Fob = CheckNameExpr("fob");
         private static Action<Expression> Ellipsis = CheckConstant(Microsoft.PythonTools.Analysis.Parsing.Ellipsis.Value);
         private static Action<Expression> Oar = CheckNameExpr("oar");
@@ -3284,6 +3285,12 @@ namespace AnalysisTests {
         private static Action<Statement> CheckErrorStmt() {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(ErrorStatement));
+            };
+        }
+
+        private static Action<Expression> CheckEmptyExpr() {
+            return expr => {
+                Assert.IsInstanceOfType(expr, typeof(EmptyExpression));
             };
         }
 
