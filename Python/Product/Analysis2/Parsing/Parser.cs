@@ -56,6 +56,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         internal bool HasUnicodeLiterals => _version.Is3x() || _future.HasFlag(FutureOptions.UnicodeLiterals);
 
+        internal bool HasSetLiterals => _version >= PythonLanguageVersion.V27;
+
+        internal bool HasDictComprehensions => _version >= PythonLanguageVersion.V27;
+
+        internal bool HasTupleAsComprehensionTarget => _version.Is2x();
+
         internal bool HasClassDecorators => _version >= PythonLanguageVersion.V26;
 
         internal bool HasNonlocal => _version.Is3x();
@@ -769,8 +775,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return tuple;
         }
 
-        private Expression ParseExpression(bool allowSlice = false) {
-            var expr = ParseSingleExpression(allowSlice: allowSlice);
+        private Expression ParseExpression(bool allowIfExpr = true, bool allowSlice = false) {
+            var expr = ParseSingleExpression(allowIfExpr: allowIfExpr, allowSlice: allowSlice);
 
             if (!Peek.Is(TokenKind.Comma)) {
                 return expr;
@@ -781,7 +787,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             tuple.AddItem(expr);
 
             while (TryRead(TokenKind.Comma)) {
-                expr = ParseSingleExpression(allowSlice: allowSlice);
+                expr = ParseSingleExpression(allowIfExpr: allowIfExpr, allowSlice: allowSlice);
                 tuple.AddItem(expr);
             }
 
@@ -817,10 +823,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 expr.Freeze();
                 var sliceExpr = new SliceExpression { SliceStart = expr };
                 Read(TokenKind.Colon);
-                sliceExpr.SliceStop = ParseSingleExpression(allowSlice: false);
+                sliceExpr.SliceStop = ParseSingleExpression(allowSlice: false, allowGenerator: allowGenerator);
 
                 if (TryRead(TokenKind.Colon)) {
-                    sliceExpr.SliceStep = ParseSingleExpression(allowSlice: false);
+                    sliceExpr.SliceStep = ParseSingleExpression(allowSlice: false, allowGenerator: allowGenerator);
                 }
 
                 sliceExpr.Span = new SourceSpan(expr.Span.Start, Current.Span.End);
@@ -1675,7 +1681,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var span = new SourceSpan(strStart + i, format.Length);
             var text = str.Substring(i, format.Length);
             BigInteger bi;
-            string s;
             switch (format[1]) {
                 case 'x':
                     if (!ReadHex(text.Substring(2), out bi) || bi > byte.MaxValue) {
@@ -1709,14 +1714,23 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Expression ParseListLiteralOrComprehension() {
             var start = Read(TokenKind.LeftBracket).Start;
 
-            var list = new ListExpression();
             if (TryRead(TokenKind.RightBracket)) {
-                list.Span = new SourceSpan(start, Current.Span.End);
-                return WithCommentAndWhitespace(list);
+                return WithCommentAndWhitespace(new ListExpression {
+                    Span = new SourceSpan(start, Current.Span.End)
+                });
             }
 
+            var expr = ParseSingleExpression(allowSlice: false, allowGenerator: false);
+            if (PeekNonWhitespace.Is(TokenKind.KeywordFor)) {
+                return WithCommentAndWhitespace(new ListComprehension {
+                    Item = expr,
+                    Iterators = ReadComprehension(),
+                    Span = new SourceSpan(start, Read(TokenKind.RightBracket).End)
+                });
+            }
+
+            var list = new ListExpression();
             while (true) {
-                var expr = ParseSingleExpression();
                 list.AddItem(expr);
 
                 if (TryRead(TokenKind.RightBracket)) {
@@ -1724,15 +1738,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     return WithCommentAndWhitespace(list);
                 }
 
-                if (list.Items.Count == 1 && TryRead(TokenKind.KeywordFor)) {
-                    return WithCommentAndWhitespace(new ListComprehension {
-                        Item = expr,
-                        Iterators = ReadComprehension(),
-                        Span = new SourceSpan(start, Read(TokenKind.RightBracket).End)
-                    });
-                }
-
                 Read(TokenKind.Comma);
+
+                expr = ParseSingleExpression(allowGenerator: false, allowSlice: true);
             }
         }
 
@@ -1745,13 +1753,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 });
             }
 
-            var expr = ParseSingleExpression(allowSlice: true);
+            var expr = ParseSingleExpression(allowSlice: true, allowGenerator: false);
             if (expr is SliceExpression) {
                 expr = ParseDictLiteralOrComprehension(expr);
             } else {
                 expr = ParseSetLiteralOrComprehension(expr);
             }
 
+            Read(TokenKind.RightBrace);
             expr.Span = new SourceSpan(start, Current.Span.End);
             return WithCommentAndWhitespace(expr);
         }
@@ -1759,15 +1768,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Expression ParseDictLiteralOrComprehension(Expression expr) {
             var sliceExpr = (SliceExpression)expr;
 
-            if (TryRead(TokenKind.KeywordFor)) {
+            if (PeekNonWhitespace.Is(TokenKind.KeywordFor)) {
                 if (sliceExpr.StepProvided) {
                     ReportError(errorAt: sliceExpr.SliceStep.Span);
                 }
-                return new DictionaryComprehension {
+                var comp = new DictionaryComprehension {
                     Key = sliceExpr.SliceStart,
                     Value = sliceExpr.SliceStop,
                     Iterators = ReadComprehension()
                 };
+                if (!HasDictComprehensions) {
+                    ReportError(
+                        "invalid syntax, dictionary comprehensions require Python 2.7 or later",
+                        errorAt: new SourceSpan(sliceExpr.Span.Start, Current.Span.End)
+                    );
+                }
+                return comp;
             }
 
             var dict = new DictionaryExpression();
@@ -1775,7 +1791,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             while (true) {
                 dict.AddItem(sliceExpr);
 
-                if (TryRead(TokenKind.RightBrace)) {
+                if (Peek.Is(TokenKind.RightBrace)) {
                     return dict;
                 }
 
@@ -1790,19 +1806,33 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Expression ParseSetLiteralOrComprehension(Expression expr) {
-            if (TryRead(TokenKind.KeywordFor)) {
-                return new SetComprehension {
+            if (PeekNonWhitespace.Is(TokenKind.KeywordFor)) {
+                var comp = new SetComprehension {
                     Item = expr,
                     Iterators = ReadComprehension()
                 };
+                if (!HasSetLiterals) {
+                    ReportError(
+                        "invalid syntax, set literals require Python 2.7 or later",
+                        new SourceSpan(expr.Span.Start, Current.Span.End)
+                    );
+                }
+                return comp;
             }
 
             var set = new SetExpression();
+            var start = expr.Span.Start;
 
             while (true) {
                 set.AddItem(expr);
 
-                if (TryRead(TokenKind.RightBrace) || Peek.Is(TokenUsage.EndStatement)) {
+                if (Peek.Is(TokenKind.RightBrace) || Peek.Is(TokenUsage.EndStatement)) {
+                    if (!HasSetLiterals) {
+                        ReportError(
+                            "invalid syntax, set literals require Python 2.7 or later",
+                            new SourceSpan(start, Current.Span.End)
+                        );
+                    }
                     return set;
                 }
 
@@ -1814,7 +1844,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private List<ComprehensionIterator> ReadComprehension() {
             var iterators = new List<ComprehensionIterator>();
-            while (Peek.IsAny(TokenKind.KeywordFor, TokenKind.KeywordIf)) {
+            while (PeekNonWhitespace.IsAny(TokenKind.KeywordFor, TokenKind.KeywordIf)) {
+                var ws = ReadWhitespace();
+
                 ComprehensionIterator it = null;
                 var start = Peek.Span.Start;
 
@@ -1823,12 +1855,18 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         Left = ParseAssignmentTarget()
                     };
                     Read(TokenKind.KeywordIn);
-                    ((ComprehensionFor)it).List = ParseSingleExpression(allowIfExpr: false, allowGenerator: false);
+                    if (HasTupleAsComprehensionTarget) {
+                        ((ComprehensionFor)it).List = ParseExpression(allowIfExpr: false);
+                    } else {
+                        ((ComprehensionFor)it).List = ParseSingleExpression(allowIfExpr: false, allowGenerator: false);
+                    }
                 } else if (TryRead(TokenKind.KeywordIf)) {
                     it = new ComprehensionIf {
                         Test = ParseSingleExpression(allowIfExpr: false, allowGenerator: false)
                     };
                 }
+
+                it.BeforeNode = ws;
 
                 MaybeReadComment(it);
                 it.Span = new SourceSpan(start, Current.Span.End);

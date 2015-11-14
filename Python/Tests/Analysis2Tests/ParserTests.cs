@@ -1522,7 +1522,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void ListComp() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1536,7 +1536,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void ListComp2x() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -1549,8 +1549,7 @@ namespace AnalysisTests {
 
             foreach (var version in V3Versions) {
                 ParseErrors("ListComp2x.py", version,
-                    new ErrorInfo("unexpected token ','", 19, 1, 20, 20, 1, 21),
-                    new ErrorInfo("unexpected token ']'", 24, 1, 25, 25, 1, 26)
+                    new ErrorInfo("invalid syntax", 19, 1, 20, 25, 1, 26)
                 );
             }
         }
@@ -1570,7 +1569,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void DictComp() {
             foreach (var version in V27AndUp) {
                 CheckAst(
@@ -1585,14 +1584,14 @@ namespace AnalysisTests {
 
             foreach (var version in V24_V26Versions) {
                 ParseErrors("DictComp.py", version,
-                    new ErrorInfo("invalid syntax", 9, 1, 10, 12, 1, 13),
-                    new ErrorInfo("invalid syntax", 39, 2, 10, 42, 2, 13),
-                    new ErrorInfo("invalid syntax", 77, 3, 10, 80, 3, 13)
+                    new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 1, 1, 2, 27, 1, 28),
+                    new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 31, 2, 2, 65, 2, 36),
+                    new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 69, 3, 2, 117, 3, 50)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void SetComp() {
             foreach (var version in V27AndUp) {
                 CheckAst(
@@ -1607,14 +1606,14 @@ namespace AnalysisTests {
 
             foreach (var version in V24_V26Versions) {
                 ParseErrors("SetComp.py", version,
-                    new ErrorInfo("invalid syntax, set literals require Python 2.7 or later.", 1, 1, 2, 4, 1, 5),
-                    new ErrorInfo("invalid syntax, set literals require Python 2.7 or later.", 23, 2, 2, 26, 2, 5),
-                    new ErrorInfo("invalid syntax, set literals require Python 2.7 or later.", 53, 3, 2, 56, 3, 5)
+                    new ErrorInfo("invalid syntax, set literals require Python 2.7 or later", 1, 1, 2, 19, 1, 20),
+                    new ErrorInfo("invalid syntax, set literals require Python 2.7 or later", 23, 2, 2, 49, 2, 28),
+                    new ErrorInfo("invalid syntax, set literals require Python 2.7 or later", 53, 3, 2, 93, 3, 42)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void SetLiteral() {
             foreach (var version in V27AndUp) {
                 CheckAst(
@@ -1628,8 +1627,8 @@ namespace AnalysisTests {
 
             foreach (var version in V24_V26Versions) {
                 ParseErrors("SetLiteral.py", version,
-                    new ErrorInfo("invalid syntax, set literals require Python 2.7 or later.", 1, 1, 2, 2, 1, 3),
-                    new ErrorInfo("invalid syntax, set literals require Python 2.7 or later.", 6, 2, 2, 7, 2, 3)
+                    new ErrorInfo("invalid syntax, set literals require Python 2.7 or later", 1, 1, 2, 2, 1, 3),
+                    new ErrorInfo("invalid syntax, set literals require Python 2.7 or later", 6, 2, 2, 10, 2, 6)
                 );
             }
         }

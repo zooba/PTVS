@@ -22,7 +22,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private Expression _sliceStart;
         private Expression _sliceStop;
         private Expression _sliceStep;
-        private bool _stepProvided;
 
         public Expression SliceStart {
             get { return _sliceStart; }
