@@ -68,6 +68,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         internal bool HasNonlocal => _version.Is3x();
 
+        internal bool HasExecStatement => _version.Is2x();
+
         internal bool HasSublistParameters => _version.Is2x();
 
         internal bool HasBareStarParameter => _version.Is3x();
@@ -312,11 +314,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 case TokenKind.KeywordAssert:
                     return ParseAssertStmt();
                 case TokenKind.KeywordExec:
-                    return ParseExecStmt();
+                    if (HasExecStatement) {
+                        return ParseExecStmt();
+                    }
+                    goto default;
                 case TokenKind.KeywordDel:
                     return ParseDelStmt();
-                case TokenKind.KeywordYield:
-                    return ParseYieldStmt();
                 case TokenKind.KeywordAsync:
                     throw new ParseErrorException("invalid syntax", Peek.Span.Start);
                 default:
@@ -697,13 +700,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseExecStmt() {
-            return null;
+            var start = Read(TokenKind.KeywordExec).Start;
+
+            var stmt = new ExecStatement {
+                Expression = ParseExpression()
+            };
+            stmt.Span = new SourceSpan(start, Current.Span.End);
+
+            stmt.CheckSyntax(this);
+
+            return WithCommentAndWhitespace(stmt);
         }
 
         private Statement ParseDelStmt() {
-            var stmt = new DelStatement {
-                Span = Read(TokenKind.KeywordDel)
-            };
+            var start = Read(TokenKind.KeywordDel).Start;
+
+            var stmt = new DelStatement();
 
             do {
                 var expr = ParseSingleExpression();
@@ -711,11 +723,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 stmt.AddExpression(expr);
             } while (TryRead(TokenKind.Comma));
 
+            stmt.Span = new SourceSpan(start, Current.Span.End);
             return WithComment(stmt);
-        }
-
-        private Statement ParseYieldStmt() {
-            return null;
         }
 
         private Statement ParseExprStmt() {
@@ -1370,6 +1379,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     // pass
                 } else if (!HasNonlocal && Peek.Is(TokenKind.KeywordNonlocal)) {
                     // pass
+                } else if (!HasExecStatement && Peek.Is(TokenKind.KeywordExec)) {
+                    // pass
                 } else if (Peek.IsAny(TokenUsage.EndGroup, TokenUsage.EndStatement) ||
                     Peek.Is(TokenCategory.Delimiter)) {
                     return new EmptyExpression {
@@ -1392,6 +1403,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 case TokenKind.KeywordAwait:
                 case TokenKind.KeywordWith:
                 case TokenKind.KeywordAs:
+                case TokenKind.KeywordNonlocal:
+                case TokenKind.KeywordExec:
                     text = _tokenization.GetTokenText(Next());
                     return new NameExpression(text) {
                         Span = Current.Span,

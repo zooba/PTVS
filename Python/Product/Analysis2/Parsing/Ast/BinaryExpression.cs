@@ -20,7 +20,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public partial class BinaryExpression : ExpressionWithExpression {
         private Expression _right;
         private PythonOperator _op;
-        private SourceSpan _withinOp;
+        private SourceSpan _opSpan, _withinOp;
 
         public Expression Left {
             get { return Expression; }
@@ -35,6 +35,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public PythonOperator Operator {
             get { return _op; }
             set { ThrowIfFrozen(); _op = value; }
+        }
+
+        public SourceSpan OperatorSpan {
+            get { return _opSpan; }
+            set { ThrowIfFrozen(); _opSpan = value; }
         }
 
         public SourceSpan WithinOperator {

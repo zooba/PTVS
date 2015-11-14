@@ -1320,11 +1320,11 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 ParseErrors("NonlocalStmt.py", version,
-                    new ErrorInfo("invalid syntax", 58, 5, 9, 70, 5, 21),
-                    new ErrorInfo("invalid syntax", 80, 6, 9, 97, 6, 26),
-                    new ErrorInfo("invalid syntax", 135, 11, 9, 147, 11, 21),
-                    new ErrorInfo("invalid syntax", 200, 18, 9, 212, 18, 21),
-                    new ErrorInfo("invalid syntax", 279, 24, 9, 297, 24, 27)
+                    new ErrorInfo("invalid syntax", 67, 5, 18, 70, 5, 21),
+                    new ErrorInfo("invalid syntax", 89, 6, 18, 97, 6, 26),
+                    new ErrorInfo("invalid syntax", 144, 11, 18, 147, 11, 21),
+                    new ErrorInfo("invalid syntax", 209, 18, 18, 212, 18, 21),
+                    new ErrorInfo("invalid syntax", 288, 24, 18, 297, 24, 27)
                 );
             }
         }
@@ -2277,12 +2277,15 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void ExecStmt() {
             foreach (var version in V2Versions) {
                 CheckAst(
                     ParseFileNoErrors("ExecStmt.py", version),
                     CheckSuite(
+                        CheckExecStmt(Fob),
+                        CheckExecStmt(Fob, Oar),
+                        CheckExecStmt(Fob, Oar, Baz),
                         CheckExecStmt(Fob),
                         CheckExecStmt(Fob, Oar),
                         CheckExecStmt(Fob, Oar, Baz)
@@ -2292,15 +2295,9 @@ namespace AnalysisTests {
 
             foreach (var version in V3Versions) {
                 ParseErrors("ExecStmt.py", version,
-                    new ErrorInfo("unexpected token 'fob'", 5, 1, 6, 8, 1, 9),
-                    new ErrorInfo("unexpected token 'fob'", 15, 2, 6, 18, 2, 9),
-                    new ErrorInfo("unexpected token 'in'", 19, 2, 10, 21, 2, 12),
-                    new ErrorInfo("unexpected token 'oar'", 22, 2, 13, 25, 2, 16),
-                    new ErrorInfo("unexpected token 'fob'", 32, 3, 6, 35, 3, 9),
-                    new ErrorInfo("unexpected token 'in'", 36, 3, 10, 38, 3, 12),
-                    new ErrorInfo("unexpected token 'oar'", 39, 3, 13, 42, 3, 16),
-                    new ErrorInfo("unexpected token ','", 42, 3, 16, 43, 3, 17),
-                    new ErrorInfo("unexpected token 'baz'", 44, 3, 18, 47, 3, 21)
+                    new ErrorInfo("invalid syntax", 5, 1, 6, 8, 1, 9),
+                    new ErrorInfo("invalid syntax", 15, 2, 6, 25, 2, 16),
+                    new ErrorInfo("invalid syntax", 32, 3, 6, 47, 3, 21)
                 );
             }
 
@@ -3331,17 +3328,17 @@ namespace AnalysisTests {
                 Assert.IsInstanceOfType(stmt, typeof(ExecStatement));
                 var exec = (ExecStatement)stmt;
 
-                code(exec.Expression);
+                code(exec.Code);
                 if (globals != null) {
                     globals(exec.Globals);
                 } else {
-                    Assert.AreEqual(null, exec.Globals);
+                    Assert.IsNull(exec.Globals);
                 }
 
                 if (locals != null) {
                     locals(exec.Locals);
                 } else {
-                    Assert.AreEqual(null, exec.Locals);
+                    Assert.IsNull(exec.Locals);
                 }
             };
         }

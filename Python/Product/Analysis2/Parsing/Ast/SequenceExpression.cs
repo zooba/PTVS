@@ -33,21 +33,24 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _items = value; }
         }
 
+        public int Count => _items?.Count ?? 0;
+
         public void AddItem(Expression expr) {
             if (_items == null) {
-                _items = new List<Expression>();
+                _items = new List<Expression> { expr };
+            } else {
+                _items.Add(expr);
             }
-            _items.Add(expr);
         }
 
         internal override void CheckAssign(Parser parser) {
-            for (int i = 0; i < Items.Count; i++) {
+            for (int i = 0; i < Count; i++) {
                 Items[i].CheckAssign(parser);
             }
         }
 
         internal override void CheckDelete(Parser parser) {
-            for (int i = 0; i < Items.Count; i++) {
+            for (int i = 0; i < Count; i++) {
                 Items[i].CheckDelete(parser);
             }
         }
