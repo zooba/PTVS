@@ -49,8 +49,8 @@ namespace AnalysisTests {
         internal static readonly PythonLanguageVersion[] V26AndUp = AllVersions.Where(v => v >= PythonLanguageVersion.V26).ToArray();
         internal static readonly PythonLanguageVersion[] V27AndUp = AllVersions.Where(v => v >= PythonLanguageVersion.V27).ToArray();
         internal static readonly PythonLanguageVersion[] V2Versions = AllVersions.Where(v => v <= PythonLanguageVersion.V27).ToArray();
-        internal static readonly PythonLanguageVersion[] V24_V26Versions = AllVersions.Where(v => v <= PythonLanguageVersion.V26).ToArray();
-        internal static readonly PythonLanguageVersion[] V24_V25Versions = AllVersions.Where(v => v <= PythonLanguageVersion.V25).ToArray();
+        internal static readonly PythonLanguageVersion[] V25Versions = AllVersions.Where(v => v <= PythonLanguageVersion.V25).ToArray();
+        internal static readonly PythonLanguageVersion[] V25_V26Versions = AllVersions.Where(v => v <= PythonLanguageVersion.V26).ToArray();
         internal static readonly PythonLanguageVersion[] V25_V27Versions = AllVersions.Where(v => v >= PythonLanguageVersion.V25 && v <= PythonLanguageVersion.V27).ToArray();
         internal static readonly PythonLanguageVersion[] V26_V27Versions = AllVersions.Where(v => v >= PythonLanguageVersion.V26 && v <= PythonLanguageVersion.V27).ToArray();
         internal static readonly PythonLanguageVersion[] V30_V32Versions = AllVersions.Where(v => v >= PythonLanguageVersion.V30 && v <= PythonLanguageVersion.V32).ToArray();
@@ -417,26 +417,26 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void InvalidUnicodeLiteral() {
             foreach (var version in V26AndUp) {
                 ParseErrors("InvalidUnicodeLiteral26Up.py",
                     version,
-                    new ErrorInfo("'unicodeescape' codec can't decode bytes in position 44: truncated \\uXXXX escape", 41, 2, 1, 49, 2, 9)
+                    new ErrorInfo("invalid \\uxxxx escape", 42, 2, 2, 48, 2, 8)
                 );
             }
 
             foreach (var version in V2Versions) {
                 ParseErrors("InvalidUnicodeLiteral2x.py",
                     version,
-                    new ErrorInfo("'unicodeescape' codec can't decode bytes in position 4: truncated \\uXXXX escape", 0, 1, 1, 9, 1, 10)
+                    new ErrorInfo("invalid \\uxxxx escape", 2, 1, 3, 8, 1, 9)
                 );
             }
 
             foreach (var version in V3Versions) {
                 ParseErrors("InvalidUnicodeLiteral.py",
                     version,
-                    new ErrorInfo("'unicodeescape' codec can't decode bytes in position 3: truncated \\uXXXX escape", 0, 1, 1, 8, 1, 9)
+                    new ErrorInfo("invalid \\uxxxx escape", 1, 1, 2, 7, 1, 8)
                 );
             }
         }
@@ -657,7 +657,7 @@ namespace AnalysisTests {
                 );
             }
 
-            foreach (var version in V24_V25Versions) {
+            foreach (var version in V25Versions) {
                 ParseErrors("Literals26.py",
                     version,
                     new ErrorInfo("invalid syntax", 0, 1, 1, 5, 1, 6),
@@ -668,7 +668,7 @@ namespace AnalysisTests {
 
         [TestMethod, Priority(0)]
         public void Keywords25() {
-            foreach (var version in V24_V25Versions) {
+            foreach (var version in V25Versions) {
                 CheckAst(
                     ParseFileNoErrors("Keywords25.py", version),
                     CheckSuite(
@@ -803,13 +803,13 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void GroupingRecovery() {
             foreach (var version in AllVersions) {
                 CheckAst(
-                    ParseFileNoErrors("GroupingRecovery.py", version),
+                    ParseFileIgnoreErrors("GroupingRecovery.py", version),
                     CheckSuite(
-                        CheckAssignment(Fob, CheckParenExpr(CheckErrorExpr())),
+                        CheckAssignment(Fob, CheckErrorExpr()),
                         CheckFuncDef("f", new Action<Parameter>[] {
                             p => {
                                 Assert.AreEqual("a", p.Name);
@@ -836,7 +836,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void StringPlus() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -848,7 +848,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void BytesPlus() {
             foreach (var version in V26AndUp) {
                 CheckAst(
@@ -859,15 +859,15 @@ namespace AnalysisTests {
                 );
             }
 
-            foreach (var version in V24_V25Versions) {
+            foreach (var version in V25Versions) {
                 ParseErrors("BytesPlus.py", version,
-                    new ErrorInfo("invalid syntax", 1, 1, 2, 8, 1, 9),
-                    new ErrorInfo("unexpected token 'b'", 9, 1, 10, 10, 1, 11)
+                    new ErrorInfo("invalid syntax", 0, 1, 1, 2, 1, 3),
+                    new ErrorInfo("invalid syntax", 9, 1, 10, 11, 1, 12)
                 );
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void UnicodePlus() {
             foreach (var version in V2Versions.Concat(V33AndUp)) {
                 CheckAst(
@@ -880,14 +880,14 @@ namespace AnalysisTests {
 
             foreach (var version in V30_V32Versions) {
                 ParseErrors("UnicodePlus.py", version,
-                    new ErrorInfo("invalid syntax", 1, 1, 2, 8, 1, 9),
-                    new ErrorInfo("unexpected token 'u'", 9, 1, 10, 10, 1, 11)
+                    new ErrorInfo("invalid syntax", 0, 1, 1, 2, 1, 3),
+                    new ErrorInfo("invalid syntax", 9, 1, 10, 11, 1, 12)
                 );
 
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void RawBytes() {
             foreach (var version in V33AndUp) {
                 CheckAst(
@@ -915,22 +915,22 @@ namespace AnalysisTests {
 
             foreach (var version in AllVersions.Except(V33AndUp)) {
                 ParseErrors("RawBytes.py", version,
-                    new ErrorInfo("invalid syntax", 2, 1, 3, 8, 1, 9),
-                    new ErrorInfo("invalid syntax", 12, 2, 3, 22, 2, 13),
-                    new ErrorInfo("invalid syntax", 26, 3, 3, 32, 3, 9),
-                    new ErrorInfo("invalid syntax", 36, 4, 3, 46, 4, 13),
-                    new ErrorInfo("invalid syntax", 50, 5, 3, 56, 5, 9),
-                    new ErrorInfo("invalid syntax", 60, 6, 3, 70, 6, 13),
-                    new ErrorInfo("invalid syntax", 74, 7, 3, 80, 7, 9),
-                    new ErrorInfo("invalid syntax", 84, 8, 3, 94, 8, 13),
-                    new ErrorInfo("invalid syntax", 98, 9, 3, 104, 9, 9),
-                    new ErrorInfo("invalid syntax", 108, 10, 3, 118, 10, 13),
-                    new ErrorInfo("invalid syntax", 122, 11, 3, 128, 11, 9),
-                    new ErrorInfo("invalid syntax", 132, 12, 3, 142, 12, 13),
-                    new ErrorInfo("invalid syntax", 146, 13, 3, 152, 13, 9),
-                    new ErrorInfo("invalid syntax", 156, 14, 3, 166, 14, 13),
-                    new ErrorInfo("invalid syntax", 170, 15, 3, 176, 15, 9),
-                    new ErrorInfo("invalid syntax", 180, 16, 3, 190, 16, 13)
+                    new ErrorInfo("invalid syntax", 0, 1, 1, 3, 1, 4),
+                    new ErrorInfo("invalid syntax", 10, 2, 1, 15, 2, 6),
+                    new ErrorInfo("invalid syntax", 24, 3, 1, 27, 3, 4),
+                    new ErrorInfo("invalid syntax", 34, 4, 1, 39, 4, 6),
+                    new ErrorInfo("invalid syntax", 48, 5, 1, 51, 5, 4),
+                    new ErrorInfo("invalid syntax", 58, 6, 1, 63, 6, 6),
+                    new ErrorInfo("invalid syntax", 72, 7, 1, 75, 7, 4),
+                    new ErrorInfo("invalid syntax", 82, 8, 1, 87, 8, 6),
+                    new ErrorInfo("invalid syntax", 96, 9, 1, 99, 9, 4),
+                    new ErrorInfo("invalid syntax", 106, 10, 1, 111, 10, 6),
+                    new ErrorInfo("invalid syntax", 120, 11, 1, 123, 11, 4),
+                    new ErrorInfo("invalid syntax", 130, 12, 1, 135, 12, 6),
+                    new ErrorInfo("invalid syntax", 144, 13, 1, 147, 13, 4),
+                    new ErrorInfo("invalid syntax", 154, 14, 1, 159, 14, 6),
+                    new ErrorInfo("invalid syntax", 168, 15, 1, 171, 15, 4),
+                    new ErrorInfo("invalid syntax", 178, 16, 1, 183, 16, 6)
                 );
             }
         }
@@ -1029,7 +1029,7 @@ namespace AnalysisTests {
                 );
             }
 
-            foreach (var version in V24_V25Versions) {
+            foreach (var version in V25Versions) {
                 ParseErrors("WithStmt.py", version,
                     new ErrorInfo("invalid syntax", 5, 1, 6, 14, 1, 15),
                     new ErrorInfo("invalid syntax", 23, 3, 6, 39, 3, 22),
@@ -1367,7 +1367,7 @@ namespace AnalysisTests {
 
             // execpt Exception as e: vs except Exception, e:
             // comma supported in 2.4/2.5, both supported in 2.6 - 2.7, as supported in 3.x
-            foreach (var version in V24_V25Versions) {
+            foreach (var version in V25Versions) {
                 TryStmtV2(version);
 
                 ParseErrors(
@@ -1567,7 +1567,7 @@ namespace AnalysisTests {
                 );
             }
 
-            foreach (var version in V24_V26Versions) {
+            foreach (var version in V25_V26Versions) {
                 ParseErrors("DictComp.py", version,
                     new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 1, 1, 2, 27, 1, 28),
                     new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 31, 2, 2, 65, 2, 36),
@@ -1589,7 +1589,7 @@ namespace AnalysisTests {
                 );
             }
 
-            foreach (var version in V24_V26Versions) {
+            foreach (var version in V25_V26Versions) {
                 ParseErrors("SetComp.py", version,
                     new ErrorInfo("invalid syntax, set literals require Python 2.7 or later", 1, 1, 2, 19, 1, 20),
                     new ErrorInfo("invalid syntax, set literals require Python 2.7 or later", 23, 2, 2, 49, 2, 28),
@@ -1610,7 +1610,7 @@ namespace AnalysisTests {
                 );
             }
 
-            foreach (var version in V24_V26Versions) {
+            foreach (var version in V25_V26Versions) {
                 ParseErrors("SetLiteral.py", version,
                     new ErrorInfo("invalid syntax, set literals require Python 2.7 or later", 1, 1, 2, 2, 1, 3),
                     new ErrorInfo("invalid syntax, set literals require Python 2.7 or later", 6, 2, 2, 10, 2, 6)
@@ -1761,7 +1761,7 @@ namespace AnalysisTests {
                 );
             }
 
-            foreach (var version in V24_V25Versions) {
+            foreach (var version in V25Versions) {
                 ParseErrors("DecoratorsClassDef.py",
                     version,
                     new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 0, 1, 1, 4, 1, 5),

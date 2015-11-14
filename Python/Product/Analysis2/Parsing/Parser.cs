@@ -54,6 +54,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         internal bool HasConstantBooleans => _version.Is3x();
 
+        internal bool HasBytesPrefix => _version >= PythonLanguageVersion.V26;
+
+        internal bool HasRawBytesPrefix => _version >= PythonLanguageVersion.V33;
+
         internal bool HasUnicodePrefix => _version < PythonLanguageVersion.V30 || _version >= PythonLanguageVersion.V33;
 
         internal bool HasUnicodeLiterals => _version.Is3x() || _future.HasFlag(FutureOptions.UnicodeLiterals);
@@ -861,6 +865,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private Statement ParseExprStmt() {
             var expr = ParseExpression();
+
             if (!Peek.Is(TokenUsage.Assignment)) {
                 return WithCommentAndWhitespace(new ExpressionStatement {
                     Expression = expr,
@@ -960,7 +965,16 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
 
             var ws = ReadWhitespace();
-            var expr = ParseComparison();
+            Expression expr;
+            try {
+                expr = ParseComparison();
+            } catch (ParseErrorException ex) {
+                ReadUntil(IsEndOfStatement);
+                ReportError(ex.Message, new SourceSpan(ex.Location, Current.Span.End));
+                return new ErrorExpression {
+                    Span = new SourceSpan(ex.Location, Current.Span.End)
+                };
+            }
 
             MaybeReadComment(expr);
 
@@ -1771,6 +1785,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         ReportError("r and u prefixes are not compatible", opening.Span);
                     }
                 }
+                if (isBytes) {
+                    if (!HasBytesPrefix) {
+                        ReportError("invalid syntax", opening.Span);
+                    } else if (isRaw && !HasRawBytesPrefix) {
+                        ReportError("invalid syntax", opening.Span);
+                    }
+                }
                 if (!isBytes && !isUnicode) {
                     isUnicode = HasUnicodeLiterals;
                     isBytes = !isUnicode;
@@ -1882,25 +1903,25 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             switch (format[1]) {
                 case 'x':
                     if (!ReadHex(text.Substring(2), out bi) || bi > byte.MaxValue) {
-                        ReportError("invalid " + format + "escape", span);
+                        ReportError("invalid " + format + " escape", span);
                         return text;
                     }
                     return new string((char)(byte)bi, 1);
                 case 'o':
                     if (!ReadOctal(text.Substring(1), out bi) || bi > byte.MaxValue) {
-                        ReportError("invalid " + format + "escape", span);
+                        ReportError("invalid " + format + " escape", span);
                         return text;
                     }
                     return new string((char)(byte)bi, 1);
                 case 'u':
                     if (!isUnicode || !ReadHex(text.Substring(2), out bi) || bi > ushort.MaxValue) {
-                        ReportError("invalid " + format + "escape", span);
+                        ReportError("invalid " + format + " escape", span);
                         return text;
                     }
                     return new string((char)(ushort)bi, 1);
                 case 'U':
                     if (!isUnicode || !ReadHex(text.Substring(2), out bi) || bi > ulong.MaxValue) {
-                        ReportError("invalid " + format + "escape", span);
+                        ReportError("invalid " + format + " escape", span);
                         return text;
                     }
                     return Encoding.UTF32.GetString(BitConverter.GetBytes((ulong)bi));
