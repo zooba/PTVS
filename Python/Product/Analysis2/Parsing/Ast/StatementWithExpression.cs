@@ -28,6 +28,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _expression = value; }
         }
 
+        public bool IsExpressionEmpty => _expression == null || _expression is EmptyExpression;
+
         public override void Walk(PythonWalker walker) {
             _expression?.Walk(walker);
         }

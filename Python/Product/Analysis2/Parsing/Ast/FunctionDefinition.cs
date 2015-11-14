@@ -19,7 +19,6 @@ using System.Collections.Generic;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class FunctionDefinition : ScopeStatement {
-        protected Statement _body;
         private NameExpression _name;
         private ParameterList _parameters;
         private SourceSpan _beforeReturnAnnotation;
@@ -210,7 +209,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             if (walker.Walk(this)) {
                 _parameters?.Walk(walker);
                 _decorators?.Walk(walker);
-                _body?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

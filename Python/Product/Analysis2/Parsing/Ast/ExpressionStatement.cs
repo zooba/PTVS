@@ -14,34 +14,18 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
-using System.Text;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    
-    public class ExpressionStatement : Statement {
-        private readonly Expression _expression;
-
-        public ExpressionStatement(Expression expression) {
-            _expression = expression;
-        }
-
-        public Expression Expression {
-            get { return _expression; }
-        }
-
+    public class ExpressionStatement : StatementWithExpression {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
         public override string Documentation {
             get {
-                ConstantExpression ce = _expression as ConstantExpression;
+                var ce = Expression as ConstantExpression;
                 if (ce != null) {
                     if (ce.Value is string) {
                         return ce.Value as string;

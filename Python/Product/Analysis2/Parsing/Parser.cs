@@ -78,6 +78,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         internal bool HasGeneralUnpacking => _version >= PythonLanguageVersion.V35;
 
+        internal bool HasGeneratorReturn => _version >= PythonLanguageVersion.V33;
+
+        internal bool HasYieldFrom => _version >= PythonLanguageVersion.V33;
+
         internal ScopeStatement CurrentScope => _scopes.Any() ? _scopes.Peek() : null;
 
         internal ScopeStatement CurrentClass => _scopes.OfType<ClassDefinition>().FirstOrDefault();
@@ -205,11 +209,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             try {
                 if (Peek.Is(TokenUsage.EndStatement)) {
-                    stmt = new EmptyStatement();
+                    stmt = new EmptyStatement {
+                        Span = new SourceSpan(Peek.Span.Start, 0)
+                    };
                 } else if (Peek.IsAny(TokenUsage.BeginStatement, TokenUsage.BeginStatementOrBinaryOperator)) {
                     stmt = ParseIdentifierAsStatement();
                 } else if (Peek.Is(TokenKind.Comment)) {
                     stmt = new EmptyStatement {
+                        Span = new SourceSpan(Peek.Span.Start, 0),
                         Comment = ReadComment(),
                         AfterNode = ReadWhitespace()
                     };
@@ -545,9 +552,24 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 _scopes.Pop();
             }
 
+            if (stmt.IsGenerator && !HasGeneratorReturn) {
+                stmt.Walk(new ReturnInGeneratorErrorWalker { Parser = this });
+            }
+
             stmt.Span = new SourceSpan(start, Current.Span.End);
             MaybeReadComment(stmt);
             return stmt;
+        }
+
+        private class ReturnInGeneratorErrorWalker : PythonWalker {
+            public Parser Parser { get; set; }
+
+            public override bool Walk(ReturnStatement node) {
+                if (!node.IsExpressionEmpty) {
+                    Parser.ReportError("'return' with argument inside generator", node.Span);
+                }
+                return false;
+            }
         }
 
         private Statement ParseClassDef() {
@@ -730,7 +752,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Statement ParseExprStmt() {
             var expr = ParseExpression();
             if (!Peek.Is(TokenUsage.Assignment)) {
-                return WithComment(new ExpressionStatement(expr));
+                return WithCommentAndWhitespace(new ExpressionStatement {
+                    Expression = expr,
+                    Span = expr.Span
+                });
             }
 
             if (Peek.Is(TokenKind.Assign)) {
@@ -741,7 +766,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     expr = ParseExpression();
                 }
 
-                return WithComment(new AssignmentStatement {
+                return WithCommentAndWhitespace(new AssignmentStatement {
                     Targets = targets,
                     Expression = expr,
                     Span = new SourceSpan(targets[0].Span.Start, Current.Span.End)
@@ -1181,7 +1206,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             Expression topExpr = null;
             UnaryExpression unaryExpr = null;
             AwaitExpression awaitExpr = null;
-            YieldExpression yieldExpr = null;
+            ExpressionWithExpression yieldExpr = null;
 
             SourceSpan ws = ReadWhitespace();
             var start = Peek.Span.Start;
@@ -1236,18 +1261,54 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             if (TryRead(TokenKind.KeywordYield)) {
                 var yieldSpan = Current.Span;
-                if (IsInAsyncFunction) {
-                    ReportError("'yield' in async function", yieldSpan);
-                } else if (!IsInFunction) {
+                bool shownError = false;
+                var func = CurrentScope as FunctionDefinition;
+                if (func != null) {
+                    func.IsGenerator = true;
+                } else if (PeekNonWhitespace.Is(TokenKind.KeywordFrom)) {
+                    ReportError(
+                        HasYieldFrom ? "'yield from' outside of generator" : "'yield from' requires Python 3.3 or later",
+                        new SourceSpan(yieldSpan.Start, PeekNonWhitespace.Span.End)
+                    );
+                    shownError = true;
+                } else {
                     ReportError("'yield' outside of generator", yieldSpan);
+                    shownError = true;
                 }
 
-                var expr = ParseExpression(allowGenerator: false);
+                Expression expr;
 
-                yieldExpr = new YieldExpression {
-                    BeforeNode = ws,
-                    Expression = expr
-                };
+                if (PeekNonWhitespace.Is(TokenKind.KeywordFrom)) {
+                    if (!shownError && IsInAsyncFunction) {
+                        ReportError("'yield from' in async function", yieldSpan);
+                    }
+
+                    yieldExpr = new YieldFromExpression {
+                        BeforeNode = ws,
+                        BeforeFrom = ReadWhitespace()
+                    };
+                    Read(TokenKind.KeywordFrom);
+                    expr = ParseSingleExpression(allowGenerator: false);
+                    if (Peek.Is(TokenKind.Comma)) {
+                        // Cannot yield from a tuple
+                        ThrowError();
+                    }
+
+                    yieldExpr.Expression = expr;
+                    if (!shownError && expr is EmptyExpression) {
+                        ReportError(errorAt: new SourceSpan(yieldSpan.Start, Current.Span.End));
+                    }
+                } else {
+                    if (!shownError && IsInAsyncFunction) {
+                        ReportError("'yield' in async function", yieldSpan);
+                    }
+
+                    yieldExpr = new YieldExpression {
+                        BeforeNode = ws,
+                        Expression = ParseExpression(allowGenerator: false)
+                    };
+                }
+
                 if (unaryExpr != null) {
                     unaryExpr.Expression = yieldExpr;
                 } else {
@@ -1935,7 +1996,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private SourceSpan ReadWhitespace() {
             SourceLocation start = Peek.Span.Start, end = Peek.Span.Start;
 
-            while (Peek.IsAny(TokenKind.Whitespace, TokenKind.ExplicitLineJoin, TokenKind.SemiColon) ||
+            while (Peek.IsAny(TokenKind.Whitespace, TokenKind.ExplicitLineJoin) ||
                 Current.Is(TokenKind.ExplicitLineJoin) && Peek.Is(TokenKind.NewLine)
             ) {
                 end = Next().Span.End;

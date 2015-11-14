@@ -49,6 +49,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _expression = value; }
         }
 
+        public bool IsExpressionEmpty => _expression == null || _expression is EmptyExpression;
+
         protected override void OnFreeze() {
             base.OnFreeze();
             _expression?.Freeze();

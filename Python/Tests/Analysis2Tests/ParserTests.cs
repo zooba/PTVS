@@ -1039,22 +1039,18 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void Semicolon() {
             foreach (var version in V26AndUp) {
                 CheckAst(
                     ParseFileNoErrors("Semicolon.py", version),
                     CheckSuite(
-                        CheckSuite(
-                            CheckConstantStmt(1),
-                            CheckConstantStmt(2),
-                            CheckConstantStmt(3)
-                        ),
-                        CheckSuite(
-                            CheckNameStmt("fob"),
-                            CheckNameStmt("oar"),
-                            CheckNameStmt("baz")
-                        )
+                        CheckConstantStmt(1),
+                        CheckConstantStmt(2),
+                        CheckConstantStmt(3),
+                        CheckNameStmt("fob"),
+                        CheckNameStmt("oar"),
+                        CheckNameStmt("baz")
                     )
                 );
             }
@@ -1138,7 +1134,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void YieldStmtIllegal() {
             foreach (var version in V2Versions.Concat(V30_V32Versions)) {
                 ParseErrors("YieldStmtIllegal.py", version,
@@ -1156,7 +1152,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void YieldFromStmt() {
             foreach (var version in V33AndUp) {
                 CheckAst(
@@ -1172,7 +1168,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void YieldFromExpr() {
             foreach (var version in V33AndUp) {
                 CheckAst(
@@ -1182,7 +1178,7 @@ namespace AnalysisTests {
                             CheckSuite(
                                 CheckYieldFromStmt(Fob),
                                 CheckAssignment(Oar, CheckYieldFromExpr(Fob)),
-                                CheckAssignment(Baz, CheckListComp(CheckYieldFromExpr(Oar), CompFor(Oar, Fob)))
+                                CheckAssignment(Baz, CheckListComp(CheckParenExpr(CheckYieldFromExpr(Oar)), CompFor(Oar, Fob)))
                             )
                         )
                     )
@@ -1198,26 +1194,23 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void YieldFromStmtIllegal() {
             foreach (var version in V25_V27Versions.Concat(V30_V32Versions)) {
                 ParseErrors("YieldFromStmtIllegal.py", version,
-                    new ErrorInfo("misplaced yield", 0, 1, 1, 5, 1, 6),
-                    new ErrorInfo("invalid syntax", 6, 1, 7, 10, 1, 11),
+                    new ErrorInfo("'yield from' requires Python 3.3 or later", 0, 1, 1, 10, 1, 11),
                     new ErrorInfo("'return' with argument inside generator", 30, 4, 5, 39, 4, 14),
-                    new ErrorInfo("invalid syntax", 51, 5, 11, 55, 5, 15),
-                    new ErrorInfo("invalid syntax", 81, 8, 11, 85, 8, 15),
                     new ErrorInfo("'return' with argument inside generator", 93, 9, 5, 102, 9, 14),
-                    new ErrorInfo("invalid syntax", 126, 12, 11, 130, 12, 15),
-                    new ErrorInfo("invalid syntax", 154, 15, 11, 158, 15, 15)
+                    new ErrorInfo("invalid syntax", 120, 12, 5, 130, 12, 15),
+                    new ErrorInfo("invalid syntax", 160, 15, 17, 166, 15, 23)
                 );
             }
 
             foreach (var version in V33AndUp) {
                 ParseErrors("YieldFromStmtIllegal.py", version,
-                    new ErrorInfo("misplaced yield", 0, 1, 1, 5, 1, 6),
-                    new ErrorInfo("invalid syntax", 130, 12, 15, 132, 13, 1),
-                    new ErrorInfo("invalid syntax", 159, 15, 16, 166, 15, 23)
+                    new ErrorInfo("'yield from' outside of generator", 0, 1, 1, 10, 1, 11),
+                    new ErrorInfo("invalid syntax", 120, 12, 5, 130, 12, 15),
+                    new ErrorInfo("invalid syntax", 160, 15, 17, 166, 15, 23)
                 );
             }
         }
