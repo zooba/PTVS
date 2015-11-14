@@ -14,27 +14,14 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
-using System.Text;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-
     // New in Pep342 for Python 2.5. Yield is an expression with a return value.
     //    x = yield z
     // The return value (x) is provided by calling Generator.Send()
-    public class YieldExpression : Expression {
-        private Expression _expression;
-
-        public YieldExpression() { }
-
-        public Expression Expression {
-            get { return _expression; }
-            set { ThrowIfFrozen(); _expression = value; }
-        }
-
+    public class YieldExpression : ExpressionWithExpression {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _expression?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

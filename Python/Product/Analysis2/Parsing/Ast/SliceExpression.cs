@@ -19,9 +19,7 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class SliceExpression : Expression {
-        private Expression _sliceStart;
-        private Expression _sliceStop;
-        private Expression _sliceStep;
+        private Expression _sliceStart, _sliceStop, _sliceStep;
 
         public Expression SliceStart {
             get { return _sliceStart; }

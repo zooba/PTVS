@@ -19,7 +19,7 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ForStatement : CompoundStatement {
-        private Expression _index, _list;
+        private Expression _index;
         private CompoundStatement _else;
 
         public ForStatement() : base(TokenKind.KeywordFor) { }
@@ -27,11 +27,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public Expression Index {
             get { return _index; }
             set { ThrowIfFrozen();_index = value; }
-        }
-
-        public Expression List {
-            get { return _list; }
-            set { ThrowIfFrozen(); _list = value; }
         }
 
         public CompoundStatement Else {
@@ -42,7 +37,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 _index?.Walk(walker);
-                _list?.Walk(walker);
                 base.Walk(walker);
             }
             walker.PostWalk(this);

@@ -17,15 +17,9 @@
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class AsExpression : Expression {
-        private Expression _expression;
+    public class AsExpression : ExpressionWithExpression {
         private NameExpression _name;
         private SourceSpan _beforeAs, _beforeName;
-
-        public Expression Expression {
-            get { return _expression; }
-            set { ThrowIfFrozen(); _expression = value; }
-        }
 
         public SourceSpan BeforeAs {
             get { return _beforeAs; }

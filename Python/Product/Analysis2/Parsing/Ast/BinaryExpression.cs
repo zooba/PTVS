@@ -15,23 +15,16 @@
 // permissions and limitations under the License.
 
 
-using System;
-using System.Diagnostics;
-using System.Diagnostics.Contracts;
-using System.Text;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
-    public partial class BinaryExpression : Expression {
-        private Expression _left, _right;
+    public partial class BinaryExpression : ExpressionWithExpression {
+        private Expression _right;
         private PythonOperator _op;
         private SourceSpan _withinOp;
 
-        public BinaryExpression() { }
-
         public Expression Left {
-            get { return _left; }
-            set { ThrowIfFrozen(); _left = value; }
+            get { return Expression; }
+            set { Expression = value; }
         }
 
         public Expression Right {
@@ -68,7 +61,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _left.Walk(walker);
+                base.Walk(walker);
                 _right.Walk(walker);
             }
             walker.PostWalk(this);

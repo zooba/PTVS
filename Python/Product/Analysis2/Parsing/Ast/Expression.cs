@@ -16,11 +16,10 @@
 
 
 
+using System;
+
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class Expression : Node {
-        internal Expression() {
-        }
-
         internal abstract string CheckName { get; }
 
         internal virtual void CheckAssign(Parser parser) {
@@ -39,6 +38,24 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             if (!string.IsNullOrEmpty(name)) {
                 parser.ReportError("can't delete " + name, Span);
             }
+        }
+    }
+
+    public abstract class ExpressionWithExpression : Expression {
+        private Expression _expression;
+
+        public Expression Expression {
+            get { return _expression; }
+            set { ThrowIfFrozen(); _expression = value; }
+        }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _expression?.Freeze();
+        }
+
+        public override void Walk(PythonWalker walker) {
+            _expression?.Walk(walker);
         }
     }
 }

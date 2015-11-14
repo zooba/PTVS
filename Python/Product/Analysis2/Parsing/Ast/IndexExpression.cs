@@ -15,17 +15,13 @@
 // permissions and limitations under the License.
 
 
-using System.Collections.Generic;
-using System.Text;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class IndexExpression : Expression {
-        private Expression _target;
+    public class IndexExpression : ExpressionWithExpression {
         private Expression _index;
 
-        public Expression Target {
-            get { return _target; }
-            set { ThrowIfFrozen(); _target = value; }
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _index?.Freeze();
         }
 
         public Expression Index {
@@ -37,7 +33,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _target?.Walk(walker);
+                base.Walk(walker);
                 _index?.Walk(walker);
             }
             walker.PostWalk(this);

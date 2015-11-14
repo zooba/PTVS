@@ -18,19 +18,18 @@
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class ConditionalExpression : Expression {
-        private Expression _testExpr, _trueExpr, _falseExpr;
+    public class ConditionalExpression : ExpressionWithExpression {
+        private Expression _trueExpr, _falseExpr;
 
-        public ConditionalExpression() { }
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _falseExpr?.Freeze();
+            _trueExpr?.Freeze();
+        }
 
         public Expression FalseExpression {
             get { return _falseExpr; }
             set { ThrowIfFrozen(); _falseExpr = value; }
-        }
-
-        public Expression Test {
-            get { return _testExpr; }
-            set { ThrowIfFrozen(); _testExpr = value; }
         }
 
         public Expression TrueExpression {
@@ -40,7 +39,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _testExpr?.Walk(walker);
+                base.Walk(walker);
                 _trueExpr?.Walk(walker);
                 _falseExpr?.Walk(walker);
             }

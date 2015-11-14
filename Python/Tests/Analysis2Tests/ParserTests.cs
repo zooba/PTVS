@@ -974,7 +974,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void DelimitersV2() {
             foreach (var version in V2Versions) {
                 CheckAst(
@@ -989,11 +989,7 @@ namespace AnalysisTests {
                 ParseErrors(
                     "DelimitersV2.py",
                     version,
-                    new[] { 
-                        new ErrorInfo("unexpected token '`'", 0, 1, 1, 1, 1, 2),
-                        new ErrorInfo("unexpected token 'fob'", 1, 1, 2, 4, 1, 5),
-                        new ErrorInfo("unexpected token '`'", 4, 1, 5, 5, 1, 6)
-                   }
+                    new ErrorInfo("invalid syntax", 0, 1, 1, 5, 1, 6)
                 );
             }
         }
@@ -2637,7 +2633,7 @@ namespace AnalysisTests {
                 ForStatement forStmt = (ForStatement)stmt;
 
                 index(forStmt.Index);
-                list(forStmt.List);
+                list(forStmt.Expression);
                 body(forStmt.Body);
                 if (_else != null) {
                     _else(forStmt.Else.Body);
@@ -2663,7 +2659,7 @@ namespace AnalysisTests {
                 Assert.IsInstanceOfType(stmt, typeof(WhileStatement));
                 var whileStmt = (WhileStatement)stmt;
 
-                test(whileStmt.Test);
+                test(whileStmt.Expression);
                 body(whileStmt.Body);
                 if (_else != null) {
                     _else(whileStmt.Else.Body);
@@ -2688,9 +2684,9 @@ namespace AnalysisTests {
                 Assert.AreEqual(TokenKind.KeywordExcept, stmt.Kind);
 
                 if (test != null) {
-                    test(stmt.Test);
+                    test(stmt.Expression);
                 } else {
-                    Assert.IsNull(stmt.Test);
+                    Assert.IsNull(stmt.Expression);
                 }
 
                 body(stmt.Body);
@@ -2797,7 +2793,7 @@ namespace AnalysisTests {
 
         private static Action<CompoundStatement> CheckIf(Action<Expression> expectedTest, Action<Statement> body) {
             return test => {
-                expectedTest(test.Test);
+                expectedTest(test.Expression);
                 body(test.Body);
             };
         }
@@ -2820,7 +2816,7 @@ namespace AnalysisTests {
                 Assert.AreEqual(typeof(ConditionalExpression), expr.GetType(), "Not a Conditional Expression");
                 var condExpr = (ConditionalExpression)expr;
 
-                test(condExpr.Test);
+                test(condExpr.Expression);
                 trueExpression(condExpr.TrueExpression);
                 falseExpression(condExpr.FalseExpression);
             };
@@ -2926,7 +2922,7 @@ namespace AnalysisTests {
                     foreach (var d in decorators) {
                         Assert.IsInstanceOfType(s, typeof(DecoratorStatement));
                         var ds = (DecoratorStatement)s;
-                        d(ds.Decorator);
+                        d(ds.Expression);
                         s = ds.Inner;
                     }
                 }
@@ -2967,7 +2963,7 @@ namespace AnalysisTests {
                     foreach (var d in decorators) {
                         Assert.IsInstanceOfType(s, typeof(DecoratorStatement));
                         var ds = (DecoratorStatement)s;
-                        d(ds.Decorator);
+                        d(ds.Expression);
                         s = ds.Inner;
                     }
                 }
@@ -3091,7 +3087,7 @@ namespace AnalysisTests {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(CallExpression));
                 var call = (CallExpression)expr;
-                target(call.Target);
+                target(call.Expression);
 
                 Assert.AreEqual(args.Length, call.Args?.Count ?? 0);
                 for (int i = 0; i < args.Length; i++) {
@@ -3138,7 +3134,7 @@ namespace AnalysisTests {
                 Assert.IsInstanceOfType(expr, typeof(MemberExpression));
                 var member = (MemberExpression)expr;
                 Assert.AreEqual(name, member.Name);
-                target(member.Target);
+                target(member.Expression);
             };
         }
 
@@ -3212,7 +3208,7 @@ namespace AnalysisTests {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(IndexExpression));
                 var indexExpr = (IndexExpression)expr;
-                target(indexExpr.Target);
+                target(indexExpr.Expression);
                 index(indexExpr.Index);
             };
         }
@@ -3274,11 +3270,11 @@ namespace AnalysisTests {
                 Assert.IsInstanceOfType(expr, typeof(AssignmentStatement));
                 var assign = (AssignmentStatement)expr;
 
-                Assert.AreEqual(lhs.Length, assign.Left.Count);
+                Assert.AreEqual(lhs.Length, assign.Targets.Count);
                 for (int i = 0; i < lhs.Length; i++) {
-                    lhs[i](assign.Left[i]);
+                    lhs[i](assign.Targets[i]);
                 }
-                rhs(assign.Right);
+                rhs(assign.Expression);
             };
         }
 
@@ -3325,8 +3321,8 @@ namespace AnalysisTests {
 
                 Assert.AreEqual(assign.Operator, op);
 
-                lhs(assign.Left);
-                rhs(assign.Right);
+                lhs(assign.Target);
+                rhs(assign.Expression);
             };
         }
 
@@ -3335,7 +3331,7 @@ namespace AnalysisTests {
                 Assert.IsInstanceOfType(stmt, typeof(ExecStatement));
                 var exec = (ExecStatement)stmt;
 
-                code(exec.Code);
+                code(exec.Expression);
                 if (globals != null) {
                     globals(exec.Globals);
                 } else {
@@ -3356,11 +3352,11 @@ namespace AnalysisTests {
                 var with = (WithStatement)stmt;
 
                 if (withItems == null) {
-                    if (!(with.Test == null || with.Test is EmptyExpression)) {
-                        Assert.Fail("Expected null or EmptyExpression Test, not " + with.Test.ToString());
+                    if (!(with.Expression == null || with.Expression is EmptyExpression)) {
+                        Assert.Fail("Expected null or EmptyExpression Test, not " + with.Expression.ToString());
                     }
                 } else {
-                    withItems(with.Test);
+                    withItems(with.Expression);
                 }
 
                 body(with.Body);

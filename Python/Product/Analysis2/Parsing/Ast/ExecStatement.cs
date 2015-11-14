@@ -19,25 +19,23 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     
-    public class ExecStatement : Statement {
-        private readonly Expression _code, _locals, _globals;
+    public class ExecStatement : StatementWithExpression {
+        private Expression _locals, _globals;
 
-        public ExecStatement(Expression code, Expression locals, Expression globals) {
-            _code = code;
-            _locals = locals;
-            _globals = globals;
-        }
-
-        public Expression Code {
-            get { return _code; }
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _locals?.Freeze();
+            _globals?.Freeze();
         }
 
         public Expression Locals {
             get { return _locals; }
+            set { ThrowIfFrozen(); _locals = value; }
         }
 
         public Expression Globals {
             get { return _globals; }
+            set { ThrowIfFrozen(); _globals = value; }
         }
 
         public bool NeedsLocalsDictionary() {
@@ -46,15 +44,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_code != null) {
-                    _code.Walk(walker);
-                }
-                if (_locals != null) {
-                    _locals.Walk(walker);
-                }
-                if (_globals != null) {
-                    _globals.Walk(walker);
-                }
+                base.Walk(walker);
+                _locals?.Walk(walker);
+                _globals?.Walk(walker);
             }
             walker.PostWalk(this);
         }

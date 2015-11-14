@@ -18,16 +18,8 @@
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public sealed class MemberExpression : Expression {
-        private Expression _target;
+    public sealed class MemberExpression : ExpressionWithExpression {
         private NameExpression _name;
-
-        public MemberExpression() { }
-
-        public Expression Target {
-            get { return _target; }
-            set { ThrowIfFrozen(); _target = value; }
-        }
 
         public NameExpression NameExpression {
             get { return _name; }
@@ -44,7 +36,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _target?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

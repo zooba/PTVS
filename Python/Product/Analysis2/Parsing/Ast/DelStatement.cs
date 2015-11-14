@@ -37,9 +37,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public void AddExpression(Expression expr) {
             if (_expressions == null) {
-                _expressions = new List<Expression>();
+                _expressions = new List<Expression>() { expr };
+            } else {
+                _expressions.Add(expr);
             }
-            _expressions.Add(expr);
         }
 
         public override void Walk(PythonWalker walker) {

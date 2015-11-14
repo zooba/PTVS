@@ -19,33 +19,27 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class AssignmentStatement : Statement {
+    public class AssignmentStatement : StatementWithExpression {
         // _left.Length is 1 for simple assignments like "x = 1"
         // _left.Length will be 3 for "x = y = z = 1"
-        private IList<Expression> _left;
-        private Expression _right;
+        private IList<Expression> _targets;
 
         protected override void OnFreeze() {
             base.OnFreeze();
-            _left = FreezeList(_left);
+            _targets = FreezeList(_targets);
         }
 
-        public IList<Expression> Left {
-            get { return _left; }
-            set { ThrowIfFrozen(); _left = value; }
-        }
-
-        public Expression Right {
-            get { return _right; }
-            set { ThrowIfFrozen(); _right = value; }
+        public IList<Expression> Targets {
+            get { return _targets; }
+            set { ThrowIfFrozen(); _targets = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                foreach (Expression e in _left) {
+                foreach (Expression e in _targets) {
                     e.Walk(walker);
                 }
-                _right?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

@@ -279,6 +279,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         return c == '\'' ? TokenKind.LeftSingleTripleQuote : TokenKind.LeftDoubleTripleQuote;
                     }
                     return c == '\'' ? TokenKind.LeftSingleQuote : TokenKind.LeftDoubleQuote;
+                case '`':
+                    if (_nesting.Any() && _nesting.Peek() == TokenKind.RightBackQuote) {
+                        return TokenKind.RightBackQuote;
+                    }
+                    return TokenKind.LeftBackQuote;
                 case '\r':
                 case '\n':
                     length = line.Length - start;

@@ -18,14 +18,13 @@
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class AugmentedAssignStatement : Statement {
+    public class AugmentedAssignStatement : StatementWithExpression {
         private PythonOperator _op;
-        private Expression _left, _right;
+        private Expression _target;
 
         protected override void OnFreeze() {
             base.OnFreeze();
-            _left?.Freeze();
-            _right?.Freeze();
+            _target?.Freeze();
         }
 
         public PythonOperator Operator {
@@ -33,20 +32,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _op = value; }
         }
 
-        public Expression Left {
-            get { return _left; }
-            set { ThrowIfFrozen(); _left = value; }
-        }
-
-        public Expression Right {
-            get { return _right; }
-            set { ThrowIfFrozen(); _right = value; }
+        public Expression Target {
+            get { return _target; }
+            set { ThrowIfFrozen(); _target = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _left?.Walk(walker);
-                _right?.Walk(walker);
+                _target?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

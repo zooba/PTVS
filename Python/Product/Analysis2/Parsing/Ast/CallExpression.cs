@@ -20,20 +20,12 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class CallExpression : Expression {
-        private Expression _target;
+    public class CallExpression : ExpressionWithExpression {
         private IList<Arg> _args;
-
-        public CallExpression() { }
 
         protected override void OnFreeze() {
             base.OnFreeze();
             _args = FreezeList(_args);
-        }
-
-        public Expression Target {
-            get { return _target; }
-            set { ThrowIfFrozen(); _target = value; }
         }
 
         public IList<Arg> Args {
@@ -49,7 +41,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         public bool NeedsLocalsDictionary() {
-            NameExpression nameExpr = _target as NameExpression;
+            var nameExpr = Expression as NameExpression;
             if (nameExpr == null) return false;
 
             if (_args.Count == 0) {
@@ -78,7 +70,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _target?.Walk(walker);
+                base.Walk(walker);
                 if (_args != null) {
                     foreach (Arg arg in _args) {
                         arg.Walk(walker);

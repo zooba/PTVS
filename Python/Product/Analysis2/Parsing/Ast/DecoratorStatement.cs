@@ -14,20 +14,9 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
-using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class DecoratorStatement : Statement {
-        private Expression _decorator;
+    public class DecoratorStatement : StatementWithExpression {
         private Statement _inner;
-
-        public Expression Decorator {
-            get { return _decorator; }
-            set { ThrowIfFrozen(); _decorator = value; }
-        }
 
         public Statement Inner {
             get { return _inner; }
@@ -36,7 +25,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _decorator?.Walk(walker);
+                base.Walk(walker);
                 _inner?.Walk(walker);
             }
             walker.PostWalk(this);

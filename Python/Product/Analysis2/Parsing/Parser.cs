@@ -46,6 +46,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         internal bool HasWith => _version >= PythonLanguageVersion.V26 || _future.HasFlag(FutureOptions.WithStatement);
 
+        internal bool HasReprLiterals => _version.Is2x();
+
         internal bool HasPrintFunction => _version.Is3x() || _future.HasFlag(FutureOptions.PrintFunction);
 
         internal bool HasTrueDivision => _version.Is3x() || _future.HasFlag(FutureOptions.TrueDivision);
@@ -335,7 +337,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     Span = Current.Span
                 };
                 if (Current.IsAny(TokenKind.KeywordIf, TokenKind.KeywordElseIf)) {
-                    test.Test = ParseSingleExpression();
+                    test.Expression = ParseSingleExpression();
                 }
                 ReadCompoundStatement(test);
 
@@ -358,7 +360,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var stmt = new WhileStatement() {
                 BeforeNode = ReadWhitespace(),
                 Span = Read(TokenKind.KeywordWhile),
-                Test = ParseSingleExpression()
+                Expression = ParseSingleExpression()
             };
 
             ReadCompoundStatement(stmt);
@@ -394,7 +396,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             stmt.Index = ParseAssignmentTarget();
             Read(TokenKind.KeywordIn);
-            stmt.List = ParseSingleExpression();
+            stmt.Expression = ParseSingleExpression();
 
             ReadCompoundStatement(stmt);
 
@@ -436,17 +438,17 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     Span = Current.Span
                 };
                 if (handler.Kind == TokenKind.KeywordExcept && !PeekNonWhitespace.Is(TokenKind.Colon)) {
-                    handler.Test = ParseAsExpressions();
+                    handler.Expression = ParseAsExpressions();
                 }
                 ReadCompoundStatement(handler);
 
                 AsExpression ae;
-                if (_version < PythonLanguageVersion.V26 && (ae = handler.Test as AsExpression) != null) {
+                if (_version < PythonLanguageVersion.V26 && (ae = handler.Expression as AsExpression) != null) {
                     ReportError("'as' requires Python 2.6 or later", ae.AsSpan);
                 }
 
                 TupleExpression te;
-                if ((te = handler.Test as TupleExpression) != null) {
+                if ((te = handler.Expression as TupleExpression) != null) {
                     if (te.Items.Count == 2) {
                         if (_version >= PythonLanguageVersion.V30) {
                             ReportError(
@@ -500,7 +502,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 );
             }
             return new DecoratorStatement {
-                Decorator = decorator,
+                Expression = decorator,
                 Inner = inner,
                 Span = new SourceSpan(start, Current.Span.End)
             };
@@ -584,7 +586,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 stmt.Span = Read(TokenKind.KeywordWith);
             }
 
-            stmt.Test = ParseAsExpressions();
+            stmt.Expression = ParseAsExpressions();
 
             ReadCompoundStatement(stmt);
             return stmt;
@@ -730,18 +732,18 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     expr = ParseExpression();
                 }
 
-                return WithComment(new AssignmentStatement() {
-                    Left = targets,
-                    Right = expr,
+                return WithComment(new AssignmentStatement {
+                    Targets = targets,
+                    Expression = expr,
                     Span = new SourceSpan(targets[0].Span.Start, Current.Span.End)
                 });
             }
 
             expr.CheckAugmentedAssign(this);
             return WithComment(new AugmentedAssignStatement {
-                Left = expr,
+                Target = expr,
                 Operator = Next().Kind.GetBinaryOperator(),
-                Right = ParseExpression()
+                Expression = ParseExpression()
             });
 
         }
@@ -775,8 +777,16 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return tuple;
         }
 
-        private Expression ParseExpression(bool allowIfExpr = true, bool allowSlice = false) {
-            var expr = ParseSingleExpression(allowIfExpr: allowIfExpr, allowSlice: allowSlice);
+        private Expression ParseExpression(
+            bool allowIfExpr = true,
+            bool allowSlice = false,
+            bool allowGenerator = true
+        ) {
+            var expr = ParseSingleExpression(
+                allowIfExpr: allowIfExpr,
+                allowSlice: allowSlice,
+                allowGenerator: allowGenerator
+            );
 
             if (!Peek.Is(TokenKind.Comma)) {
                 return expr;
@@ -787,7 +797,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             tuple.AddItem(expr);
 
             while (TryRead(TokenKind.Comma)) {
-                expr = ParseSingleExpression(allowIfExpr: allowIfExpr, allowSlice: allowSlice);
+                expr = ParseSingleExpression(
+                    allowIfExpr: allowIfExpr,
+                    allowSlice: allowSlice,
+                    allowGenerator: allowGenerator
+                );
                 tuple.AddItem(expr);
             }
 
@@ -810,7 +824,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 expr.Freeze();
                 var condExpr = new ConditionalExpression { TrueExpression = expr };
                 Read(TokenKind.KeywordIf);
-                condExpr.Test = ParseSingleExpression();
+                condExpr.Expression = ParseSingleExpression();
                 Read(TokenKind.KeywordElse);
                 condExpr.FalseExpression = ParseSingleExpression();
                 condExpr.Span = new SourceSpan(expr.Span.Start, Current.Span.End);
@@ -1275,7 +1289,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         expr.Freeze();
                         Read(TokenKind.Dot);
                         expr = new MemberExpression {
-                            Target = expr,
+                            Expression = expr,
                             NameExpression = ReadMemberName()
                         };
                         expr.Span = new SourceSpan(start, Current.Span.End);
@@ -1285,7 +1299,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         expr.Freeze();
                         Read(TokenKind.LeftParenthesis);
                         expr = new CallExpression {
-                            Target = expr,
+                            Expression = expr,
                             Args = ParseArgumentList(TokenKind.RightParenthesis, true)
                         };
                         expr.Span = new SourceSpan(start, Read(TokenKind.RightParenthesis).End);
@@ -1295,7 +1309,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         expr.Freeze();
                         Read(TokenKind.LeftBracket);
                         expr = new IndexExpression {
-                            Target = expr,
+                            Expression = expr,
                             Index = ParseExpression(allowSlice: true)
                         };
                         expr.Span = new SourceSpan(start, Read(TokenKind.RightBracket).End);
@@ -1332,6 +1346,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 case TokenKind.LeftSingleTripleQuote:
                 case TokenKind.LeftDoubleTripleQuote:
                     return ParseStringLiteral();
+
+                case TokenKind.LeftBackQuote:
+                    return ParseReprLiteral();
 
                 default:
                     Debug.Fail("Unhandled group: " + Peek.Kind);
@@ -1711,6 +1728,21 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return text;
         }
 
+        private Expression ParseReprLiteral() {
+            var start = Read(TokenKind.LeftBackQuote).Start;
+
+            var expr = new BackQuoteExpression {
+                Expression = ParseExpression(),
+                Span = new SourceSpan(start, Read(TokenKind.RightBackQuote).End)
+            };
+
+            if (!HasReprLiterals) {
+                ReportError("invalid syntax", expr.Span);
+            }
+
+            return expr;
+        }
+
         private Expression ParseListLiteralOrComprehension() {
             var start = Read(TokenKind.LeftBracket).Start;
 
@@ -1856,7 +1888,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     };
                     Read(TokenKind.KeywordIn);
                     if (HasTupleAsComprehensionTarget) {
-                        ((ComprehensionFor)it).List = ParseExpression(allowIfExpr: false);
+                        ((ComprehensionFor)it).List = ParseExpression(allowIfExpr: false, allowGenerator: false);
                     } else {
                         ((ComprehensionFor)it).List = ParseSingleExpression(allowIfExpr: false, allowGenerator: false);
                     }

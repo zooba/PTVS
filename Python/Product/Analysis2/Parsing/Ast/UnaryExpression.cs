@@ -14,21 +14,9 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
-using System.Text;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-
-    public class UnaryExpression : Expression {
-        private Expression _expression;
+    public class UnaryExpression : ExpressionWithExpression {
         private PythonOperator _op;
-
-        public UnaryExpression() { }
-
-        public Expression Expression {
-            get { return _expression; }
-            set { ThrowIfFrozen(); _expression = value; }
-        }
 
         public PythonOperator Operator {
             get { return _op; }
@@ -37,9 +25,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

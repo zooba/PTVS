@@ -15,28 +15,21 @@
 // permissions and limitations under the License.
 
 
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class LambdaExpression : Expression {
+    public class LambdaExpression : ExpressionWithExpression {
         private ParameterList _parameters;
-        private Expression _expression;
         private SourceSpan _beforeColon;
 
-        public LambdaExpression() {
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _parameters?.Freeze();
         }
 
         public ParameterList Parameters {
             get { return _parameters; }
             set { ThrowIfFrozen(); _parameters = value; }
-        }
-
-        public Expression Expression {
-            get { return _expression; }
-            set { ThrowIfFrozen(); _expression = value; }
         }
 
         public SourceSpan BeforeColon {
@@ -60,6 +53,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 _parameters?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

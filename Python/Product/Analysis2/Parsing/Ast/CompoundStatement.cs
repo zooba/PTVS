@@ -21,10 +21,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     /// <summary>
     /// Represents any statement that has a colon followed by a suite.
     /// </summary>
-    public class CompoundStatement : Statement {
+    public class CompoundStatement : StatementWithExpression {
         private readonly TokenKind _kind;
         private Statement _body;
-        private Expression _test;
         private SourceSpan _afterAsync, _beforeColon, _afterComment, _afterBody;
 
         public CompoundStatement(TokenKind kind) {
@@ -39,17 +38,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         protected override void OnFreeze() {
             base.OnFreeze();
             _body?.Freeze();
-            _test?.Freeze();
         }
 
         public Statement Body {
             get { return _body; }
             set { ThrowIfFrozen(); _body = value; }
-        }
-
-        public Expression Test {
-            get { return _test; }
-            set { ThrowIfFrozen(); _test = value; }
         }
 
         public SourceSpan AfterAsync {
@@ -105,7 +98,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 default:
                     throw new NotSupportedException("Cannot format statement " + _kind);
             }
-            Test?.AppendCodeString(output, ast, format);
+            Expression?.AppendCodeString(output, ast, format);
             BeforeColon.AppendCodeString(output, ast);
             output.Append(":");
             Comment?.AppendCodeString(output, ast, format);
@@ -115,7 +108,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         public override void Walk(PythonWalker walker) {
-            Test?.Walk(walker);
+            base.Walk(walker);
             Body?.Walk(walker);
         }
     }

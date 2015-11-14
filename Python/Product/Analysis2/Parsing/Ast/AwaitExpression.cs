@@ -15,28 +15,15 @@
 // permissions and limitations under the License.
 
 
-using System.Text;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     // New in Pep429 for Python 3.5. Await is an expression with a return value.
     //    x = await z
     // TODO: The return value (x) is provided by calling ...
-    public class AwaitExpression : Expression {
-        private Expression _expression;
-
-        public AwaitExpression() { }
-
-        public Expression Expression {
-            get { return _expression; }
-            set { ThrowIfFrozen(); _expression = value; }
-        }
-
+    public class AwaitExpression : ExpressionWithExpression {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

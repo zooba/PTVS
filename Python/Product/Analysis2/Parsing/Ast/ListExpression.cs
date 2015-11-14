@@ -20,8 +20,6 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ListExpression : SequenceExpression {
-        public ListExpression() { }
-
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 if (Items != null) {
