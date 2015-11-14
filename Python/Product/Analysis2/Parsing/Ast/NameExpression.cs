@@ -21,7 +21,6 @@ using System.Text;
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class NameExpression : Expression {
         public static readonly NameExpression[] EmptyArray = new NameExpression[0];
-        public static readonly NameExpression Empty = new NameExpression("");
 
         private readonly string _name;
         private readonly string _prefix;
@@ -31,6 +30,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             _prefix = string.IsNullOrEmpty(prefix) ? null : prefix;
         }
 
+        public static NameExpression Empty(SourceLocation at, SourceSpan? beforeNode = null) {
+            return new NameExpression("") {
+                BeforeNode = beforeNode ?? new SourceSpan(at, at),
+                Span = new SourceSpan(at, at)
+            };
+        }
+
         public string Name {
             get { return _name; }
         }
@@ -38,6 +44,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public string Prefix {
             get { return _prefix; }
         }
+
+        public bool IsStar => _name == "*";
 
         public override string ToString() {
             return base.ToString() + ":" + _name;

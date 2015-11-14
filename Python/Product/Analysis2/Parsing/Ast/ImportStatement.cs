@@ -14,50 +14,39 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
-using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public class ImportStatement : Statement {
-        private readonly ModuleName[] _names;
-        private readonly NameExpression[] _asNames;
-        private readonly bool _forceAbsolute;
+        private IList<DottedName> _names;
+        private IList<NameExpression> _asNames;
 
-        private PythonVariable[] _variables;
+        private IList<PythonVariable> _variables;
 
-        public ImportStatement(ModuleName[] names, NameExpression[] asNames, bool forceAbsolute) {
-            _names = names;
-            _asNames = asNames;
-            _forceAbsolute = forceAbsolute;
-        }
-
-        public bool ForceAbsolute {
-            get {
-                return _forceAbsolute;
-            }
-        }
-
-        [SuppressMessage("Microsoft.Performance", "CA1819:PropertiesShouldNotReturnArrays",
-            Justification = "breaking change")]
-        public PythonVariable[] Variables {
+        public IList<PythonVariable> Variables {
             get { return _variables; }
             set { _variables = value; }
         }
 
-        public PythonReference[] GetReferences(PythonAst ast) {
+        public IReadOnlyList<PythonReference> GetReferences(PythonAst ast) {
             return GetVariableReferences(this, ast);
         }
 
         public IList<DottedName> Names {
             get { return _names; }
+            set { ThrowIfFrozen(); _names = value; }
         }
 
         public IList<NameExpression> AsNames {
             get { return _asNames; }
+            set { ThrowIfFrozen(); _asNames = value; }
+        }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _names = FreezeList(_names);
+            _asNames = FreezeList(_asNames);
         }
 
         public override void Walk(PythonWalker walker) {

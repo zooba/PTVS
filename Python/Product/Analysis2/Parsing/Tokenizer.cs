@@ -535,7 +535,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private static TokenKind ReadOperator(string line, char c, ref int end) {
-            if (end >= line.Length) {
+            if (end > line.Length) {
                 return TokenKind.Error;
             }
 
@@ -606,6 +606,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         public IEnumerable<Token> GetRemainingTokens() {
+            _lineNumber += 1;
             var eof = new SourceLocation(_lineStart, _lineNumber, 1);
 
             while (_nesting.Any()) {

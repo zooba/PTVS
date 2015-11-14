@@ -252,10 +252,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public virtual bool Walk(DottedName node) { return true; }
         public virtual void PostWalk(DottedName node) { }
 
-        // ModuleName
-        public virtual bool Walk(ModuleName node) { return true; }
-        public virtual void PostWalk(ModuleName node) { }
-
         // Parameter
         public virtual bool Walk(Parameter node) { return true; }
         public virtual void PostWalk(Parameter node) { }
@@ -263,10 +259,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         // ParameterList
         public virtual bool Walk(ParameterList node) { return true; }
         public virtual void PostWalk(ParameterList node) { }
-
-        // RelativeModuleName
-        public virtual bool Walk(RelativeModuleName node) { return true; }
-        public virtual void PostWalk(RelativeModuleName node) { }
 
         // ErrorStatement
         public virtual bool Walk(ErrorStatement node) { return true; }
@@ -514,10 +506,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public override bool Walk(DottedName node) { return false; }
         public override void PostWalk(DottedName node) { }
 
-        // ModuleName
-        public override bool Walk(ModuleName node) { return false; }
-        public override void PostWalk(ModuleName node) { }
-
         // Parameter
         public override bool Walk(Parameter node) { return false; }
         public override void PostWalk(Parameter node) { }
@@ -526,10 +514,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public override bool Walk(ParameterList node) { return false; }
         public override void PostWalk(ParameterList node) { }
 
-        // RelativeModuleName
-        public override bool Walk(RelativeModuleName node) { return false; }
-        public override void PostWalk(RelativeModuleName node) { }
-        
         // ErrorStatement
         public override bool Walk(ErrorStatement node) { return false; }
         public override void PostWalk(ErrorStatement node) { }
@@ -723,9 +707,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         // DottedName
         public override bool Walk(DottedName node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
-        
-        // ModuleName
-        public override bool Walk(ModuleName node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
 
         // Parameter
         public override bool Walk(Parameter node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
@@ -733,9 +714,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         // Parameter
         public override bool Walk(ParameterList node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
 
-        // RelativeModuleName
-        public override bool Walk(RelativeModuleName node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
-        
         // ErrorStatement
         public override bool Walk(ErrorStatement node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
 

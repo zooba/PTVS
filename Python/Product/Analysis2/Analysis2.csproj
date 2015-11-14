@@ -118,7 +118,6 @@
     <Compile Include="Parsing\Ast\LambdaExpression.cs" />
     <Compile Include="Parsing\Ast\ListExpression.cs" />
     <Compile Include="Parsing\Ast\MemberExpression.cs" />
-    <Compile Include="Parsing\Ast\ModuleName.cs" />
     <Compile Include="Parsing\Ast\NameExpression.cs" />
     <Compile Include="Parsing\Ast\Node.cs" />
     <Compile Include="Parsing\Ast\NonlocalStatement.cs" />
@@ -135,7 +134,6 @@
     <Compile Include="Parsing\Ast\PythonVariable.cs" />
     <Compile Include="Parsing\Ast\PythonWalker.cs" />
     <Compile Include="Parsing\Ast\RaiseStatement.cs" />
-    <Compile Include="Parsing\Ast\RelativeModuleName.cs" />
     <Compile Include="Parsing\Ast\ReturnStatement.cs" />
     <Compile Include="Parsing\Ast\ScopeStatement.cs" />
     <Compile Include="Parsing\Ast\SequenceExpression.cs" />

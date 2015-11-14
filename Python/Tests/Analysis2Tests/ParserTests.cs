@@ -1215,7 +1215,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void ImportStmt() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1233,11 +1233,7 @@ namespace AnalysisTests {
 
             foreach (var version in AllVersions) {
                 ParseErrors("ImportStmtIllegal.py", version,
-                    new ErrorInfo("unexpected token '('", 17, 1, 18, 18, 1, 19),
-                    new ErrorInfo("unexpected token '('", 17, 1, 18, 18, 1, 19),
-                    new ErrorInfo("unexpected token '('", 17, 1, 18, 18, 1, 19),
-                    new ErrorInfo("unexpected token ')'", 24, 1, 25, 25, 1, 26),
-                    new ErrorInfo("unexpected token ')'", 25, 1, 26, 26, 1, 27)
+                    new ErrorInfo("invalid syntax", 17, 1, 18, 26, 1, 27)
                 );
             }
         }
@@ -1636,9 +1632,8 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void FromImportStmt() {
-
             foreach (var version in AllVersions) {
                 CheckAst(
                     ParseFileNoErrors("FromImportStmt.py", version),
@@ -1680,7 +1675,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void FromImportStmtIllegal() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1698,7 +1693,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void FromImportStmtIncomplete() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -1717,7 +1712,7 @@ namespace AnalysisTests {
                 ParseErrors(
                     "FromImportStmtIncomplete.py",
                     version,
-                    new ErrorInfo("unexpected token '<newline>'", 35, 2, 26, 37, 3, 1)
+                    new ErrorInfo("trailing comma not allowed without surrounding parentheses", 35, 2, 26, 37, 2, 28)
                 );
             }
         }
@@ -2818,20 +2813,18 @@ namespace AnalysisTests {
                 Assert.IsInstanceOfType(stmt, typeof(FromImportStatement));
                 var fiStmt = (FromImportStatement)stmt;
 
-                Assert.AreEqual(fiStmt.Root.MakeString(), fromName);
-                Assert.AreEqual(names.Length, fiStmt.Names.Count);
+                Assert.AreEqual(fromName, fiStmt.Root.MakeString());
+                Assert.AreEqual(names.Length, fiStmt.Names?.Count ?? 0);
                 for (int i = 0; i < names.Length; i++) {
-                    Assert.AreEqual(names[i], fiStmt.Names[i].Name);
+                    Assert.AreEqual(names[i], fiStmt.Names[i]?.Name ?? "");
                 }
 
                 if (asNames == null) {
-                    if (fiStmt.AsNames != null) {
-                        for (int i = 0; i < fiStmt.AsNames.Count; i++) {
-                            Assert.AreEqual(null, fiStmt.AsNames[i]);
-                        }
+                    for (int i = 0; i < (fiStmt.AsNames?.Count ?? 0); i++) {
+                        Assert.AreEqual(null, fiStmt.AsNames[i]);
                     }
                 } else {
-                    Assert.AreEqual(asNames.Length, fiStmt.AsNames.Count);
+                    Assert.AreEqual(asNames.Length, fiStmt.AsNames?.Count ?? 0);
                     for (int i = 0; i < asNames.Length; i++) {
                         Assert.AreEqual(asNames[i], fiStmt.AsNames[i].Name);
                     }

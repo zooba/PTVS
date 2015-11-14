@@ -24,55 +24,56 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public class FromImportStatement : Statement {
         private static readonly string[] _star = new[] { "*" };
-        private readonly ModuleName _root;
-        private readonly NameExpression[] _names;
-        private readonly NameExpression[] _asNames;
-        private readonly bool _fromFuture;
-        private readonly bool _forceAbsolute;
+        private DottedName _root;
+        private IList<NameExpression> _names, _asNames;
+        private SourceSpan _beforeNames;
+        private bool _hasParentheses;
 
-        private PythonVariable[] _variables;
+        private IList<PythonVariable> _variables;
 
-        public FromImportStatement(ModuleName root, NameExpression/*!*/[] names, NameExpression[] asNames, bool fromFuture, bool forceAbsolute) {
-            _root = root;
-            _names = names;
-            _asNames = asNames;
-            _fromFuture = fromFuture;
-            _forceAbsolute = forceAbsolute;
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _root?.Freeze();
+            _names = FreezeList(_names);
+            _asNames = FreezeList(_asNames);
         }
 
         public DottedName Root {
             get { return _root; }
+            set { ThrowIfFrozen(); _root = value; }
         }
 
-        public bool IsFromFuture {
-            get { return _fromFuture; }
-        }
+        public bool IsFromFuture => _root?.IsFuture ?? false;
 
-        public bool ForceAbsolute {
-            get {
-                return _forceAbsolute;
-            }
-        }
-
-        public IList<NameExpression/*!*/> Names {
+        public IList<NameExpression> Names {
             get { return _names; }
+            set { ThrowIfFrozen(); _names = value; }
         }
 
         public IList<NameExpression> AsNames {
             get { return _asNames; }
+            set { ThrowIfFrozen(); _asNames = value; }
+        }
+
+        public SourceSpan BeforeNames {
+            get { return _beforeNames; }
+            set { ThrowIfFrozen(); _beforeNames = value; }
+        }
+
+        public bool HasParentheses {
+            get { return _hasParentheses; }
+            set { ThrowIfFrozen(); _hasParentheses = value; }
         }
 
         /// <summary>
         /// Gets the variables associated with each imported name.
         /// </summary>
-        [SuppressMessage("Microsoft.Performance", "CA1819:PropertiesShouldNotReturnArrays",
-            Justification = "breaking change")]
-        public PythonVariable[] Variables {
+        public IList<PythonVariable> Variables {
             get { return _variables; }
             set { _variables = value; }
         }
 
-        public PythonReference[] GetReferences(PythonAst ast) {
+        public IReadOnlyList<PythonReference> GetReferences(PythonAst ast) {
             return GetVariableReferences(this, ast);
         }
 

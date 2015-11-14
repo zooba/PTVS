@@ -670,11 +670,99 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Statement ParseFromImportStmt() {
-            return null;
+            var start = Read(TokenKind.KeywordFrom).Start;
+            var stmt = new FromImportStatement {
+                Root = ReadDottedName()
+            };
+            Read(TokenKind.KeywordImport);
+            if (string.IsNullOrEmpty(stmt.Root.MakeString())) {
+                ReportError("missing module name", Current.Span);
+            }
+
+            stmt.BeforeNames = ReadWhitespace();
+            stmt.HasParentheses = TryRead(TokenKind.LeftParenthesis);
+
+            bool hasStar = false;
+            var names = new List<NameExpression>();
+            var asNames = new List<NameExpression>();
+            var name = TryReadName(allowStar: true);
+            while (name != null) {
+                names.Add(name);
+                if (TryRead(TokenKind.KeywordAs)) {
+                    var asStart = Current.Span.Start;
+                    asNames.Add(ReadName());
+                    if (name.IsStar) {
+                        ReportError(errorAt: new SourceSpan(asStart, Current.Span.End));
+                    }
+                } else {
+                    asNames.Add(null);
+                }
+
+                if (name.IsStar) {
+                    hasStar = true;
+                    break;
+                }
+
+                if (!TryRead(TokenKind.Comma)) {
+                    break;
+                }
+
+                name = TryReadName(allowStar: true);
+                if (name == null) {
+                    names.Add(null);
+                    ReportError("trailing comma not allowed without surrounding parentheses", Current.Span);
+                    break;
+                }
+            }
+
+            stmt.Names = names;
+            stmt.AsNames = asNames;
+
+            if (stmt.HasParentheses) {
+                Read(TokenKind.RightParenthesis);
+            }
+
+            stmt.Span = new SourceSpan(start, Current.Span.End);
+            if (hasStar && _version.Is3x() && CurrentScope != null) {
+                ReportError("import * only allowed at module level", stmt.Span);
+            }
+
+            return WithCommentAndWhitespace(stmt);
         }
 
         private Statement ParseImportStmt() {
-            return null;
+            var start = Read(TokenKind.KeywordImport).Start;
+            var stmt = new ImportStatement();
+
+            var names = new List<DottedName>();
+            var asNames = new List<NameExpression>();
+            var name = ReadDottedName();
+            while (name != null) {
+                names.Add(name);
+                if (TryRead(TokenKind.KeywordAs)) {
+                    var asStart = Current.Span.Start;
+                    asNames.Add(ReadName());
+                } else {
+                    asNames.Add(null);
+                }
+
+                if (!TryRead(TokenKind.Comma)) {
+                    break;
+                }
+
+                name = ReadDottedName();
+                if (name == null) {
+                    names.Add(null);
+                    ReportError("trailing comma not allowed", Current.Span);
+                    break;
+                }
+            }
+
+            stmt.Names = names;
+            stmt.AsNames = asNames;
+
+            stmt.Span = new SourceSpan(start, Current.Span.End);
+            return WithCommentAndWhitespace(stmt);
         }
 
         private Statement ParseGlobalStmt() {
@@ -2054,39 +2142,93 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             if (!string.IsNullOrEmpty(prefix)) {
                 prefix = "_" + prefix.TrimStart('_');
             }
-            return ReadName(prefix, error, errorAt);
+            return ReadName(prefix, error: error, errorAt: errorAt);
         }
-        
-        private NameExpression ReadName(
-            string prefix = null,
-            string error = "invalid syntax",
-            SourceLocation? errorAt = null
-        ) {
+
+        private DottedName ReadDottedName() {
+            var names = new List<NameExpression>();
+            var expr = new DottedName {
+                BeforeNode = ReadWhitespace(),
+                Names = names
+            };
+            while (true) {
+                var p = PeekNonWhitespace;
+                if (p.Is(TokenKind.Ellipsis)) {
+                    var ws = ReadWhitespace();
+                    var start = Next().Span.Start;
+                    var ne = NameExpression.Empty(start, ws);
+                    ne.Freeze();
+                    names.Add(ne);
+                    ne = NameExpression.Empty(start + 1);
+                    ne.Freeze();
+                    names.Add(ne);
+                    ne = WithCommentAndWhitespace(NameExpression.Empty(start + 2));
+                    ne.Freeze();
+                    names.Add(ne);
+                    continue;
+                }
+
+                if (p.Is(TokenKind.Dot)) {
+                    var ws = ReadWhitespace();
+                    var start = Next().Span.Start;
+                    var ne = WithCommentAndWhitespace(NameExpression.Empty(start, ws));
+                    ne.Freeze();
+                    names.Add(ne);
+                    continue;
+                }
+
+                var n = TryReadName();
+                if (n == null) {
+                    break;
+                }
+                names.Add(n);
+                if (!TryRead(TokenKind.Dot)) {
+                    break;
+                }
+            }
+            return WithCommentAndWhitespace(expr);
+        }
+
+        private NameExpression TryReadName(string prefix = null, bool allowStar = false) {
             var before = ReadWhitespace();
 
             string name;
-            Next();
-            switch (Current.Kind) {
+            switch (Peek.Kind) {
                 case TokenKind.Name:
-                    name = _tokenization.GetTokenText(Current);
+                    name = _tokenization.GetTokenText(Peek);
                     break;
                 case TokenKind.KeywordAsync:
                 case TokenKind.KeywordAwait:
                     if (HasAsyncAwait && IsInAsyncFunction) {
-                        ThrowError(error, errorAt);
                         return null;
                     }
-                    name = Current.Is(TokenKind.KeywordAsync) ? "async" : "await";
+                    name = Peek.Is(TokenKind.KeywordAsync) ? "async" : "await";
+                    break;
+                case TokenKind.KeywordWith:
+                    if (HasWith) {
+                        return null;
+                    }
+                    name = "with";
+                    break;
+                case TokenKind.KeywordAs:
+                    if (HasAs) {
+                        return null;
+                    }
+                    name = "as";
                     break;
                 case TokenKind.KeywordNonlocal:
                     if (HasNonlocal) {
-                        ThrowError(error, errorAt);
                         return null;
                     }
                     name = "nonlocal";
                     break;
+                case TokenKind.Multiply:
+                    if (!allowStar) {
+                        return null;
+                    }
+                    name = "*";
+                    break;
                 default:
-                    ThrowError(error, errorAt);
                     return null;
             }
 
@@ -2096,12 +2238,25 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             var expr = new NameExpression(name, prefix) {
                 BeforeNode = before,
-                Span = Current.Span,
+                Span = Next().Span,
             };
 
             WithCommentAndWhitespace(expr);
             expr.Freeze();
             return expr;
+        }
+
+        private NameExpression ReadName(
+            string prefix = null,
+            bool allowStar = false,
+            string error = "invalid syntax",
+            SourceLocation? errorAt = null
+        ) {
+            var n = TryReadName(prefix, allowStar);
+            if (n == null) {
+                ThrowError(error, errorAt);
+            }
+            return n;
         }
 
         private bool TryRead(TokenKind kind) {

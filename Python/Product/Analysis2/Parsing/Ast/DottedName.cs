@@ -17,34 +17,35 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class DottedName : Node {
-        private readonly NameExpression[] _names;
-
-        public DottedName(NameExpression[] names) {
-            _names = names;
-        }
+        private IList<NameExpression> _names;
 
         public IList<NameExpression> Names {
             get { return _names; }
+            set { ThrowIfFrozen(); _names = value; }
+        }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _names = FreezeList(_names);
         }
 
         public virtual string MakeString() {
-            if (_names.Length == 0) return String.Empty;
-
-            StringBuilder ret = new StringBuilder(_names[0].Name);
-            for (int i = 1; i < _names.Length; i++) {
-                ret.Append('.');
-                ret.Append(_names[i].Name);
+            if (_names == null || _names.Count == 0) {
+                return String.Empty;
             }
-            return ret.ToString();
+
+            return string.Join(".", _names.Select(n => n?.Name ?? ""));
         }
+
+        public bool IsFuture => Names?.Count == 1 && Names[0].Name == "__future__";
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                ;
             }
             walker.PostWalk(this);
         }
