@@ -60,16 +60,20 @@ namespace AnalysisTests {
 
         #region Test Cases
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void MixedWhiteSpace() {
             // mixed, but in different blocks, which is ok
             ParseErrors("MixedWhitespace1.py", PythonLanguageVersion.V27, Severity.Error);
 
             // mixed in the same block, tabs first
-            ParseErrors("MixedWhitespace2.py", PythonLanguageVersion.V27, Severity.Error, new ErrorInfo("inconsistent whitespace", 293, 13, 32, 302, 14, 9));
+            ParseErrors("MixedWhitespace2.py", PythonLanguageVersion.V27, Severity.Error,
+                new ErrorInfo("inconsistent whitespace", 294, 14, 1, 302, 14, 9)
+            );
 
             // mixed in same block, spaces first
-            ParseErrors("MixedWhitespace3.py", PythonLanguageVersion.V27, Severity.Error, new ErrorInfo("inconsistent whitespace", 285, 13, 24, 287, 14, 2));
+            ParseErrors("MixedWhitespace3.py", PythonLanguageVersion.V27, Severity.Error,
+                new ErrorInfo("inconsistent whitespace", 286, 14, 1, 287, 14, 2)
+            );
 
             // mixed on same line, spaces first
             ParseErrors("MixedWhitespace4.py", PythonLanguageVersion.V27, Severity.Error);
@@ -78,7 +82,9 @@ namespace AnalysisTests {
             ParseErrors("MixedWhitespace5.py", PythonLanguageVersion.V27, Severity.Error);
 
             // mixed on a comment line - should not crash
-            ParseErrors("MixedWhitespace6.py", PythonLanguageVersion.V27, Severity.Error, new ErrorInfo("inconsistent whitespace", 126, 8, 17, 128, 9, 2));
+            ParseErrors("MixedWhitespace6.py", PythonLanguageVersion.V27, Severity.Error,
+                new ErrorInfo("inconsistent whitespace", 127, 9, 1, 128, 9, 2)
+            );
         }
 
         [TestMethod, Priority(1)]
@@ -442,7 +448,7 @@ namespace AnalysisTests {
         }
 
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void DedentError() {
             foreach (var version in AllVersions) {
                 ParseErrors("DedentError.py",
@@ -452,7 +458,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void DedentErrorLargeFile() {
             foreach (var version in AllVersions) {
                 ParseErrors("DedentErrorLargeFile.py",
@@ -2311,7 +2317,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void FromFuture() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2332,8 +2338,8 @@ namespace AnalysisTests {
 
                 if (version == PythonLanguageVersion.V25) {
                     ParseErrors("FromFuture26.py", version,
-                        new ErrorInfo("future feature is not defined: print_function", 0, 1, 1, 37, 1, 38),
-                        new ErrorInfo("future feature is not defined: unicode_literals", 39, 2, 1, 78, 2, 40)
+                        new ErrorInfo("future feature is not defined until 2.6: print_function", 23, 1, 24, 37, 1, 38),
+                        new ErrorInfo("future feature is not defined until 2.6: unicode_literals", 62, 2, 24, 78, 2, 40)
                     );
                 } else {
                     CheckAst(
@@ -2347,7 +2353,7 @@ namespace AnalysisTests {
 
                 if (version < PythonLanguageVersion.V35) {
                     ParseErrors("FromFuture35.py", version,
-                        new ErrorInfo("future feature is not defined: generator_stop", 0, 1, 1, 37, 1, 38)
+                        new ErrorInfo("future feature is not defined until 3.5: generator_stop", 23, 1, 24, 37, 1, 38)
                     );
                 } else {
                     CheckAst(
@@ -2494,13 +2500,14 @@ namespace AnalysisTests {
             }
         }
 
-        private void ParseErrors(string filename, PythonLanguageVersion version, params ErrorInfo[] errors) {
-            ParseErrors(filename, version, Severity.Ignore, errors);
+        private void ParseErrors(string filename, PythonLanguageVersion version, params ErrorInfo[] expectedErrors) {
+            ParseErrors(filename, version, Severity.Ignore, expectedErrors);
         }
 
-        private void ParseErrors(string filename, PythonLanguageVersion version, Severity indentationInconsistencySeverity, params ErrorInfo[] expectedErrors) {
-            var parser = CreateParser(filename, version, indentationInconsistencySeverity);
+        private void ParseErrors(string filename, PythonLanguageVersion version, Severity indentationSeverity, params ErrorInfo[] expectedErrors) {
+            var parser = CreateParser(filename, version);
             var errors = new CollectingErrorSink();
+            parser.IndentationInconsistencySeverity = indentationSeverity;
             parser.Parse(errors);
 
             StringBuilder foundErrors = new StringBuilder();
@@ -2547,7 +2554,7 @@ namespace AnalysisTests {
         }
 
         private static PythonAst ParseFileNoErrors(string filename, PythonLanguageVersion version) {
-            var parser = CreateParser(filename, version, Severity.Ignore);
+            var parser = CreateParser(filename, version);
             var errors = new CollectingErrorSink();
             var tree = parser.Parse(errors);
             foreach (var err in errors.Errors) {
@@ -2558,11 +2565,11 @@ namespace AnalysisTests {
         }
 
         private static PythonAst ParseFileIgnoreErrors(string filename, PythonLanguageVersion version) {
-            var parser = CreateParser(filename, version, Severity.Ignore);
+            var parser = CreateParser(filename, version);
             return parser.Parse();
         }
 
-        private static Parser CreateParser(string filename, PythonLanguageVersion version, Severity indentationInconsistencySeverity = Severity.Ignore) {
+        private static Parser CreateParser(string filename, PythonLanguageVersion version) {
             Trace.TraceInformation("Parsing {0} with {1}", filename, version.ToVersion());
             var tokenization = Tokenization.TokenizeAsync(
                 new FileSourceDocument(PythonTestData.GetTestDataSourcePath("Grammar\\" + filename)),

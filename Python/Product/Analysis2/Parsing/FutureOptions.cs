@@ -31,19 +31,23 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         /// <summary>
         /// Enable usage of the with statement
         /// </summary>
-        WithStatement = 0x0010,
+        WithStatement = 0x0002,
         /// <summary>
         /// Enable absolute imports
         /// </summary>
-        AbsoluteImports = 0x0020,
+        AbsoluteImports = 0x0004,
         /// <summary>
         /// Enable usage of print as a function for better compatibility with Python 3.0.
         /// </summary>
-        PrintFunction = 0x0400,
+        PrintFunction = 0x0008,
         /// <summary>
         /// String Literals should be parsed as Unicode strings
         /// </summary>
-        UnicodeLiterals = 0x2000,
+        UnicodeLiterals = 0x0010,
+        /// <summary>
+        /// Generators that raise StopIteration should be translated to a runtime error
+        /// </summary>
+        GeneratorStop = 0x0020,
     }
 
 }

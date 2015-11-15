@@ -1,4 +1,20 @@
-﻿using System;
+﻿// Python Tools for Visual Studio
+// Copyright(c) Microsoft Corporation
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the License); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+// OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+// IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+// MERCHANTABLITY OR NON-INFRINGEMENT.
+//
+// See the Apache Version 2.0 License for specific language governing
+// permissions and limitations under the License.
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -19,11 +35,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private IEnumerator<Token> _tokenEnumerator;
         private Token _current;
         private List<Token> _lookahead;
-        private SourceSpan _currentIndent;
+        private string _currentIndent;
+        private int _currentIndentLength;
         private bool _singleLine;
         private ErrorSink _errors;
         private Token _eofToken;
         private Stack<ScopeStatement> _scopes;
+        private Severity _indentationInconsistencySeverity;
 
         public Parser(Tokenization tokenization) {
             _tokenization = tokenization;
@@ -36,64 +54,44 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             _scopes = new Stack<ScopeStatement>();
         }
 
+        internal Tokenization Tokenization => _tokenization;
+
+        public Severity IndentationInconsistencySeverity {
+            get { return _indentationInconsistencySeverity; }
+            set { _indentationInconsistencySeverity = value; }
+        }
+
         #region Language Features
 
         internal bool HasAnnotations => _version >= PythonLanguageVersion.V30;
-
-        internal bool HasAsyncAwait => _version >= PythonLanguageVersion.V35;
-
         internal bool HasAs => _version >= PythonLanguageVersion.V26 || _future.HasFlag(FutureOptions.WithStatement);
-
-        internal bool HasWith => _version >= PythonLanguageVersion.V26 || _future.HasFlag(FutureOptions.WithStatement);
-
-        internal bool HasReprLiterals => _version.Is2x();
-
-        internal bool HasPrintFunction => _version.Is3x() || _future.HasFlag(FutureOptions.PrintFunction);
-
-        internal bool HasTrueDivision => _version.Is3x() || _future.HasFlag(FutureOptions.TrueDivision);
-
-        internal bool HasConstantBooleans => _version.Is3x();
-
-        internal bool HasBytesPrefix => _version >= PythonLanguageVersion.V26;
-
-        internal bool HasRawBytesPrefix => _version >= PythonLanguageVersion.V33;
-
-        internal bool HasUnicodePrefix => _version < PythonLanguageVersion.V30 || _version >= PythonLanguageVersion.V33;
-
-        internal bool HasUnicodeLiterals => _version.Is3x() || _future.HasFlag(FutureOptions.UnicodeLiterals);
-
-        internal bool HasSetLiterals => _version >= PythonLanguageVersion.V27;
-
-        internal bool HasDictComprehensions => _version >= PythonLanguageVersion.V27;
-
-        internal bool HasTupleAsComprehensionTarget => _version.Is2x();
-
-        internal bool HasClassDecorators => _version >= PythonLanguageVersion.V26;
-
-        internal bool HasNonlocal => _version.Is3x();
-
-        internal bool HasExecStatement => _version.Is2x();
-
-        internal bool HasSublistParameters => _version.Is2x();
-
+        internal bool HasAsyncAwait => _version >= PythonLanguageVersion.V35;
         internal bool HasBareStarParameter => _version.Is3x();
-
-        internal bool HasStarUnpacking => _version.Is3x();
-
+        internal bool HasBytesPrefix => _version >= PythonLanguageVersion.V26;
+        internal bool HasClassDecorators => _version >= PythonLanguageVersion.V26;
+        internal bool HasConstantBooleans => _version.Is3x();
+        internal bool HasDictComprehensions => _version >= PythonLanguageVersion.V27;
+        internal bool HasExecStatement => _version.Is2x();
         internal bool HasGeneralUnpacking => _version >= PythonLanguageVersion.V35;
-
         internal bool HasGeneratorReturn => _version >= PythonLanguageVersion.V33;
-
+        internal bool HasNonlocal => _version.Is3x();
+        internal bool HasPrintFunction => _version.Is3x() || _future.HasFlag(FutureOptions.PrintFunction);
+        internal bool HasRawBytesPrefix => _version >= PythonLanguageVersion.V33;
+        internal bool HasReprLiterals => _version.Is2x();
+        internal bool HasSetLiterals => _version >= PythonLanguageVersion.V27;
+        internal bool HasStarUnpacking => _version.Is3x();
+        internal bool HasSublistParameters => _version.Is2x();
+        internal bool HasTrueDivision => _version.Is3x() || _future.HasFlag(FutureOptions.TrueDivision);
+        internal bool HasTupleAsComprehensionTarget => _version.Is2x();
+        internal bool HasUnicodeLiterals => _version.Is3x() || _future.HasFlag(FutureOptions.UnicodeLiterals);
+        internal bool HasUnicodePrefix => _version < PythonLanguageVersion.V30 || _version >= PythonLanguageVersion.V33;
+        internal bool HasWith => _version >= PythonLanguageVersion.V26 || _future.HasFlag(FutureOptions.WithStatement);
         internal bool HasYieldFrom => _version >= PythonLanguageVersion.V33;
 
         internal ScopeStatement CurrentScope => _scopes.Any() ? _scopes.Peek() : null;
-
         internal ScopeStatement CurrentClass => _scopes.OfType<ClassDefinition>().FirstOrDefault();
-
         internal bool IsInAsyncFunction => CurrentScope?.IsAsync ?? false;
-
         internal bool IsInFunction => CurrentScope is FunctionDefinition;
-
         internal bool IsInClass => CurrentScope is ClassDefinition;
 
         #endregion
@@ -114,18 +112,20 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var body = new List<Statement>();
 
             var prevIndent = _currentIndent;
+            var prevIndentLength = _currentIndentLength;
             var prevSingleLine = _singleLine;
 
             _singleLine = !assumeMultiLine && !TryRead(TokenKind.NewLine);
             var indent = TryRead(TokenKind.SignificantWhitespace) ? Current.Span : SourceSpan.None;
-            _currentIndent = indent;
+            _currentIndent = _tokenization.GetTokenText(indent);
+            _currentIndentLength = GetIndentLength(_currentIndent);
 
             // Leading whitespace is already read; it will be attached to the
             // suite rather than each statement.
             var stmt = ParseStmt();
 
             while (IsCurrentStatementBreak()) {
-                stmt.AfterNode = ReadCurrentStatementBreak();
+                stmt.AfterNode = ReadCurrentStatementBreak(stmt is CompoundStatement);
                 stmt.Freeze();
 
                 body.Add(stmt);
@@ -137,11 +137,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             body.Add(stmt);
 
             _currentIndent = prevIndent;
+            _currentIndentLength = prevIndentLength;
             _singleLine = prevSingleLine;
 
             var suite = new SuiteStatement(body, indent);
             suite.Comment = ReadComment();
             suite.Freeze();
+
             return suite;
         }
 
@@ -151,6 +153,24 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 return false;
             }
             return nextToken == TokenKind.Unknown || token.Is(nextToken);
+        }
+
+        private int GetIndentLength(Token token) {
+            return GetIndentLength(_tokenization.GetTokenText(token));
+        }
+
+        private int GetIndentLength(string s) {
+            int length = 0;
+            foreach (var c in s) {
+                if (c == ' ') {
+                    length += 1;
+                } else if (c == '\t') {
+                    length += 8;
+                } else {
+                    break;
+                }
+            }
+            return length;
         }
 
         private Token GetTokenAfterCurrentStatementBreak() {
@@ -184,7 +204,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             int lookaheadCount = 1;
             while (!(p2 = PeekAhead(++lookaheadCount)).IsAny(TokenKind.SignificantWhitespace, TokenKind.EndOfFile)) {
             }
-            if (p2.Is(TokenKind.SignificantWhitespace) && p2.Span.Length >= _currentIndent.Length) {
+            if (p2.Is(TokenKind.SignificantWhitespace) && GetIndentLength(p2) >= _currentIndentLength) {
                 // Keep going if it's an unexpected indent - we'll add the
                 // error when we read the whitespace.
                 return PeekAhead(lookaheadCount + 1);
@@ -194,14 +214,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return Token.Empty;
         }
 
-        private SourceSpan ReadCurrentStatementBreak() {
+        private SourceSpan ReadCurrentStatementBreak(bool justDedented = false) {
             Debug.Assert(IsCurrentStatementBreak());
 
             var span = Next().Span;
             if (Peek.Is(TokenKind.SignificantWhitespace)) {
                 var ws = Next();
-                if (ws.Span.Length > _currentIndent.Length) {
-                    _errors.Add("unexpected indent", ws.Span, 0, Severity.Error);
+                var text = _tokenization.GetTokenText(ws);
+                if (GetIndentLength(text) > _currentIndentLength) {
+                    if (justDedented) {
+                        _errors.Add("unindent does not match any outer indentation level", ws.Span, 0, Severity.Error);
+                    } else {
+                        _errors.Add("unexpected indent", ws.Span, 0, Severity.Error);
+                    }
+                }
+                if (text != _currentIndent && _indentationInconsistencySeverity != Severity.Ignore) {
+                    _errors.Add("inconsistent whitespace", ws.Span, 0, _indentationInconsistencySeverity);
                 }
             }
             return span;
@@ -729,6 +757,45 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             stmt.Span = new SourceSpan(start, Current.Span.End);
             if (hasStar && _version.Is3x() && CurrentScope != null) {
                 ReportError("import * only allowed at module level", stmt.Span);
+            }
+
+            if (stmt.Root.IsFuture) {
+                foreach (var n in stmt.Names) {
+                    if (string.IsNullOrEmpty(n?.Name)) {
+                        continue;
+                    }
+                    switch (n.Name) {
+                        case "division":
+                            _future |= FutureOptions.TrueDivision;
+                            break;
+                        case "generators":
+                            break;
+                        case "with_statement":
+                            _future |= FutureOptions.WithStatement;
+                            break;
+                        case "absolute_import":
+                            _future |= FutureOptions.AbsoluteImports;
+                            break;
+                        case "print_function":
+                            _future |= FutureOptions.PrintFunction;
+                            if (_version < PythonLanguageVersion.V26) {
+                                ReportError("future feature is not defined until 2.6: print_function", n.Span);
+                            }
+                            break;
+                        case "unicode_literals":
+                            _future |= FutureOptions.UnicodeLiterals;
+                            if (_version < PythonLanguageVersion.V26) {
+                                ReportError("future feature is not defined until 2.6: unicode_literals", n.Span);
+                            }
+                            break;
+                        case "generator_stop":
+                            _future |= FutureOptions.GeneratorStop;
+                            if (_version < PythonLanguageVersion.V35) {
+                                ReportError("future feature is not defined until 3.5: generator_stop", n.Span);
+                            }
+                            break;
+                    }
+                }
             }
 
             return WithCommentAndWhitespace(stmt);
