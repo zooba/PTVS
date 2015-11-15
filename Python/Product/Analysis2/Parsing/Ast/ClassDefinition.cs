@@ -25,12 +25,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private IList<Arg> _bases;
         private DecoratorStatement _decorators;
 
-        private PythonVariable _variable;           // Variable corresponding to the class name
-        private PythonVariable _modVariable;        // Variable for the the __module__ (module name)
-        private PythonVariable _docVariable;        // Variable for the __doc__ attribute
-        private PythonVariable _modNameVariable;    // Variable for the module's __name__
-        private PythonVariable _classVariable;      // Variable for the classes __class__ cell var on 3.x
-
         public ClassDefinition() : base(TokenKind.KeywordClass) { }
 
         protected override void OnFreeze() {
@@ -57,69 +51,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             internal set { ThrowIfFrozen(); _decorators = value; }
         }
 
-        /// <summary>
-        /// Gets the variable that this class definition was assigned to.
-        /// </summary>
-        public PythonVariable Variable {
-            get { return _variable; }
-            set { _variable = value; }
-        }
+        //internal override bool TryBindOuter(ScopeStatement from, string name, bool allowGlobals, out PythonVariable variable) {
+        //    if (name == "__class__" && _classVariable != null) {
+        //        // 3.x has a cell var called __class__ which can be bound by inner scopes
+        //        variable = _classVariable;
+        //        return true;
+        //    }
 
-        /// <summary>
-        /// Gets the variable reference for the specific assignment to the variable for this class definition.
-        /// </summary>
-        public PythonReference GetVariableReference(PythonAst ast) {
-            return GetVariableReference(this, ast);
-        }
-
-        internal PythonVariable ClassVariable {
-            get { return _classVariable; }
-            set { _classVariable = value; }
-        }
-
-        internal PythonVariable ModVariable {
-            get { return _modVariable; }
-            set { _modVariable = value; }
-        }
-
-        internal PythonVariable DocVariable {
-            get { return _docVariable; }
-            set { _docVariable = value; }
-        }
-
-        internal PythonVariable ModuleNameVariable {
-            get { return _modNameVariable; }
-            set { _modNameVariable = value; }
-        }
-
-        internal override bool HasLateBoundVariableSets {
-            get {
-                return base.HasLateBoundVariableSets || NeedsLocalsDictionary;
-            }
-            set {
-                base.HasLateBoundVariableSets = value;
-            }
-        }
-        
-        internal override bool NeedsLocalContext {
-            get {
-                return true;
-            }
-        }
-
-        internal override bool ExposesLocalVariable(PythonVariable variable) {
-            return true;
-        }
-
-        internal override bool TryBindOuter(ScopeStatement from, string name, bool allowGlobals, out PythonVariable variable) {
-            if (name == "__class__" && _classVariable != null) {
-                // 3.x has a cell var called __class__ which can be bound by inner scopes
-                variable = _classVariable;
-                return true;
-            }
-
-            return base.TryBindOuter(from, name, allowGlobals, out variable);
-        }
+        //    return base.TryBindOuter(from, name, allowGlobals, out variable);
+        //}
 
         //internal override PythonVariable BindReference(PythonNameBinder binder, string name) {
         //    PythonVariable variable;

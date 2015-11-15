@@ -116,15 +116,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             }
         }
 
-        internal SourceLocation IndexToLocation(int index) {
-            return SourceLocation.FromIndex(GlobalParent._tokenization, index);
-        }
-
         #region Name Binding Support
-
-        internal override bool ExposesLocalVariable(PythonVariable variable) {
-            return true;
-        }
 
         //internal override void FinishBind(PythonNameBinder binder) {
         //}
@@ -154,33 +146,33 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         //    return false;
         //}
 
-        internal override bool IsGlobal {
-            get { return true; }
-        }
+        //internal override bool IsGlobal {
+        //    get { return true; }
+        //}
 
         /// <summary>
         /// Creates a variable at the global level.  Called for known globals (e.g. __name__),
         /// for variables explicitly declared global by the user, and names accessed
         /// but not defined in the lexical scope.
         /// </summary>
-        internal PythonVariable/*!*/ EnsureGlobalVariable(string name) {
-            PythonVariable variable;
-            if (!TryGetVariable(name, out variable)) {
-                variable = CreateVariable(name, VariableKind.Global);
-            }
+        //internal PythonVariable/*!*/ EnsureGlobalVariable(string name) {
+        //    PythonVariable variable;
+        //    if (!TryGetVariable(name, out variable)) {
+        //        variable = CreateVariable(name, VariableKind.Global);
+        //    }
+        //
+        //    return variable;
+        //}
 
-            return variable;
-        }
 
-
-        internal PythonVariable/*!*/ EnsureNonlocalVariable(string name) {
-            PythonVariable variable;
-            if (!TryGetVariable(name, out variable)) {
-                variable = CreateVariable(name, VariableKind.Nonlocal);
-            }
-
-            return variable;
-        }
+        //internal PythonVariable/*!*/ EnsureNonlocalVariable(string name) {
+        //    PythonVariable variable;
+        //    if (!TryGetVariable(name, out variable)) {
+        //        variable = CreateVariable(name, VariableKind.Nonlocal);
+        //    }
+        //
+        //    return variable;
+        //}
 
         #endregion
 

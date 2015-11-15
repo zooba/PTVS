@@ -1205,10 +1205,14 @@ namespace AnalysisTests {
         public void YieldFromStmtIllegal() {
             foreach (var version in V25_V27Versions.Concat(V30_V32Versions)) {
                 ParseErrors("YieldFromStmtIllegal.py", version,
-                    new ErrorInfo("'yield from' requires Python 3.3 or later", 0, 1, 1, 10, 1, 11),
+                    new ErrorInfo("'yield from' requires 3.3 or later", 0, 1, 1, 10, 1, 11),
                     new ErrorInfo("'return' with argument inside generator", 30, 4, 5, 39, 4, 14),
+                    new ErrorInfo("'yield from' requires 3.3 or later", 45, 5, 5, 55, 5, 15),
+                    new ErrorInfo("'yield from' requires 3.3 or later", 75, 8, 5, 85, 8, 15),
                     new ErrorInfo("'return' with argument inside generator", 93, 9, 5, 102, 9, 14),
+                    new ErrorInfo("'yield from' requires 3.3 or later", 120, 12, 5, 130, 12, 15),
                     new ErrorInfo("invalid syntax", 120, 12, 5, 130, 12, 15),
+                    new ErrorInfo("'yield from' requires 3.3 or later", 148, 15, 5, 158, 15, 15),
                     new ErrorInfo("invalid syntax", 160, 15, 17, 166, 15, 23)
                 );
             }
@@ -1998,7 +2002,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void ClassDef3x() {
             foreach (var version in V3Versions) {
                 CheckAst(
@@ -2013,21 +2017,9 @@ namespace AnalysisTests {
 
             foreach (var version in V2Versions) {
                 ParseErrors("ClassDef3x.py", version,
-                    new ErrorInfo("unexpected token '='", 17, 1, 18, 18, 1, 19),
-                    new ErrorInfo("unexpected token '='", 17, 1, 18, 18, 1, 19),
-                    new ErrorInfo("unexpected token ')'", 19, 1, 20, 20, 1, 21),
-                    new ErrorInfo("unexpected token ':'", 20, 1, 21, 21, 1, 22),
-                    new ErrorInfo("unexpected token 'pass'", 22, 1, 23, 26, 1, 27),
-                    new ErrorInfo("unexpected token '='", 53, 2, 26, 54, 2, 27),
-                    new ErrorInfo("unexpected token '='", 53, 2, 26, 54, 2, 27),
-                    new ErrorInfo("unexpected token ')'", 55, 2, 28, 56, 2, 29),
-                    new ErrorInfo("unexpected token ':'", 56, 2, 29, 57, 2, 30),
-                    new ErrorInfo("unexpected token 'pass'", 58, 2, 31, 62, 2, 35),
-                    new ErrorInfo("unexpected token '='", 89, 3, 26, 90, 3, 27),
-                    new ErrorInfo("unexpected token '='", 89, 3, 26, 90, 3, 27),
-                    new ErrorInfo("unexpected token ')'", 91, 3, 28, 92, 3, 29),
-                    new ErrorInfo("unexpected token ':'", 92, 3, 29, 93, 3, 30),
-                    new ErrorInfo("unexpected token 'pass'", 94, 3, 31, 98, 3, 35)
+                    new ErrorInfo("invalid syntax", 8, 1, 9, 19, 1, 20),
+                    new ErrorInfo("invalid syntax", 44, 2, 17, 55, 2, 28),
+                    new ErrorInfo("invalid syntax", 86, 3, 23, 91, 3, 28)
                 );
             }
         }
@@ -2512,7 +2504,7 @@ namespace AnalysisTests {
             parser.Parse(errors);
 
             StringBuilder foundErrors = new StringBuilder();
-            foreach(var error in errors.Errors) {
+            foreach(var error in errors.Errors.OrderBy(e => e.Span.Start.Index)) {
                 foundErrors.AppendFormat("new ErrorInfo(\"{0}\", {1}, {2}, {3}, {4}, {5}, {6})," + Environment.NewLine,
                     error.Message,
                     error.Span.Start.Index,
@@ -2529,7 +2521,7 @@ namespace AnalysisTests {
             Assert.AreEqual(expectedErrors.Length, errors.Errors.Count, "Version: " + version + Environment.NewLine + "Unexpected errors: " + Environment.NewLine + finalErrors);
 
             int i = 0;
-            foreach(var e in expectedErrors.Zip(errors.Errors, Tuple.Create)) {
+            foreach(var e in expectedErrors.Zip(errors.Errors.OrderBy(e => e.Span.Start.Index), Tuple.Create)) {
                 if (e.Item1.Message != e.Item2.Message) {
                     Assert.Fail("Wrong msg for error {0}: expected {1}, got {2}", i, e.Item1.Message, e.Item2.Message);
                 }

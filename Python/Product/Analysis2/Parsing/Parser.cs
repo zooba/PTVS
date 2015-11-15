@@ -614,6 +614,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             if (TryRead(TokenKind.LeftParenthesis)) {
                 stmt.Bases = ParseArgumentList(TokenKind.RightParenthesis, true);
+
+                if (_version.Is2x()) {
+                    foreach (var b in stmt.Bases) {
+                        if (!string.IsNullOrEmpty(b.Name)) {
+                            ReportError(errorAt: b.Span);
+                        }
+                    }
+                }
+
                 Read(TokenKind.RightParenthesis);
             }
             stmt.BeforeColon = ReadWhitespace();
@@ -840,8 +849,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var start = Read(TokenKind.KeywordGlobal).Start;
             var stmt = new GlobalStatement();
 
+            var func = CurrentScope as FunctionDefinition;
             do {
-                stmt.AddName(ReadName());
+                var name = ReadName();
+                stmt.AddName(name);
+                func?.AddReferencedGlobal(name.Name);
             } while (TryRead(TokenKind.Comma));
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
@@ -857,8 +869,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             var stmt = new NonlocalStatement();
 
+            var func = CurrentScope as FunctionDefinition;
             do {
-                stmt.AddName(ReadName());
+                var name = ReadName();
+                stmt.AddName(name);
+                func?.AddReferencedNonLocal(name.Name);
             } while (TryRead(TokenKind.Comma));
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
@@ -975,6 +990,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 Debug.Assert(expr.BeforeNode.Length == 0, "Should not have read leading whitespace");
                 expr.BeforeNode = ws;
                 expr.Freeze();
+
+                var ne = expr as NameExpression ?? (expr as StarredExpression)?.Expression as NameExpression;
+                if (ne != null) {
+                    CurrentScope?.AddLocalDefinition(ne.Name);
+                }
 
                 targets.Add(expr);
 
@@ -1257,6 +1277,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     a.Expression = expr;
                 }
 
+                a.Span = new SourceSpan(expr.Span.Start, Current.Span.End);
                 MaybeReadComment(a);
                 a.HasCommaAfterNode = TryRead(TokenKind.Comma);
                 a.Freeze();

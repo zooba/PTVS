@@ -52,7 +52,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         /// </summary>
         internal bool IsGlobal {
             get {
-                return Kind == VariableKind.Global || Scope.IsGlobal;
+                return Kind == VariableKind.Global; // || Scope.IsGlobal;
             }
         }
 

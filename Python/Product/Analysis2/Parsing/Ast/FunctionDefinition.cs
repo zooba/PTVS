@@ -27,15 +27,19 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private bool _generator;
         private IList<Expression> _returns;
 
-        private PythonVariable _variable;      // The variable corresponding to the function name or null for lambdas
-        internal PythonVariable _nameVariable; // the variable that refers to the global __name__
+        private IList<string> _globals, _nonLocals;
 
         public FunctionDefinition(TokenKind kind) : base(kind) { }
+
+        public IList<string> ReferencedGlobals => _globals;
+        public IList<string> ReferencedNonLocals => _nonLocals;
 
         protected override void OnFreeze() {
             base.OnFreeze();
             _parameters?.Freeze();
             _returns = FreezeList(_returns);
+            _globals = FreezeList(_globals);
+            _nonLocals = FreezeList(_nonLocals);
         }
 
         public bool IsLambda => Kind == TokenKind.KeywordLambda;
@@ -44,8 +48,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             get { return _parameters; }
             set { ThrowIfFrozen(); _parameters = value; }
         }
-
-        internal override int ArgCount => _parameters?.Parameters?.Count ?? 0;
 
         public SourceSpan BeforeReturnAnnotation {
             get { return _beforeReturnAnnotation; }
@@ -84,6 +86,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             }
         }
 
+        internal void AddReferencedGlobal(string name) {
+            if (_globals == null) {
+                _globals = new List<string> { name };
+            } else if (!_globals.Contains(name)) {
+                _globals.Add(name);
+            }
+        }
+
+        internal void AddReferencedNonLocal(string name) {
+            if (_nonLocals == null) {
+                _nonLocals = new List<string> { name };
+            } else if (!_nonLocals.Contains(name)) {
+                _nonLocals.Add(name);
+            }
+        }
+
         /// <summary>
         /// True if the function is a generator.  Generators contain at least one yield
         /// expression and instead of returning a value when called they return a generator
@@ -94,46 +112,46 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _generator = value; }
         }
 
-        /// <summary>
-        /// Gets the variable that this function is assigned to.
-        /// </summary>
-        public PythonVariable Variable {
-            get { return _variable; }
-            set { _variable = value; }
-        }
+        ///// <summary>
+        ///// Gets the variable that this function is assigned to.
+        ///// </summary>
+        //public PythonVariable Variable {
+        //    get { return _variable; }
+        //    set { _variable = value; }
+        //}
 
-        /// <summary>
-        /// Gets the variable reference for the specific assignment to the variable for this function definition.
-        /// </summary>
-        public PythonReference GetVariableReference(PythonAst ast) {
-            return GetVariableReference(this, ast);
-        }
+        ///// <summary>
+        ///// Gets the variable reference for the specific assignment to the variable for this function definition.
+        ///// </summary>
+        //public PythonReference GetVariableReference(PythonAst ast) {
+        //    return GetVariableReference(this, ast);
+        //}
 
-        internal override bool ExposesLocalVariable(PythonVariable variable) {
-            return NeedsLocalsDictionary;
-        }
+        //internal override bool ExposesLocalVariable(PythonVariable variable) {
+        //    return NeedsLocalsDictionary;
+        //}
 
-        internal override bool TryBindOuter(ScopeStatement from, string name, bool allowGlobals, out PythonVariable variable) {
-            // Functions expose their locals to direct access
-            ContainsNestedFreeVariables = true;
-            if (TryGetVariable(name, out variable)) {
-                variable.AccessedInNestedScope = true;
+        //internal override bool TryBindOuter(ScopeStatement from, string name, bool allowGlobals, out PythonVariable variable) {
+        //    // Functions expose their locals to direct access
+        //    ContainsNestedFreeVariables = true;
+        //    if (TryGetVariable(name, out variable)) {
+        //        variable.AccessedInNestedScope = true;
 
-                if (variable.Kind == VariableKind.Local || variable.Kind == VariableKind.Parameter) {
-                    from.AddFreeVariable(variable, true);
+        //        if (variable.Kind == VariableKind.Local || variable.Kind == VariableKind.Parameter) {
+        //            from.AddFreeVariable(variable, true);
 
-                    for (ScopeStatement scope = from.Parent; scope != this; scope = scope.Parent) {
-                        scope.AddFreeVariable(variable, false);
-                    }
+        //            for (ScopeStatement scope = from.Parent; scope != this; scope = scope.Parent) {
+        //                scope.AddFreeVariable(variable, false);
+        //            }
 
-                    AddCellVariable(variable);
-                } else if (allowGlobals) {
-                    from.AddReferencedGlobal(name);
-                }
-                return true;
-            }
-            return false;
-        }
+        //            AddCellVariable(variable);
+        //        } else if (allowGlobals) {
+        //            from.AddReferencedGlobal(name);
+        //        }
+        //        return true;
+        //    }
+        //    return false;
+        //}
 
         //internal override PythonVariable BindReference(PythonNameBinder binder, string name) {
         //    PythonVariable variable;
