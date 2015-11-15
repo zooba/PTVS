@@ -1456,13 +1456,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 var func = CurrentScope as FunctionDefinition;
                 if (func != null) {
                     func.IsGenerator = true;
-                } else if (PeekNonWhitespace.Is(TokenKind.KeywordFrom)) {
-                    ReportError(
-                        HasYieldFrom ? "'yield from' outside of generator" : "'yield from' requires Python 3.3 or later",
-                        new SourceSpan(yieldSpan.Start, PeekNonWhitespace.Span.End)
-                    );
-                    shownError = true;
-                } else {
+                }
+
+                if (PeekNonWhitespace.Is(TokenKind.KeywordFrom)) {
+                    if (!HasYieldFrom) {
+                        ReportError(
+                            "'yield from' requires 3.3 or later",
+                            new SourceSpan(yieldSpan.Start, PeekNonWhitespace.Span.End)
+                        );
+                    } else if (func == null) {
+                        ReportError(
+                            "'yield from' outside of generator",
+                            new SourceSpan(yieldSpan.Start, PeekNonWhitespace.Span.End)
+                        );
+                        shownError = true;
+                    }
+                } else if (func == null) {
                     ReportError("'yield' outside of generator", yieldSpan);
                     shownError = true;
                 }

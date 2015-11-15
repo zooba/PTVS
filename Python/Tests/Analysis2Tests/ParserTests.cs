@@ -688,6 +688,7 @@ namespace AnalysisTests {
                 ParseErrors("Keywords25.py",
                     version,
                     new ErrorInfo("invalid syntax", 5, 1, 6, 8, 1, 9),
+                    new ErrorInfo("invalid syntax", 8, 1, 9, 8, 1, 9),
                     new ErrorInfo("invalid syntax", 10, 2, 1, 16, 2, 7)
                 );
             }
@@ -1193,9 +1194,9 @@ namespace AnalysisTests {
 
             foreach (var version in V25_V27Versions.Concat(V30_V32Versions)) {
                 ParseErrors("YieldFromExpr.py", version,
-                    new ErrorInfo("invalid syntax", 20, 2, 11, 24, 2, 15),
-                    new ErrorInfo("invalid syntax", 46, 3, 17, 50, 3, 21),
-                    new ErrorInfo("invalid syntax", 74, 4, 19, 78, 4, 23)
+                    new ErrorInfo("'yield from' requires 3.3 or later", 14, 2, 5, 24, 2, 15),
+                    new ErrorInfo("'yield from' requires 3.3 or later", 40, 3, 11, 50, 3, 21),
+                    new ErrorInfo("'yield from' requires 3.3 or later", 68, 4, 13, 78, 4, 23)
                 );
             }
         }
@@ -1718,7 +1719,7 @@ namespace AnalysisTests {
                 ParseErrors(
                     "FromImportStmtIncomplete.py",
                     version,
-                    new ErrorInfo("trailing comma not allowed without surrounding parentheses", 35, 2, 26, 37, 2, 28)
+                    new ErrorInfo("trailing comma not allowed without surrounding parentheses", 34, 2, 25, 35, 2, 26)
                 );
             }
         }
@@ -1933,7 +1934,7 @@ namespace AnalysisTests {
                     new ErrorInfo("invalid syntax, parameter annotations require 3.x", 174, 11, 10, 175, 11, 11),
                     new ErrorInfo("invalid syntax, function annotations require 3.x", 180, 11, 16, 181, 11, 17),
                     new ErrorInfo("invalid syntax, parameter annotations require 3.x", 200, 13, 10, 201, 13, 11),
-                    new ErrorInfo("invalid syntax", 224, 15, 9, 233, 15, 18)
+                    new ErrorInfo("invalid syntax", 223, 15, 8, 233, 15, 18)
                 );
             }
         }
