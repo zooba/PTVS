@@ -85,6 +85,16 @@ namespace AnalysisTests {
         }
 
         [TestMethod, Priority(0)]
+        public void ExplicitLineJoin() {
+            AssertTokens(
+                Tokenize("a=b+\\\nc", PythonLanguageVersion.V35),
+                "SignificantWhitespace:", "Name:a", "Assign:=", "Name:b", "Add:+",
+                "ExplicitLineJoin:\\\\", "Whitespace:\\n",
+                "Name:c", "EndOfFile:"
+            );
+        }
+
+        [TestMethod, Priority(0)]
         public void CommentTokenization() {
             AssertTokens(
                 Tokenize("# a=b+c \n\nd=a   # c\n  #eof", PythonLanguageVersion.V35),

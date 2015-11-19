@@ -22,44 +22,44 @@ using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Interpreter;
 
 namespace TestUtilities.Python {
-    public class MockPythonInterpreter : IPythonInterpreter {
-        public readonly List<string> _modules;
-        public bool IsDatabaseInvalid;
+    //public class MockPythonInterpreter : IPythonInterpreter {
+    //    public readonly List<string> _modules;
+    //    public bool IsDatabaseInvalid;
 
-        public MockPythonInterpreter(IPythonInterpreterFactory factory) {
-            _modules = new List<string>();
-        }
+    //    public MockPythonInterpreter(IPythonInterpreterFactory factory) {
+    //        _modules = new List<string>();
+    //    }
 
 
-        public void Initialize(PythonAnalyzer state) { }
+    //    public void Initialize(PythonAnalyzer state) { }
 
-        public IPythonType GetBuiltinType(BuiltinTypeId id) {
-            throw new KeyNotFoundException();
-        }
+    //    public IPythonType GetBuiltinType(BuiltinTypeId id) {
+    //        throw new KeyNotFoundException();
+    //    }
 
-        public IList<string> GetModuleNames() {
-            return _modules;
-        }
+    //    public IList<string> GetModuleNames() {
+    //        return _modules;
+    //    }
 
-        public event EventHandler ModuleNamesChanged { add { } remove { } }
+    //    public event EventHandler ModuleNamesChanged { add { } remove { } }
 
-        public IPythonModule ImportModule(string name) {
-            if (_modules.Contains(name)) {
-                return null;
-            }
-            return null;
-        }
+    //    public IPythonModule ImportModule(string name) {
+    //        if (_modules.Contains(name)) {
+    //            return null;
+    //        }
+    //        return null;
+    //    }
 
-        public IModuleContext CreateModuleContext() {
-            throw new NotImplementedException();
-        }
+    //    public IModuleContext CreateModuleContext() {
+    //        throw new NotImplementedException();
+    //    }
 
-        public Task AddReferenceAsync(ProjectReference reference, CancellationToken cancellationToken = default(CancellationToken)) {
-            throw new NotImplementedException();
-        }
+    //    public Task AddReferenceAsync(ProjectReference reference, CancellationToken cancellationToken = default(CancellationToken)) {
+    //        throw new NotImplementedException();
+    //    }
 
-        public void RemoveReference(ProjectReference reference) {
-            throw new NotImplementedException();
-        }
-    }
+    //    public void RemoveReference(ProjectReference reference) {
+    //        throw new NotImplementedException();
+    //    }
+    //}
 }

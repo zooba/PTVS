@@ -22,7 +22,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.PythonTools.Analysis;
-using Microsoft.PythonTools.Parsing;
+using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.VisualStudioTools;
 using Microsoft.Win32;
 

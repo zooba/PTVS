@@ -2224,9 +2224,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private SourceSpan ReadWhitespace() {
             SourceLocation start = Peek.Span.Start, end = Peek.Span.Start;
 
-            while (Peek.IsAny(TokenKind.Whitespace, TokenKind.ExplicitLineJoin) ||
-                Current.Is(TokenKind.ExplicitLineJoin) && Peek.Is(TokenKind.NewLine)
-            ) {
+            while (Peek.IsAny(TokenKind.Whitespace, TokenKind.ExplicitLineJoin)) {
                 end = Next().Span.End;
             }
 

@@ -17,8 +17,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Text;
-using Microsoft.PythonTools.Analysis;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 

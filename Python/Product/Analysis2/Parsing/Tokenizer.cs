@@ -160,14 +160,16 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     case TokenKind.RightDoubleTripleQuote:
                         kind = GetStringLiteralToken(line, i, inGroup, out len);
                         break;
-                    case TokenKind.ExplicitLineJoin:
-                        Debug.Fail("Unexpected ExplicitLineJoin in nesting");
-                        _nesting.Pop();
-                        break;
                 }
 
                 if (kind == TokenKind.Unknown) {
                     kind = GetNextToken(line, i, out len);
+                }
+
+                if (inGroup == TokenKind.ExplicitLineJoin) {
+                    if (kind == TokenKind.NewLine) {
+                        kind = TokenKind.Whitespace;
+                    }
                 }
 
                 if (firstTokenOnLine) {

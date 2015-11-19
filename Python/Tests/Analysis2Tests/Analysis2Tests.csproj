@@ -54,6 +54,7 @@
     <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="FileContextTest.cs" />
     <Compile Include="ParserTests.cs" />
     <Compile Include="PythonSourceStreamReaderTests.cs" />
     <Compile Include="TokenizerTests.cs" />
@@ -67,6 +68,10 @@
     <ProjectReference Include="..\..\Product\Analysis2\Analysis2.csproj">
       <Project>{be50a162-4056-4c3c-ad65-85e0417c73ae}</Project>
       <Name>Analysis2</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Utilities.Python.Analysis\TestUtilities.Python.Analysis.csproj">
+      <Project>{a731c4c3-3741-4080-a946-c47574c1f3bf}</Project>
+      <Name>TestUtilities.Python.Analysis</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="..\TestProjectAfter.settings" />
