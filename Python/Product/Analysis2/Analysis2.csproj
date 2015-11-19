@@ -80,7 +80,7 @@
     <Compile Include="DictionaryPrefixWrapper.cs" />
     <Compile Include="FileSourceDocument.cs" />
     <Compile Include="ISourceDocument.cs" />
-    <Compile Include="Analyzer\PathTree.cs" />
+    <Compile Include="Analyzer\PathSet.cs" />
     <Compile Include="Analyzer\PythonFileContext.cs" />
     <Compile Include="Analyzer\PythonFileContextProvider.cs" />
     <Compile Include="Analyzer\PythonSourceStreamReader.cs" />
