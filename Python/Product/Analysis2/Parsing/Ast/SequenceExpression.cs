@@ -19,7 +19,7 @@ using System.Collections.Generic;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class SequenceExpression : Expression {
-        private IList<Expression> _items;
+        private IList<SequenceItemExpression> _items;
 
         protected SequenceExpression() { }
 
@@ -28,16 +28,16 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             _items = FreezeList(_items);
         }
 
-        public IList<Expression> Items {
+        public IList<SequenceItemExpression> Items {
             get { return _items; }
             set { ThrowIfFrozen(); _items = value; }
         }
 
         public int Count => _items?.Count ?? 0;
 
-        public void AddItem(Expression expr) {
+        public void AddItem(SequenceItemExpression expr) {
             if (_items == null) {
-                _items = new List<Expression> { expr };
+                _items = new List<SequenceItemExpression> { expr };
             } else {
                 _items.Add(expr);
             }

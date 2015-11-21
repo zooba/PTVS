@@ -688,7 +688,6 @@ namespace AnalysisTests {
                 ParseErrors("Keywords25.py",
                     version,
                     new ErrorInfo("invalid syntax", 5, 1, 6, 8, 1, 9),
-                    new ErrorInfo("invalid syntax", 8, 1, 9, 8, 1, 9),
                     new ErrorInfo("invalid syntax", 10, 2, 1, 16, 2, 7)
                 );
             }
@@ -961,7 +960,7 @@ namespace AnalysisTests {
                         CheckIndexStmt(One, CheckSlice(Two, null, Four)),
                         CheckIndexStmt(One, CheckSlice(null, null, Four)),
                         CheckIndexStmt(One, Ellipsis),
-                        CheckIndexStmt(One, CheckTupleExpr(CheckSlice(null, null), null)),
+                        CheckIndexStmt(One, CheckTupleExpr(CheckSlice(null, null))),
                         CheckMemberStmt(Fob, "oar"),
                         CheckAssignment(Fob, One),
                         CheckAssignment(Fob, PythonOperator.Add, One),
@@ -1013,7 +1012,8 @@ namespace AnalysisTests {
                         CheckForStmt(Fob, Oar, CheckSuite(Break)),
                         CheckForStmt(Fob, Oar, CheckSuite(Continue)),
                         CheckForStmt(CheckListExpr(CheckListExpr(Fob), CheckListExpr(Oar)), Baz, CheckSuite(Pass)),
-                        CheckForStmt(CheckParenExpr(CheckTupleExpr(CheckParenExpr(Fob), CheckParenExpr(Oar))), Baz, CheckSuite(Pass))
+                        CheckForStmt(CheckParenExpr(CheckTupleExpr(CheckParenExpr(Fob), CheckParenExpr(Oar))), Baz, CheckSuite(Pass)),
+                        CheckForStmt(Fob, CheckTupleExpr(CheckStrOrBytes(version, "b"), CheckStrOrBytes(version, "a"), CheckStrOrBytes(version, "z")), CheckSuite(Pass))
                     )
                 );
             }
@@ -2039,7 +2039,8 @@ namespace AnalysisTests {
                         CheckAssignment(CheckTupleExpr(Fob, Oar), Baz),
                         CheckAssignment(CheckListExpr(Fob, Oar), CheckTupleExpr(One, Two)),
                         CheckAssignment(CheckListExpr(Fob, Oar), Baz),
-                        CheckAssignment(new[] { Fob, Oar }, Baz)
+                        CheckAssignment(new[] { Fob, Oar }, Baz),
+                        CheckAssignment(CheckTupleExpr(Fob), CheckListExpr(One))
                     )
                 );
             }
@@ -2526,7 +2527,7 @@ namespace AnalysisTests {
                     Assert.Fail("Wrong msg for error {0}: expected {1}, got {2}", i, e.Item1.Message, e.Item2.Message);
                 }
                 if (e.Item1.Span.Start != e.Item2.Span.Start || e.Item1.Span.End != e.Item2.Span.End) {
-                    Assert.Fail("Wrong span for error {0}: expected ({1}, {2}, {3} - {4}, {5}, {6}), got ({7}, {8}, {9}, {10}, {11}, {12})",
+                    Assert.Fail("Wrong span for error {0}: expected ({1}, {2}, {3} - {4}, {5}, {6}), got ({7}, {8}, {9} - {10}, {11}, {12})",
                         i,
                         e.Item1.Span.Start.Index,
                         e.Item1.Span.Start.Line,
@@ -3004,7 +3005,7 @@ namespace AnalysisTests {
 
                 Assert.AreEqual(names.Length, sublistParam.Sublist.Items.Count);
                 for (int i = 0; i < names.Length; i++) {
-                    Assert.AreEqual(names[i], ((NameExpression)sublistParam.Sublist.Items[i]).Name);
+                    Assert.AreEqual(names[i], ((NameExpression)sublistParam.Sublist.Items[i].Expression).Name);
                 }
             };
         }
@@ -3208,7 +3209,7 @@ namespace AnalysisTests {
                 Assert.AreEqual(items.Length, dictExpr.Items.Count);
 
                 for (int i = 0; i < dictExpr.Items.Count; i++) {
-                    items[i](dictExpr.Items[i]);
+                    items[i]((SliceExpression)dictExpr.Items[i].Expression);
                 }
             };
         }
@@ -3225,9 +3226,9 @@ namespace AnalysisTests {
 
                 for (int i = 0; i < tupleExpr.Items.Count; i++) {
                     if (items[i] == null) {
-                        Assert.IsInstanceOfType(tupleExpr.Items[i], typeof(EmptyExpression));
+                        Assert.IsInstanceOfType(tupleExpr.Items[i].Expression, typeof(EmptyExpression));
                     } else {
-                        items[i](tupleExpr.Items[i]);
+                        items[i](tupleExpr.Items[i].Expression);
                     }
                 }
             };
@@ -3240,7 +3241,7 @@ namespace AnalysisTests {
                 Assert.AreEqual(items.Length, listExpr.Items.Count);
 
                 for (int i = 0; i < listExpr.Items.Count; i++) {
-                    items[i](listExpr.Items[i]);
+                    items[i](listExpr.Items[i].Expression);
                 }
             };
         }

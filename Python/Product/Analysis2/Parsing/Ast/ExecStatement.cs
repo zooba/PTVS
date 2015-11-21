@@ -43,7 +43,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             BinaryExpression be;
             if ((te = Expression as TupleExpression) != null) {
                 if (te.Count == 2) {
-                    if ((be = te.Items[0] as BinaryExpression) != null && be.Operator == PythonOperator.In) {
+                    be = te.Items[0].Expression as BinaryExpression;
+                    if (be != null && be.Operator == PythonOperator.In) {
                         // exec code in globals, locals
                         return;
                     }
@@ -100,12 +101,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                     ((Expression as ParenthesisExpression)?.Expression as TupleExpression);
                 if (te != null) {
                     if (te.Count >= 1) {
-                        if ((be = te.Items[0] as BinaryExpression) != null && be.Operator == PythonOperator.In) {
+                        be = te.Items[0].Expression as BinaryExpression;
+                        if (be != null && be.Operator == PythonOperator.In) {
                             // exec code in globals, locals
                             return be.Left;
                         }
                         // exec(code, globals, locals)
-                        return te.Items[0];
+                        return te.Items[0].Expression;
                     }
                 }
 
@@ -134,13 +136,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 te = (Expression as TupleExpression) ??
                     ((Expression as ParenthesisExpression)?.Expression as TupleExpression);
                 if (te != null) {
-                    if (te.Count >= 1 && (be = te.Items[0] as BinaryExpression) != null &&
-                        be.Operator == PythonOperator.In) {
+                    if (te.Count >= 1 &&
+                        (be = te.Items[0].Expression as BinaryExpression) != null &&
+                        be.Operator == PythonOperator.In
+                    ) {
                         // exec code in globals, locals
                         return be.Right;
                     } else if (te.Count >= 2) {
                         // exec(code, globals, locals)
-                        return te.Items[1];
+                        return te.Items[1].Expression;
                     }
                 }
 
@@ -164,13 +168,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 te = (Expression as TupleExpression) ??
                     ((Expression as ParenthesisExpression)?.Expression as TupleExpression);
                 if (te != null) {
-                    if (te.Count >= 2 && (be = te.Items[0] as BinaryExpression) != null &&
+                    if (te.Count >= 2 && (be = te.Items[0].Expression as BinaryExpression) != null &&
                         be.Operator == PythonOperator.In) {
                         // exec code in globals, locals
-                        return te.Items[1];
+                        return te.Items[1].Expression;
                     } else if (te.Count >= 3) {
                         // exec(code, globals, locals)
-                        return te.Items[2];
+                        return te.Items[2].Expression;
                     }
                 }
 

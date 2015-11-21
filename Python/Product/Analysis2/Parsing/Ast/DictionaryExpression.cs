@@ -19,21 +19,21 @@ using System.Collections.Generic;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class DictionaryExpression : Expression {
-        private IList<SliceExpression> _items;
+        private IList<SequenceItemExpression> _items;
 
         protected override void OnFreeze() {
             base.OnFreeze();
             _items = FreezeList(_items);
         }
 
-        public IList<SliceExpression> Items {
+        public IList<SequenceItemExpression> Items {
             get { return _items; }
             set { ThrowIfFrozen(); _items = value; }
         }
 
-        internal void AddItem(SliceExpression expr) {
+        internal void AddItem(SequenceItemExpression expr) {
             if (_items == null) {
-                _items = new List<SliceExpression> { expr };
+                _items = new List<SequenceItemExpression> { expr };
             } else {
                 _items.Add(expr);
             }
@@ -42,7 +42,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 if (_items != null) {
-                    foreach (SliceExpression s in _items) {
+                    foreach (var s in _items) {
                         s?.Walk(walker);
                     }
                 }

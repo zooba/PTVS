@@ -115,8 +115,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private IEnumerable<Token> GetTokensWorker(string line, int lineStart, int lineNumber) {
             var start = new SourceLocation(lineStart, lineNumber, 1);
+
             int i = 0;
-            if (_nesting.Count == 0) {
+
+            var leadingWsKind = TokenKind.SignificantWhitespace;
+            int leadingWsLength = 0;
+
+            if (_nesting.Any()) {
+                var inGroup = _nesting.Peek();
+                if (inGroup.GetCategory() == TokenCategory.StringLiteral) {
+                    leadingWsKind = TokenKind.Unknown;
+                } else {
+                    leadingWsKind = TokenKind.Whitespace;
+                }
+            }
+
+            if (leadingWsKind != TokenKind.Unknown) {
                 while (i < line.Length) {
                     char c = line[i];
                     if (c == ' ' || c == '\t') {
@@ -125,19 +139,20 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         break;
                     }
                 }
+                leadingWsLength = i;
 
-                if (i < line.Length && line[i] != '\r' && line[i] != '\n') {
-                    if (line[i] == '#') {
-                        if (i > 0) {
-                            yield return new Token(TokenKind.Whitespace, start, i);
-                        }
-                    } else {
-                        yield return new Token(TokenKind.SignificantWhitespace, start, i);
+                if (i < line.Length) {
+                    char c = line[i];
+                    if (c == '\r' || c == '\n' || c == '#') {
+                        leadingWsKind = TokenKind.Whitespace;
                     }
                 } else {
                     i = 0;
+                    leadingWsKind = TokenKind.Unknown;
                 }
-            } else if (_nesting.Peek() == TokenKind.ExplicitLineJoin) {
+            }
+
+            if (_nesting.Any() && _nesting.Peek() == TokenKind.ExplicitLineJoin) {
                 _nesting.Pop();
             }
 
@@ -166,7 +181,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     kind = GetNextToken(line, i, out len);
                 }
 
-                if (inGroup == TokenKind.ExplicitLineJoin) {
+                if (inGroup != TokenKind.Unknown) {
                     if (kind == TokenKind.NewLine) {
                         kind = TokenKind.Whitespace;
                     }
@@ -178,6 +193,26 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                             kind = TokenKind.At;
                             break;
                     }
+
+                    if (_nesting.Any() && kind.GetUsage() == TokenUsage.BeginStatement) {
+                        // Grouping has gone bad, so reset
+                        _nesting.Clear();
+
+                        // The last whitespace token contained the newline, so
+                        // yield a 0-length newline token for the parser.
+                        yield return new Token(TokenKind.NewLine, start, 0);
+
+                        // Make the leading whitespace significant
+                        leadingWsKind = TokenKind.SignificantWhitespace;
+                    }
+
+                    if (leadingWsKind == TokenKind.SignificantWhitespace) {
+                        yield return new Token(leadingWsKind, start, leadingWsLength);
+                    } else if (leadingWsKind == TokenKind.Whitespace && leadingWsLength > 0) {
+                        yield return new Token(leadingWsKind, start, leadingWsLength);
+                    }
+                    leadingWsKind = TokenKind.Unknown;
+
                     firstTokenOnLine = false;
                 }
 
@@ -187,11 +222,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
                 if (inGroup == kind) {
                     _nesting.Pop();
-                }
-
-                if (kind.GetUsage() == TokenUsage.BeginStatement) {
-                    // Grouping has gone bad, so reset
-                    _nesting.Clear();
                 }
 
                 var endGroup = kind.GetGroupEnding();
@@ -204,11 +234,20 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
             }
 
+            // In case we never yielded the leading whitespace
+            if (leadingWsKind == TokenKind.SignificantWhitespace) {
+                yield return new Token(leadingWsKind, start, leadingWsLength);
+            } else if (leadingWsKind == TokenKind.Whitespace && leadingWsLength > 0) {
+                yield return new Token(leadingWsKind, start, leadingWsLength);
+            }
+            leadingWsKind = TokenKind.Unknown;
+
             if (_nesting.Any() &&
                 (_nesting.Peek() == TokenKind.LeftSingleQuote || _nesting.Peek() == TokenKind.LeftDoubleQuote)) {
                 var lineWithoutNewline = line.TrimEnd('\r', '\n');
                 Debug.Assert(line.Length - lineWithoutNewline.Length <= 2);
-                if (!line.TrimEnd('\r', '\n').EndsWith("\\")) {
+                var trimmedLine = line.TrimEnd('\r', '\n');
+                if (!line.EndsWith("\\") || line.EndsWith("\\\\")) {
                     yield return new Token(_nesting.Pop(), start + lineWithoutNewline.Length, 0);
                 }
             }
@@ -234,7 +273,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
 
             int end = line.IndexOf(quote, start);
-            while (end > 0 && line[end - 1] == '\\') {
+            while (end > start && line[end - 1] == '\\' && (end - 2 < start || line[end - 2] != '\\')) {
                 end = line.IndexOf(quote, end + 1);
             }
             if (end == start) {

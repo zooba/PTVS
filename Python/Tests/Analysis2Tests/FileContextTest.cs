@@ -33,6 +33,16 @@ using TestUtilities;
 namespace AnalysisTests {
     [TestClass]
     public class FileContextTest {
+        private CancellationToken Cancel5s {
+            get {
+                if (Debugger.IsAttached) {
+                    return CancellationToken.None;
+                }
+                var cts = new CancellationTokenSource(5000);
+                return cts.Token;
+            }
+        }
+
         [TestMethod]
         public void PathSet() {
             var pt = new PathSet<object>(@"C:\a");
@@ -79,26 +89,25 @@ namespace AnalysisTests {
 
         [TestMethod]
         public async Task ResolveImports() {
-            var ct = CancellationToken.None;
             var pfcp = new PythonFileContextProvider();
             var lsp = new PythonLanguageServiceProvider();
 
             var config = GetPythonConfig();
 
-            using (var service = await lsp.GetServiceAsync(config, pfcp, ct)) {
-                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, ct);
+            using (var service = await lsp.GetServiceAsync(config, pfcp, Cancel5s)) {
+                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, Cancel5s);
 
                 Assert.AreEqual(
                     Path.Combine(config.PrefixPath, "Lib", "os.py"),
-                    await service.ResolveImportAsync("os", "", ct)
+                    await service.ResolveImportAsync("os", "", Cancel5s)
                 );
                 Assert.AreEqual(
                     Path.Combine(config.PrefixPath, "Lib", "ctypes", "util.py"),
-                    await service.ResolveImportAsync("ctypes.util", "", ct)
+                    await service.ResolveImportAsync("ctypes.util", "", Cancel5s)
                 );
                 Assert.AreEqual(
                     Path.Combine(config.PrefixPath, "Lib", "ctypes", "util.py"),
-                    await service.ResolveImportAsync(".util", "ctypes.__init__", ct)
+                    await service.ResolveImportAsync(".util", "ctypes.__init__", Cancel5s)
                 );
 
                 var sitePath = Path.Combine(config.PrefixPath, "Lib", "site-packages");
@@ -108,50 +117,48 @@ namespace AnalysisTests {
                     Assert.Inconclusive("Could not use " + pipPath);
                 }
 
-                Assert.IsNull(await service.ResolveImportAsync("pip", "", ct));
+                Assert.IsNull(await service.ResolveImportAsync("pip", "", Cancel5s));
 
-                await service.AddSearchPathAsync(sitePath, null, ct);
+                await service.AddSearchPathAsync(sitePath, null, Cancel5s);
 
-                Assert.AreEqual(pipPath, await service.ResolveImportAsync("pip", "", ct));
+                Assert.AreEqual(pipPath, await service.ResolveImportAsync("pip", "", Cancel5s));
             }
         }
 
         [TestMethod]
         public async Task GetImportableModules() {
-            var ct = CancellationToken.None;
             var pfcp = new PythonFileContextProvider();
             var lsp = new PythonLanguageServiceProvider();
 
             var config = GetPythonConfig();
 
-            using (var service = await lsp.GetServiceAsync(config, pfcp, ct)) {
-                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, ct);
+            using (var service = await lsp.GetServiceAsync(config, pfcp, Cancel5s)) {
+                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, Cancel5s);
 
-                var imports = await service.GetImportableModulesAsync("", "", ct);
+                var imports = await service.GetImportableModulesAsync("", "", Cancel5s);
                 AssertUtil.ContainsAtLeast(imports.Keys, "os", "ctypes");
 
-                var ast = await service.GetAstAsync(null, imports["os"], ct);
+                var ast = await service.GetAstAsync(null, imports["os"], Cancel5s);
                 Assert.IsNotNull(ast, "No AST for os module at " + imports["os"]);
 
-                imports = await service.GetImportableModulesAsync("ctypes", "", ct);
+                imports = await service.GetImportableModulesAsync("ctypes", "", Cancel5s);
                 AssertUtil.ContainsAtLeast(imports.Keys, "wintypes", "util");
             }
         }
 
         [TestMethod]
         public async Task GetModuleMembers() {
-            var ct = CancellationToken.None;
             var pfcp = new PythonFileContextProvider();
             var lsp = new PythonLanguageServiceProvider();
 
             var config = GetPythonConfig();
 
-            using (var service = await lsp.GetServiceAsync(config, pfcp, ct)) {
-                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, ct);
+            using (var service = await lsp.GetServiceAsync(config, pfcp, Cancel5s)) {
+                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, Cancel5s);
 
-                var moniker = await service.ResolveImportAsync("os", "", ct);
+                var moniker = await service.ResolveImportAsync("os", "", Cancel5s);
                 Trace.TraceInformation("Looking at {0}", moniker);
-                var imports = await service.GetModuleMembersAsync(null, moniker, null, ct);
+                var imports = await service.GetModuleMembersAsync(null, moniker, null, Cancel5s);
                 AssertUtil.CheckCollection(
                     imports.Keys,
                     new[] { "walk", "environ", "_wrap_close", "_exit" },
@@ -159,11 +166,11 @@ namespace AnalysisTests {
                 );
                 Assert.IsInstanceOfType(imports["walk"], typeof(FunctionInfo));
 
-                moniker = await service.ResolveImportAsync("collections", "", ct);
-                imports = await service.GetModuleMembersAsync(null, moniker, null, ct);
+                moniker = await service.ResolveImportAsync("collections", "", Cancel5s);
+                imports = await service.GetModuleMembersAsync(null, moniker, null, Cancel5s);
                 Assert.IsInstanceOfType(imports["Counter"], typeof(ClassInfo));
 
-                imports = await service.GetModuleMembersAsync(null, moniker, "Counter", ct);
+                imports = await service.GetModuleMembersAsync(null, moniker, "Counter", Cancel5s);
                 AssertUtil.ContainsAtLeast(imports.Keys, "elements", "fromkeys");
                 Assert.IsInstanceOfType(imports["elements"], typeof(FunctionInfo));
             }
@@ -171,19 +178,18 @@ namespace AnalysisTests {
 
         [TestMethod]
         public async Task ParseFiles() {
-            var ct = CancellationToken.None;
-            var doc1 = new StringLiteralDocument(@"C:\Root\__init__.py", "x = 1");
-            var doc2 = new StringLiteralDocument(@"C:\Root\module.py", "y = 2");
+            var doc1 = new StringLiteralDocument("x = 1", @"C:\Root\__init__.py");
+            var doc2 = new StringLiteralDocument("y = 2", @"C:\Root\module.py");
             var lsp = new PythonLanguageServiceProvider();
 
-            using (var service = await lsp.GetServiceAsync(PythonPaths.Python35.Configuration, null, ct))
+            using (var service = await lsp.GetServiceAsync(PythonPaths.Python35.Configuration, null, Cancel5s))
             using (var context = new PythonFileContext(@"C:\", "")) {
-                await context.AddDocumentsAsync(new[] { doc1, doc2 }, ct);
+                await context.AddDocumentsAsync(new[] { doc1, doc2 }, Cancel5s);
 
-                await service.AddFileContextAsync(context, ct);
+                await service.AddFileContextAsync(context, Cancel5s);
 
-                var tree1 = await service.GetAstAsync(context, doc1.Moniker, ct);
-                var tree2 = await service.GetAstAsync(context, doc2.Moniker, ct);
+                var tree1 = await service.GetAstAsync(context, doc1.Moniker, Cancel5s);
+                var tree2 = await service.GetAstAsync(context, doc2.Moniker, Cancel5s);
 
                 Assert.IsNotNull(tree1, "No AST for doc1");
                 Assert.IsNotNull(tree2, "No AST for doc2");

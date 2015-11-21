@@ -17,6 +17,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
@@ -80,8 +81,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             walker.PostWalk(this);
         }
 
-        public PythonLanguageVersion LanguageVersion {
-            get { return _tokenization.LanguageVersion; }
+        public PythonLanguageVersion LanguageVersion => _tokenization.LanguageVersion;
+
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            Body.AppendCodeString(output, ast, format);
         }
 
         internal bool TryGetAttribute(Node node, object key, out object value) {

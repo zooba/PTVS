@@ -56,6 +56,7 @@
   <ItemGroup>
     <Compile Include="FileContextTest.cs" />
     <Compile Include="ParserTests.cs" />
+    <Compile Include="ParseStdLibTests.cs" />
     <Compile Include="PythonSourceStreamReaderTests.cs" />
     <Compile Include="TokenizerTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

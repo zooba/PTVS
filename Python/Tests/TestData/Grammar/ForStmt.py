@@ -16,3 +16,5 @@ for fob in oar:
 for [[fob], [oar]] in baz: pass
 
 for ((fob), (oar)) in baz: pass
+
+for fob in 'b', 'a', 'z': pass

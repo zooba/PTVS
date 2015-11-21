@@ -66,7 +66,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
             BeforeNode.AppendCodeString(output, ast);
             output.Append(Name);
-            Comment.AppendCodeString(output, ast, format);
+            Comment?.AppendCodeString(output, ast, format);
             AfterNode.AppendCodeString(output, ast);
         }
     }

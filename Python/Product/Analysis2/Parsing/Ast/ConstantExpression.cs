@@ -49,6 +49,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             walker.PostWalk(this);
         }
 
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            // TODO: Apply formatting options
+            BeforeNode.AppendCodeString(output, ast);
+            output.Append(GetConstantRepr(ast.LanguageVersion));
+            Comment?.AppendCodeString(output, ast, format);
+            AfterNode.AppendCodeString(output, ast);
+        }
+
         private static bool IsNegativeZero(double value) {
             return (value == 0.0) && double.IsNegativeInfinity(1.0 / value);
         }

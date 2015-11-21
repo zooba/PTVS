@@ -43,5 +43,24 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             }
             walker.PostWalk(this);
         }
+
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            // TODO: Apply formatting options
+            BeforeNode.AppendCodeString(output, ast);
+            if (_targets != null) {
+                bool firstTarget = true;
+                foreach (var t in _targets) {
+                    if (!firstTarget) {
+                        output.Append(',');
+                    }
+                    firstTarget = false;
+                    t.AppendCodeString(output, ast, format);
+                }
+            }
+            output.Append('=');
+            Expression?.AppendCodeString(output, ast, format);
+            Comment?.AppendCodeString(output, ast, format);
+            AfterNode.AppendCodeString(output, ast);
+        }
     }
 }

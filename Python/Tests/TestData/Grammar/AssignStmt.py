@@ -8,3 +8,4 @@ fob, oar = baz
 [fob, oar] = 1, 2
 [fob, oar] = baz
 fob = oar = baz
+fob, = [1]

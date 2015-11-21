@@ -55,6 +55,19 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             }
         }
 
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            // TODO: Apply formatting options
+            BeforeNode.AppendCodeString(output, ast);
+            if (_statements != null) {
+                foreach (var s in _statements) {
+                    Indent.AppendCodeString(output, ast);
+                    s.AppendCodeString(output, ast, format);
+                }
+            }
+            Comment?.AppendCodeString(output, ast, format);
+            AfterNode.AppendCodeString(output, ast);
+        }
+
         /// <summary>
         /// Returns a new SuiteStatement which is composed of a subset of the statements in this suite statement.
         /// </summary>

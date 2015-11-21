@@ -80,9 +80,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 var tcs = new TaskCompletionSource<object>();
                 updated = Interlocked.CompareExchange(ref _updated, tcs, null) ?? tcs;
             }
-            var localTcs = new TaskCompletionSource<object>();
-            cancellationToken.Register(localTcs.SetCanceled);
-            return Task.WhenAny(updated.Task, localTcs.Task);
+
+            var cancelTcs = new TaskCompletionSource<object>();
+            return Task.WhenAny(updated.Task, cancelTcs.Task);
         }
 
         public async Task<Tokenization> GetTokenizationAsync(CancellationToken cancellationToken) {

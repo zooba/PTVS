@@ -23,7 +23,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 var te = Expression as TupleExpression;
                 if (te != null) {
                     if (te.Count >= 1) {
-                        return te.Items[0];
+                        return te.Items[0].Expression;
                     }
                     return null;
                 }
@@ -37,7 +37,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 var te = Expression as TupleExpression;
                 if (te != null) {
                     if (te.Count >= 2) {
-                        return te.Items[1];
+                        return te.Items[1].Expression;
                     }
                 }
 
@@ -50,7 +50,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 var te = Expression as TupleExpression;
                 if (te != null) {
                     if (te.Count >= 3) {
-                        return te.Items[2];
+                        return te.Items[2].Expression;
                     }
                 }
 

@@ -240,7 +240,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     item = new AnalysisState(doc, context);
                     state.AnalysisStates.Add(doc.Moniker, item);
                 }
-                state.Enqueue(new DocumentChanged(item, doc));
+                //state.Enqueue(new DocumentChanged(item, doc));
             }
         }
 
@@ -266,14 +266,19 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string moniker,
             CancellationToken cancellationToken
         ) {
+            AnalysisState item = null;
             await _contextLock.WaitAsync(cancellationToken);
             try {
-                AnalysisState item;
                 if (context == null) {
                     foreach (var c in _contexts.Values) {
-                        if (c.AnalysisStates.TryGetValue(moniker, out item)) {
-                            return item;
+                        if (!c.AnalysisStates.TryGetValue(moniker, out item)) {
+                            continue;
                         }
+
+                        if (item?.Version == 0) {
+                            c.Enqueue(new DocumentChanged(item, item.Document));
+                        }
+                        return item;
                     }
                     return null;
                 }
@@ -286,10 +291,16 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 if (!state.AnalysisStates.TryGetValue(moniker, out item)) {
                     return null;
                 }
-                return item;
+
+                if (item?.Version == 0) {
+                    state.Enqueue(new DocumentChanged(item, item.Document));
+                }
+
             } finally {
                 _contextLock.Release();
             }
+
+            return item;
         }
 
         public async Task<Tokenization> GetTokenizationAsync(
@@ -471,15 +482,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             private bool QueueWorker() {
                 try {
                     _queueChanged.Wait(_cancel);
-                } catch (ObjectDisposedException) {
-                    throw new OperationCanceledException();
-                }
-
-                if (_cancel.IsCancellationRequested) {
-                    return false;
-                }
-
-                try {
+                    _cancel.ThrowIfCancellationRequested();
                     _queueChanged.Reset();
                 } catch (ObjectDisposedException) {
                     throw new OperationCanceledException();

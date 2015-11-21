@@ -26,5 +26,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             Span = span;
             Severity = severity;
         }
+
+        public override string ToString() {
+            return $"{Message} ({Span.Start}-{Span.End})";
+        }
     }
 }

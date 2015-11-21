@@ -140,6 +140,7 @@
     <Compile Include="Parsing\Ast\PrintStatement.cs" />
     <Compile Include="Parsing\Ast\PythonAst.cs" />
     <Compile Include="AnalysisValue.cs" />
+    <Compile Include="Parsing\Ast\SequenceItemExpression.cs" />
     <Compile Include="Values\ClassInfo.cs" />
     <Compile Include="Values\FunctionInfo.cs" />
     <Compile Include="Values\InstanceInfo.cs" />

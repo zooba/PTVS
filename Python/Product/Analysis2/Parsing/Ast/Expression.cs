@@ -39,6 +39,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 parser.ReportError("can't delete " + name, Span);
             }
         }
+
+        internal static bool IsNullOrEmpty(Expression expression) {
+            return expression == null || expression is EmptyExpression;
+        }
     }
 
     public abstract class ExpressionWithExpression : Expression {

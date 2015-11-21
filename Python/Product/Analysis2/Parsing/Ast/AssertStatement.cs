@@ -19,8 +19,8 @@ using System.Linq;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class AssertStatement : StatementWithExpression {
-        public Expression Test => (Expression as TupleExpression)?.Items?[0] ?? Expression;
-        public Expression Message => (Expression as TupleExpression)?.Items?.ElementAtOrDefault(1);
+        public Expression Test => (Expression as TupleExpression)?.Items?[0].Expression ?? Expression;
+        public Expression Message => (Expression as TupleExpression)?.Items?.ElementAtOrDefault(1)?.Expression;
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
