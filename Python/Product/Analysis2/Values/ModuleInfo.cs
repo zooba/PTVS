@@ -16,34 +16,30 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.PythonTools.Analysis.Parsing;
-using Microsoft.PythonTools.Analysis.Parsing.Ast;
+using Microsoft.PythonTools.Analysis.Analyzer;
 
-namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
-    sealed class UpdateVariables : QueueItem {
-        private readonly PythonAst _tree;
+namespace Microsoft.PythonTools.Analysis.Values {
+    public class ModuleInfo : AnalysisValue {
+        private string _moniker;
 
-        public UpdateVariables(AnalysisState item)
-            : base(item) { }
+        public ModuleInfo() { }
 
-        public override async Task PerformAsync(
+        internal async Task ResolveAsync(
             PythonLanguageService analyzer,
-            PythonFileContext context,
+            string importName,
+            string importingFromModule,
             CancellationToken cancellationToken
         ) {
-            var parser = new Parser(await _item.GetTokenizationAsync(cancellationToken));
-            var errors = new CollectingErrorSink();
-            var ast = parser.Parse(errors);
-            _item.SetAst(ast, errors.Errors);
-
-            var walker = new VariableWalker(analyzer, _item, _item.GetVariables(), _item.GetRules());
-            ast.Walk(walker);
-            _item.SetVariablesAndRules(walker.Variables, walker.Rules);
+            var moniker = await analyzer.ResolveImportAsync(importName, importingFromModule, cancellationToken);
+            var prev = Interlocked.CompareExchange(ref _moniker, moniker, null);
+            if (prev != null) {
+                return;
+            }
+            
         }
     }
 }

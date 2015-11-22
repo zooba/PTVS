@@ -35,6 +35,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private IReadOnlyCollection<ErrorResult> _errors;
 
         private IReadOnlyDictionary<string, Variable> _variables;
+        private IReadOnlyCollection<AnalysisRule> _rules;
 
         private TaskCompletionSource<object> _updated;
         private long _version;
@@ -64,8 +65,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             NotifyUpdated();
         }
 
-        internal void SetVariables(IReadOnlyDictionary<string, Variable> variables) {
+        internal void SetVariablesAndRules(
+            IReadOnlyDictionary<string, Variable> variables,
+            IReadOnlyCollection<AnalysisRule> rules
+        ) {
             _variables = variables;
+            _rules = rules;
             NotifyUpdated();
         }
 
@@ -107,7 +112,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return _variables;
         }
 
-        public async Task<IReadOnlyDictionary<string, Variable>> GetVariablesAsync(
+        internal IEnumerable<AnalysisRule> GetRules() {
+            return _rules;
+        }
+
+        public async Task<IReadOnlyCollection<string>> GetVariablesAsync(
             CancellationToken cancellationToken
         ) {
             var variables = _variables;
@@ -115,7 +124,28 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 await WaitForUpdateAsync(cancellationToken);
                 variables = _variables;
             }
-            return variables;
+            return variables.Keys.ToArray();
+        }
+
+        public async Task<IReadOnlyCollection<AnalysisValue>> GetTypesAsync(
+            string name,
+            CancellationToken cancellationToken
+        ) {
+            var variables = _variables;
+            var rules = _rules;
+            while (variables == null || rules == null) {
+                await WaitForUpdateAsync(cancellationToken);
+                variables = _variables;
+                rules = _rules;
+            }
+
+            if (!variables.ContainsKey(name)) {
+                return null;
+            }
+
+            return variables[name].Types
+                .Concat(rules.SelectMany(r => r.GetTypes(name)))
+                .ToArray();
         }
     }
 }

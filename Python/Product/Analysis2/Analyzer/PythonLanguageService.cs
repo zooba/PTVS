@@ -50,6 +50,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             TimeSpan.FromSeconds(1)
         );
 
+        internal static readonly IReadOnlyCollection<AnalysisValue> EmptyAnalysisValues = new AnalysisValue[0];
+
         public PythonLanguageService(InterpreterConfiguration config) {
             _users = 1;
 
@@ -246,7 +248,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         private async void Context_SourceDocumentContentChanged(object sender, SourceDocumentContentChangedEventArgs e) {
             var context = (PythonFileContext)sender;
-            var item = await GetAnalysisStateAsync(context, e.Document.Moniker, CancellationToken.None)
+            var item = await GetAnalysisStateAsync(context, e.Document.Moniker, false, CancellationToken.None)
                 .ConfigureAwait(false);
 
             await _contextLock.WaitAsync(CancellationToken.None);
@@ -261,46 +263,45 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         }
 
-        private async Task<AnalysisState> GetAnalysisStateAsync(
+        internal async Task<AnalysisState> GetAnalysisStateAsync(
             PythonFileContext context,
             string moniker,
+            bool searchAllContexts,
             CancellationToken cancellationToken
         ) {
             AnalysisState item = null;
             await _contextLock.WaitAsync(cancellationToken);
             try {
-                if (context == null) {
+                ContextState state = default(ContextState);
+                if (context != null) {
+                    if (_contexts.TryGetValue(context, out state)) {
+                        if (!state.AnalysisStates.TryGetValue(moniker, out item)) {
+                            return null;
+                        }
+                    }
+                    if (!searchAllContexts) {
+                        return null;
+                    }
+                }
+
+                if (item == null) {
                     foreach (var c in _contexts.Values) {
                         if (!c.AnalysisStates.TryGetValue(moniker, out item)) {
                             continue;
                         }
 
-                        if (item?.Version == 0) {
-                            c.Enqueue(new DocumentChanged(item, item.Document));
-                        }
-                        return item;
+                        state = c;
+                        break;
                     }
-                    return null;
-                }
-
-                ContextState state;
-                if (!_contexts.TryGetValue(context, out state)) {
-                    return null;
-                }
-
-                if (!state.AnalysisStates.TryGetValue(moniker, out item)) {
-                    return null;
                 }
 
                 if (item?.Version == 0) {
                     state.Enqueue(new DocumentChanged(item, item.Document));
                 }
-
+                return item;
             } finally {
                 _contextLock.Release();
             }
-
-            return item;
         }
 
         public async Task<Tokenization> GetTokenizationAsync(
@@ -308,7 +309,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string moniker,
             CancellationToken cancellationToken
         ) {
-            var state = await GetAnalysisStateAsync(context, moniker, cancellationToken);
+            var state = await GetAnalysisStateAsync(context, moniker, true, cancellationToken);
             if (state == null) {
                 return null;
             }
@@ -320,7 +321,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string moniker,
             CancellationToken cancellationToken
         ) {
-            var state = await GetAnalysisStateAsync(context, moniker, cancellationToken);
+            var state = await GetAnalysisStateAsync(context, moniker, true, cancellationToken);
             if (state == null) {
                 return null;
             }
@@ -373,13 +374,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        public async Task<IReadOnlyDictionary<string, Variable>> GetModuleMembersAsync(
+        public async Task<IReadOnlyCollection<string>> GetModuleMembersAsync(
             PythonFileContext context,
             string moniker,
             string localName,
             CancellationToken cancellationToken
         ) {
-            var state = await GetAnalysisStateAsync(context, moniker, cancellationToken);
+            var state = await GetAnalysisStateAsync(context, moniker, true, cancellationToken);
             if (state == null) {
                 return null;
             }
@@ -389,10 +390,29 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string prefix = null;
             if (!string.IsNullOrEmpty(localName)) {
                 prefix = localName + ".";
+                return members
+                    .Where(n => n.StartsWith(prefix) && n.IndexOf('.', prefix.Length) < 0)
+                    .Select(n => n.Substring(prefix.Length))
+                    .ToArray();
             }
-            return new DictionaryPrefixWrapper<Variable>(members, prefix, new[] { '.' });
+            return members
+                .Where(n => n.IndexOf('.') < 0)
+                .ToArray();
         }
 
+        public async Task<IReadOnlyCollection<AnalysisValue>> GetModuleMemberTypesAsync(
+            PythonFileContext context,
+            string moniker,
+            string name,
+            CancellationToken cancellationToken
+        ) {
+            var state = await GetAnalysisStateAsync(context, moniker, true, cancellationToken);
+            if (state == null) {
+                return EmptyAnalysisValues;
+            }
+
+            return await state.GetTypesAsync(name, cancellationToken);
+        }
 
         internal async Task EnqueueAsync(
             PythonFileContext context,
@@ -417,6 +437,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             private readonly PythonLanguageService _analyzer;
             private readonly PythonFileContext _context;
             private readonly CancellationToken _cancel;
+            private bool _threadStarted;
             private ExceptionDispatchInfo _edi;
 
             public QueueThread(
@@ -441,12 +462,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 } else {
                     _thread.Name = threadName;
                 }
-                _thread.Start(this);
             }
 
             public void Dispose() {
                 _queueChanged.Dispose();
-                _thread.Join(1000);
+                if (_threadStarted) {
+                    _thread.Join(1000);
+                }
                 if (_edi != null) {
                     _edi.Throw();
                 }
@@ -462,6 +484,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         _queue[(int)item.Priority] = q = new Queue<QueueItem>();
                     }
                     q.Enqueue(item);
+                    if (!_threadStarted) {
+                        _threadStarted = true;
+                        _thread.Start(this);
+                    }
                     _queueChanged.Set();
                 }
             }
@@ -474,7 +500,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         exit = !thread.QueueWorker();
                     }
                 } catch (OperationCanceledException) {
-                } catch (Exception ex) {
+                } catch (Exception ex) when (!ex.IsCriticalException()) {
                     thread._edi = ExceptionDispatchInfo.Capture(ex);
                 }
             }
@@ -503,7 +529,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                             break;
                         }
                     }
-                    item.PerformAsync(_analyzer, _context, _cancel).GetAwaiter().GetResult();
+                    try {
+                        item.PerformAsync(_analyzer, _context, _cancel).WaitAndUnwrapExceptions();
+                    } catch (Exception ex) when (!ex.IsCriticalException()) {
+                        Debug.Fail(ex.ToString());
+                    }
                 }
                 return true;
             }
