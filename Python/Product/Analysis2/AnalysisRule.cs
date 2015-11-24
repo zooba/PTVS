@@ -26,11 +26,11 @@ using Microsoft.PythonTools.Analysis.Values;
 namespace Microsoft.PythonTools.Analysis {
     abstract class AnalysisRule {
         private Dictionary<string, IReadOnlyCollection<AnalysisValue>> _results;
-
+        private static readonly IReadOnlyCollection<string> EmptyNames = new string[0];
 
         public IReadOnlyCollection<string> GetVariableNames() {
             var results = Volatile.Read(ref _results);
-            return results.Keys;
+            return results?.Keys ?? EmptyNames;
         }
 
         public IEnumerable<AnalysisValue> GetTypes(string name) {
@@ -42,7 +42,7 @@ namespace Microsoft.PythonTools.Analysis {
             return results.TryGetValue(name, out v) ? v : PythonLanguageService.EmptyAnalysisValues;
         }
 
-        public async Task ApplyAsync(
+        public async Task<bool> ApplyAsync(
             PythonLanguageService analyzer,
             AnalysisState state,
             CancellationToken cancellationToken
@@ -51,7 +51,9 @@ namespace Microsoft.PythonTools.Analysis {
             var newResults = await ApplyWorkerAsync(analyzer, state, oldResults, cancellationToken);
             if (newResults != null) {
                 Interlocked.CompareExchange(ref _results, newResults, oldResults);
+                return true;
             }
+            return false;
         }
 
         protected abstract Task<Dictionary<string, IReadOnlyCollection<AnalysisValue>>> ApplyWorkerAsync(

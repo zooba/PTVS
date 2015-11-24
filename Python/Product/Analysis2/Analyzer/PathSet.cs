@@ -64,6 +64,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar };
 
         private bool TryNormalize(string path, IEnumerable<string> extraParts, out IReadOnlyCollection<PathPart> parts) {
+            if (string.IsNullOrEmpty(path)) {
+                parts = new PathPart[0];
+                return false;
+            }
+
             var result = new List<PathPart>();
             parts = result;
             int start = 0, end = 0;
@@ -127,10 +132,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 throw new ArgumentException("Path does not match prefix");
             }
 
+            bool createdNew = false;
             var node = _root;
             foreach (var part in parts) {
                 var children = node.GetOrCreateChildren();
                 if (!children.TryGetValue(part.Key, out node)) {
+                    createdNew = true;
                     children[part.Key] = node = new Node(part.Name);
                 }
             }
@@ -138,7 +145,52 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             if (node != null) {
                 node.Path = fullPath;
                 node.Value = value;
-                _count += 1;
+                if (createdNew) {
+                    _count += 1;
+                }
+                return true;
+            }
+
+            return false;
+        }
+
+        public bool Remove(string fullPath) {
+            IReadOnlyCollection<PathPart> parts;
+            if (!TryNormalize(fullPath, null, out parts)) {
+                throw new ArgumentException("Path does not match prefix");
+            }
+
+            string lastKey = null;
+            Dictionary<string, Node> children = null;
+            var node = _root;
+            foreach (var part in parts) {
+                children = node.GetChildren();
+                lastKey = part.Key;
+                if (children == null || !children.TryGetValue(part.Key, out node)) {
+                    return false;
+                }
+            }
+
+            if (children == null) {
+                Clear();
+            } else if (node != null) {
+                Debug.Assert(node.Path == fullPath);
+                Debug.Assert(children.Remove(lastKey));
+                int count = 1;
+                var q = new Queue<Dictionary<string, Node>>();
+                q.Enqueue(node.GetChildren());
+                while (q.Any()) {
+                    children = q.Dequeue();
+                    if (children != null && children.Any()) {
+                        foreach (var n in children.Values) {
+                            if (n.Path != null) {
+                                count += 1;
+                            }
+                            q.Enqueue(n.GetChildren());
+                        }
+                    }
+                }
+                _count -= count;
                 return true;
             }
 

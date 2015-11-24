@@ -106,7 +106,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     mi = _analyzer.ResolveImportAsync(import, "", CancellationToken.None).WaitAndUnwrapExceptions();
                 }
                 Add(name.Name, null);
-                Add(new Rules.ImportFromModule(mi, new string[] { null }, new[] { name.Name }));
+                Add(new Rules.ImportFromModule(mi, ModuleInfo.VariableName, name.Name));
             }
 
             return false;
@@ -126,7 +126,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 var name = node.AsNames?[i] ?? node.Names[i];
                 importNames.Add(node.Names[i].Name);
                 asNames.Add(name.Name);
-                Add(name.Name, null);
+                if (name.Name != "*") {
+                    Add(name.Name, null);
+                }
             }
 
             Add(new Rules.ImportFromModule(mi, importNames, asNames));

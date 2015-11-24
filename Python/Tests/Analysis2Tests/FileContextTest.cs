@@ -53,6 +53,16 @@ namespace AnalysisTests {
             }
         }
 
+        private CancellationToken Cancel30s {
+            get {
+                if (Debugger.IsAttached) {
+                    return CancellationToken.None;
+                }
+                var cts = new CancellationTokenSource(30000);
+                return cts.Token;
+            }
+        }
+
         [TestMethod]
         public void PathSet() {
             var pt = new PathSet<object>(@"C:\a");
@@ -211,6 +221,45 @@ namespace AnalysisTests {
             }
         }
 
+        [TestMethod]
+        public async Task HandleImport() {
+            var doc1 = new StringLiteralDocument("x = 1", @"C:\Root\m1.py");
+            var doc2 = new StringLiteralDocument("from m1 import x", @"C:\Root\m2.py");
+            var lsp = new PythonLanguageServiceProvider();
+            var pfcp = new PythonFileContextProvider();
+            var config = GetPythonConfig();
 
+            //using (var service = await lsp.GetServiceAsync(config, null, Cancel5s))
+            //using (var context = new PythonFileContext(@"C:\Root\", "")) {
+            //    await context.AddDocumentsAsync(new[] { doc1, doc2 }, Cancel5s);
+            //    await service.AddFileContextAsync(context, Cancel5s);
+            //
+            //    var names = await service.GetModuleMembersAsync(context, doc1.Moniker, null, Cancel5s);
+            //    AssertUtil.ContainsAtLeast(names, "x");
+            //    names = await service.GetModuleMembersAsync(context, doc2.Moniker, null, Cancel5s);
+            //    AssertUtil.ContainsAtLeast(names, "x");
+            //}
+
+            var doc3 = new StringLiteralDocument("from stat import *", @"C:\Root\m3.py");
+            using (var service = await lsp.GetServiceAsync(config, pfcp, Cancel5s))
+            using (var context = new PythonFileContext(@"C:\", "")) {
+                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, Cancel5s);
+
+                await context.AddDocumentsAsync(new[] { doc3 }, Cancel5s);
+                await service.AddFileContextAsync(context, Cancel5s);
+
+                IReadOnlyCollection<string> names = new string[0];
+                var ct = Cancel30s;
+                while (!names.Any()) {
+                    names = await service.GetModuleMembersAsync(context, doc3.Moniker, null, ct);
+                    await Task.Delay(500, ct);
+                }
+                AssertUtil.CheckCollection(
+                    names,
+                    new[] { "ST_UID", "ST_MTIME", "S_IMODE", "filemode" },
+                    new[] { "stat" }
+                );
+            }
+        }
     }
 }

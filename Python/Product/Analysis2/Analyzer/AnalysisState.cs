@@ -116,15 +116,33 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return _rules;
         }
 
+        internal async Task GetVariablesAndRules(
+            Action<IReadOnlyDictionary<string, Variable>, IReadOnlyCollection<AnalysisRule>> action,
+            CancellationToken cancellationToken
+        ) {
+            var variables = _variables;
+            var rules = _rules;
+            while (variables == null || rules == null) {
+                await WaitForUpdateAsync(cancellationToken);
+                variables = _variables;
+                rules = _rules;
+            }
+            action(variables, rules);
+        }
+
         public async Task<IReadOnlyCollection<string>> GetVariablesAsync(
             CancellationToken cancellationToken
         ) {
             var variables = _variables;
-            while (variables == null) {
+            var rules = _rules;
+            while (variables == null || rules == null) {
                 await WaitForUpdateAsync(cancellationToken);
                 variables = _variables;
+                rules = _rules;
             }
-            return variables.Keys.ToArray();
+            return variables.Keys
+                .Union(rules.SelectMany(r => r.GetVariableNames()))
+                .ToArray();
         }
 
         public async Task<IReadOnlyCollection<AnalysisValue>> GetTypesAsync(

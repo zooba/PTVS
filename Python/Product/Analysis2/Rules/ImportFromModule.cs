@@ -30,13 +30,21 @@ namespace Microsoft.PythonTools.Analysis.Rules {
 
         private long _lastVersion;
 
+        public ImportFromModule(string moduleMoniker, string importName, string targetName) {
+            _moduleMoniker = moduleMoniker;
+            _importNames = new[] { new KeyValuePair<string, string>(importName, targetName) };
+        }
+
         public ImportFromModule(
             string moduleMoniker,
             IReadOnlyCollection<string> importNames,
             IReadOnlyCollection<string> targetNames
         ) {
             _moduleMoniker = moduleMoniker;
-            _importNames = importNames.Zip(targetNames, (i, t) => new KeyValuePair<string, string>(i, t)).ToArray();
+            _importNames = importNames.Zip(
+                targetNames,
+                (i, t) => new KeyValuePair<string, string>(i, t)
+            ).ToArray();
         }
 
         protected override async Task<Dictionary<string, IReadOnlyCollection<AnalysisValue>>> ApplyWorkerAsync(
@@ -45,6 +53,10 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             IReadOnlyDictionary<string, IReadOnlyCollection<AnalysisValue>> priorResults,
             CancellationToken cancellationToken
         ) {
+            if (string.IsNullOrEmpty(_moduleMoniker)) {
+                return null;
+            }
+
             var importState = await analyzer.GetAnalysisStateAsync(
                 state.Context,
                 _moduleMoniker,
@@ -57,10 +69,15 @@ namespace Microsoft.PythonTools.Analysis.Rules {
 
             var results = new Dictionary<string, IReadOnlyCollection<AnalysisValue>>();
             foreach (var name in _importNames) {
-                if (string.IsNullOrEmpty(name.Key)) {
-                    // TODO: Add module as value
+                var n = string.IsNullOrEmpty(name.Key) ? ModuleInfo.VariableName : name.Key;
+                if (n == "*") {
+                    IReadOnlyDictionary<string, Variable> vars = null;
+                    await importState.GetVariablesAndRules((v, _) => { vars = v; }, cancellationToken);
+                    foreach (var v in vars ?? Enumerable.Empty<KeyValuePair<string, Variable>>()) {
+                        results[v.Key] = v.Value.Types.ToArray();
+                    }
                 } else {
-                    results[name.Value] = await importState.GetTypesAsync(name.Key, cancellationToken);
+                    results[name.Value] = await importState.GetTypesAsync(n, cancellationToken);
                 }
             }
             _lastVersion = importState.Version;

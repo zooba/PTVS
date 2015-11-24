@@ -44,6 +44,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         public event EventHandler Disposed;
 
+        public event EventHandler DocumentsChanged;
+
         public event EventHandler<SourceDocumentContentChangedEventArgs> SourceDocumentContentChanged;
 
         public string ContextRoot {
@@ -54,13 +56,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             IReadOnlyCollection<ISourceDocument> inputFiles,
             CancellationToken cancellationToken
         ) {
+            bool anyAdded = false;
             await _filesLock.WaitAsync(cancellationToken);
             try {
                 foreach (var file in inputFiles) {
-                    _files.Add(file.Moniker, file);
+                    anyAdded |= _files.Add(file.Moniker, file);
                 }
             } finally {
                 _filesLock.Release();
+            }
+            if (anyAdded) {
+                DocumentsChanged?.Invoke(this, EventArgs.Empty);
             }
         }
 

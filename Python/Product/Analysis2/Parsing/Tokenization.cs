@@ -39,14 +39,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         ) {
             using (var stream = await document.ReadAsync()) {
                 var reader = new PythonSourceStreamReader(stream, false);
-                return await TokenizeAsync(reader, languageVersion, reader.Encoding);
+                return await TokenizeAsync(reader, languageVersion, null, () => reader.Encoding);
             }
         }
 
         private static async Task<Tokenization> TokenizeAsync(
             TextReader reader,
             PythonLanguageVersion languageVersion,
-            Encoding encoding
+            Encoding encoding = null,
+            Func<Encoding> getEncoding = null
         ) {
             var tokenizer = new Tokenizer(languageVersion);
 
@@ -75,7 +76,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 tokens.ToArray(),
                 lineStarts.ToArray(),
                 languageVersion,
-                encoding
+                encoding ?? (getEncoding != null ? getEncoding() : null) ?? Encoding.UTF8
             );
         }
 

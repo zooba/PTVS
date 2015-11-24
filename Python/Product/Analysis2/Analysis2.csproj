@@ -70,6 +70,7 @@
     <Compile Include="AnalysisDictionary.cs" />
     <Compile Include="AnalysisRule.cs" />
     <Compile Include="Analyzer\AnalysisState.cs" />
+    <Compile Include="Analyzer\Tasks\UpdateRules.cs" />
     <Compile Include="Analyzer\VariableChangedEventArgs.cs" />
     <Compile Include="Analyzer\IAnalysisState.cs" />
     <Compile Include="Analyzer\PythonLanguageService.cs" />

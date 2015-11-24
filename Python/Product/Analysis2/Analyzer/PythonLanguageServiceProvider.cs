@@ -48,8 +48,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             await _servicesLock.WaitAsync(cancellationToken);
             try {
                 PythonLanguageService service;
-                if (!_services.TryGetValue(config.InterpreterPath, out service)) {
-                    service = new PythonLanguageService(config);
+                if (!_services.TryGetValue(config.InterpreterPath, out service) || !service.AddReference()) {
+                    service = new PythonLanguageService(this, config);
                     if (fileContextProvider != null) {
                         var contexts = await fileContextProvider.GetContextsForInterpreterAsync(
                             config,
@@ -61,10 +61,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         }
                     }
                     _services.Add(config.InterpreterPath, service);
-                } else {
-                    service.AddReference();
                 }
                 return service;
+            } finally {
+                _servicesLock.Release();
+            }
+        }
+
+        internal async Task RemoveAsync(PythonLanguageService service, CancellationToken cancellationToken) {
+            await _servicesLock.WaitAsync(cancellationToken);
+            try {
+                _services.Remove(service.Configuration.InterpreterPath);
             } finally {
                 _servicesLock.Release();
             }

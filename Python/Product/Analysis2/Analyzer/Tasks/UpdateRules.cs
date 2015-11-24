@@ -20,28 +20,39 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.PythonTools.Analysis.Analyzer;
+using Microsoft.PythonTools.Analysis.Values;
 
-namespace Microsoft.PythonTools.Analysis.Values {
-    public class ModuleInfo : AnalysisValue {
-        public const string VariableName = "$module";
+namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
+    sealed class UpdateRules : QueueItem {
+        public UpdateRules(AnalysisState item)
+            : base(item) { }
 
-        private string _moniker;
-
-        public ModuleInfo() { }
-
-        internal async Task ResolveAsync(
+        public override async Task PerformAsync(
             PythonLanguageService analyzer,
-            string importName,
-            string importingFromModule,
+            PythonFileContext context,
             CancellationToken cancellationToken
         ) {
-            var moniker = await analyzer.ResolveImportAsync(importName, importingFromModule, cancellationToken);
-            var prev = Interlocked.CompareExchange(ref _moniker, moniker, null);
-            if (prev != null) {
+            IReadOnlyDictionary<string, Variable> variables = null;
+            IReadOnlyCollection<AnalysisRule> rules = null;
+            await _item.GetVariablesAndRules((v, r) => {
+                variables = v;
+                rules = r;
+            }, cancellationToken);
+
+            if (variables == null || rules == null) {
                 return;
             }
-            
+
+            bool anyChange = true;
+            while (anyChange) {
+                anyChange = false;
+                foreach (var r in rules) {
+                    bool change = await r.ApplyAsync(analyzer, _item, cancellationToken);
+                    if (change) {
+                        anyChange = true;
+                    }
+                }
+            }
         }
     }
 }

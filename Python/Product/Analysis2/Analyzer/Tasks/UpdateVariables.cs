@@ -26,8 +26,6 @@ using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
     sealed class UpdateVariables : QueueItem {
-        private readonly PythonAst _tree;
-
         public UpdateVariables(AnalysisState item)
             : base(item) { }
 
@@ -44,6 +42,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             var walker = new VariableWalker(analyzer, _item, _item.GetVariables(), _item.GetRules());
             ast.Walk(walker);
             _item.SetVariablesAndRules(walker.Variables, walker.Rules);
+
+            await analyzer.EnqueueAsync(context, new UpdateRules(_item), cancellationToken);
         }
     }
 }

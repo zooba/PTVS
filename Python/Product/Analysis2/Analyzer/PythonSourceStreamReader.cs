@@ -62,6 +62,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
+        public async Task<Encoding> GetEncodingAsync() {
+            await ReadEncodingAsync();
+            return _encoding;
+        }
+
         private async Task FillBufferAsync(int bytesRequested = 0) {
             if (bytesRequested <= 0) {
                 bytesRequested = BufferFillChunkSize;
