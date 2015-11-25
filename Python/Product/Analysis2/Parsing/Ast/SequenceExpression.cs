@@ -20,12 +20,18 @@ using System.Collections.Generic;
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class SequenceExpression : Expression {
         private IList<SequenceItemExpression> _items;
+        private CommentExpression _firstComment;
 
-        protected SequenceExpression() { }
+        internal CommentExpression FirstComment {
+            get { return _firstComment; }
+            set { ThrowIfFrozen(); _firstComment = value; }
+        }
+
 
         protected override void OnFreeze() {
             base.OnFreeze();
             _items = FreezeList(_items);
+            _firstComment?.Freeze();
         }
 
         public IList<SequenceItemExpression> Items {
@@ -45,13 +51,19 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         internal override void CheckAssign(Parser parser) {
             for (int i = 0; i < Count; i++) {
-                Items[i].CheckAssign(parser);
+                var item = Items[i];
+                if (i + 1 < Count || !IsNullOrEmpty(item)) {
+                    item.CheckAssign(parser);
+                }
             }
         }
 
         internal override void CheckDelete(Parser parser) {
             for (int i = 0; i < Count; i++) {
-                Items[i].CheckDelete(parser);
+                var item = Items[i];
+                if (i + 1 < Count || !IsNullOrEmpty(item)) {
+                    item.CheckDelete(parser);
+                }
             }
         }
 

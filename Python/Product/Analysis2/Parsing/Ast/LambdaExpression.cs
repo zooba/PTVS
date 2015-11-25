@@ -21,6 +21,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class LambdaExpression : ExpressionWithExpression {
         private ParameterList _parameters;
         private SourceSpan _beforeColon;
+        private bool _generator;
 
         protected override void OnFreeze() {
             base.OnFreeze();
@@ -35,6 +36,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public SourceSpan BeforeColon {
             get { return _beforeColon; }
             set { ThrowIfFrozen(); _beforeColon = value; }
+        }
+
+        public bool IsGenerator {
+            get { return _generator; }
+            set { ThrowIfFrozen(); _generator = value; }
         }
 
         internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {

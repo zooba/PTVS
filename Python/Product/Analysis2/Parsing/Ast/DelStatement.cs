@@ -19,37 +19,10 @@ using System.Collections.Generic;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-
-    public class DelStatement : Statement {
-        private IList<Expression> _expressions;
-
-        public DelStatement() { }
-
-        protected override void OnFreeze() {
-            base.OnFreeze();
-            _expressions = FreezeList(_expressions);
-        }
-
-        public IList<Expression> Expressions {
-            get { return _expressions; }
-            set { ThrowIfFrozen(); _expressions = value; }
-        }
-
-        public void AddExpression(Expression expr) {
-            if (_expressions == null) {
-                _expressions = new List<Expression>() { expr };
-            } else {
-                _expressions.Add(expr);
-            }
-        }
-
+    public class DelStatement : StatementWithExpression {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expressions != null) {
-                    foreach (Expression expression in _expressions) {
-                        expression.Walk(walker);
-                    }
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

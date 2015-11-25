@@ -3403,10 +3403,15 @@ namespace AnalysisTests {
             return stmt => {
                 Assert.IsInstanceOfType(stmt, typeof(DelStatement));
                 var del = (DelStatement)stmt;
-
-                Assert.AreEqual(deletes.Length, del.Expressions.Count);
-                for (int i = 0; i < deletes.Length; i++) {
-                    deletes[i](del.Expressions[i]);
+                var te = del.Expression as TupleExpression;
+                if (te == null) {
+                    Assert.AreEqual(deletes.Length, 1);
+                    deletes[0](del.Expression);
+                } else {
+                    Assert.AreEqual(deletes.Length, te.Count);
+                    for (int i = 0; i < deletes.Length; i++) {
+                        deletes[i](te.Items[i].Expression);
+                    }
                 }
             };
         }
@@ -3559,7 +3564,7 @@ namespace AnalysisTests {
 
                 Assert.AreEqual(values.Length, setLiteral.Items.Count);
                 for (int i = 0; i < values.Length; i++) {
-                    values[i](setLiteral.Items[i]);
+                    values[i](setLiteral.Items[i].Expression);
                 }
             };
         }

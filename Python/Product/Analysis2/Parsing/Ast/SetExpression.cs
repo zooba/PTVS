@@ -14,40 +14,25 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
-using System.Collections.Generic;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class SetExpression : Expression {
-        private IList<Expression> _items;
-
-        protected override void OnFreeze() {
-            base.OnFreeze();
-            _items = FreezeList(_items);
-        }
-
-        public IList<Expression> Items {
-            get { return _items; }
-            set { ThrowIfFrozen(); _items = value; }
-        }
-
-        internal void AddItem(Expression item) {
-            if (_items == null) {
-                _items = new List<Expression> { item };
-            } else {
-                _items.Add(item);
-            }
-        }
-
+    public class SetExpression : SequenceExpression {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_items != null) {
-                    foreach (Expression s in _items) {
+                if (Items != null) {
+                    foreach (var s in Items) {
                         s?.Walk(walker);
                     }
                 }
             }
             walker.PostWalk(this);
+        }
+
+        internal override void CheckAssign(Parser parser) {
+            parser.ReportError("can't assign to " + CheckName, Span);
+        }
+
+        internal override void CheckDelete(Parser parser) {
+            parser.ReportError("can't delete " + CheckName, Span);
         }
 
         internal override string CheckName => "set literal";

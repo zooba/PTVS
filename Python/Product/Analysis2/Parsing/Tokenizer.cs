@@ -765,7 +765,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 operatorLength = 2;
             }
 
-            return map.TryGetValue(c1, out result) ? result : defaultKind;
+            if (map.TryGetValue(c1, out result)) {
+                return result;
+            }
+            if (OperatorMap[0].TryGetValue(c1, out result)) {
+                operatorLength = 1;
+                return result;
+            }
+            return defaultKind;
         }
 
         private static readonly Dictionary<string, TokenKind> Keywords = new Dictionary<string, TokenKind> {

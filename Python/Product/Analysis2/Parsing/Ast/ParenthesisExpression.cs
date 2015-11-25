@@ -20,6 +20,18 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ParenthesisExpression : ExpressionWithExpression {
+        private CommentExpression _firstComment;
+
+        internal CommentExpression FirstComment {
+            get { return _firstComment; }
+            set { ThrowIfFrozen(); _firstComment = value; }
+        }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _firstComment?.Freeze();
+        }
+
         internal override void CheckAssign(Parser parser) {
             Expression?.CheckAssign(parser);
         }

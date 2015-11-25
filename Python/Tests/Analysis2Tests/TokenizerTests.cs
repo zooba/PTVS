@@ -157,6 +157,14 @@ namespace AnalysisTests {
         }
 
         [TestMethod, Priority(0)]
+        public void AdjacentOperators() {
+            AssertTokens(
+                Tokenize("a--b++c", PythonLanguageVersion.V35),
+                "SWS:", "a", "Subtract:-", "Subtract:-", "b", "Add:+", "Add:+", "c", "EndOfFile:"
+            );
+        }
+
+        [TestMethod, Priority(0)]
         public void GroupingRecovery() {
             AssertTokens(
                 Tokenize("if True:\n    x=[\n    def f(): pass\n", PythonLanguageVersion.V35),

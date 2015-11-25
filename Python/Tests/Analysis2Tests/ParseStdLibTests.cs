@@ -21,6 +21,11 @@ namespace Analysis2Tests {
             get;
         }
 
+        [ClassInitialize]
+        public static void Initialize(TestContext context) {
+            AssertListener.Initialize();
+        }
+
         [TestInitialize]
         public void EnsureConfiguration() {
             if (Configuration == null) {
@@ -103,8 +108,28 @@ namespace Analysis2Tests {
         }
 
         [TestMethod, Priority(0)]
+        public async Task SmtplibModule() {
+            var file = Path.Combine(Configuration.PrefixPath, "Lib", "smtplib.py");
+            Assert.IsTrue(File.Exists(file), "Cannot find " + file);
+            var text = await ParseOneFile(file);
+            if (!string.IsNullOrEmpty(text)) {
+                Assert.Fail(text);
+            }
+        }
+
+        [TestMethod, Priority(0)]
         public async Task SocketModule() {
             var file = Path.Combine(Configuration.PrefixPath, "Lib", "socket.py");
+            Assert.IsTrue(File.Exists(file), "Cannot find " + file);
+            var text = await ParseOneFile(file);
+            if (!string.IsNullOrEmpty(text)) {
+                Assert.Fail(text);
+            }
+        }
+
+        [TestMethod, Priority(0)]
+        public async Task SslModule() {
+            var file = Path.Combine(Configuration.PrefixPath, "Lib", "ssl.py");
             Assert.IsTrue(File.Exists(file), "Cannot find " + file);
             var text = await ParseOneFile(file);
             if (!string.IsNullOrEmpty(text)) {

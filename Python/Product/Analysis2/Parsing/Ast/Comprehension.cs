@@ -66,15 +66,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public abstract class Comprehension : Expression {
         private IList<ComprehensionIterator> _iterators;
+        private CommentExpression _firstComment;
 
         public IList<ComprehensionIterator> Iterators {
             get { return _iterators; }
             set { ThrowIfFrozen(); _iterators = value; }
         }
 
+        internal CommentExpression FirstComment {
+            get { return _firstComment; }
+            set { ThrowIfFrozen(); _firstComment = value; }
+        }
+
         protected override void OnFreeze() {
             base.OnFreeze();
             _iterators = FreezeList(_iterators);
+            _firstComment?.Freeze();
         }
 
         public abstract override void Walk(PythonWalker walker);
