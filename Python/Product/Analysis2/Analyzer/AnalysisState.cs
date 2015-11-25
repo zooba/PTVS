@@ -76,6 +76,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         private void NotifyUpdated() {
             Interlocked.Exchange(ref _updated, null)?.SetResult(null);
+            _context.NotifyDocumentAnalysisChanged(_document);
             Interlocked.Increment(ref _version);
         }
 

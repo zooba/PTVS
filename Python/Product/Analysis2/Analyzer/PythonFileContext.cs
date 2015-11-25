@@ -46,7 +46,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         public event EventHandler DocumentsChanged;
 
-        public event EventHandler<SourceDocumentContentChangedEventArgs> SourceDocumentContentChanged;
+        public event EventHandler<SourceDocumentEventArgs> SourceDocumentContentChanged;
+
+        public event EventHandler<SourceDocumentEventArgs> SourceDocumentAnalysisChanged;
 
         public string ContextRoot {
             get { return _contextRoot; }
@@ -88,12 +90,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        public void NotifyDocumentContentChanged(ISourceDocument document) {
-            SourceDocumentContentChanged?.Invoke(this, new SourceDocumentContentChangedEventArgs(document));
+        internal void NotifyDocumentContentChanged(ISourceDocument document) {
+            SourceDocumentContentChanged?.Invoke(this, new SourceDocumentEventArgs(document));
         }
 
-        public object First() {
-            throw new NotImplementedException();
+        internal void NotifyDocumentAnalysisChanged(ISourceDocument document) {
+            SourceDocumentAnalysisChanged?.Invoke(this, new SourceDocumentEventArgs(document));
         }
     }
 }

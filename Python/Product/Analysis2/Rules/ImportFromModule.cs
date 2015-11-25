@@ -60,10 +60,64 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             var importState = await analyzer.GetAnalysisStateAsync(
                 state.Context,
                 _moduleMoniker,
+                false,
+                cancellationToken
+            );
+            if (importState != null) {
+                await analyzer.AddNotificationAsync(importState, state, cancellationToken);
+                return await GetImportsAsync(analyzer, state, importState, priorResults, cancellationToken);
+            }
+
+            importState = await analyzer.GetAnalysisStateAsync(
+                null,
+                _moduleMoniker,
                 true,
                 cancellationToken
             );
-            if (importState == null || importState.Version <= _lastVersion) {
+            if (importState != null) {
+                await analyzer.AddNotificationAsync(importState, state, cancellationToken);
+                return await GetCrossContextImportsAsync(analyzer, state, importState, priorResults, cancellationToken);
+            }
+
+            return null;
+        }
+
+        private async Task<Dictionary<string, IReadOnlyCollection<AnalysisValue>>> GetImportsAsync(
+            PythonLanguageService analyzer,
+            AnalysisState state,
+            AnalysisState importState,
+            IReadOnlyDictionary<string, IReadOnlyCollection<AnalysisValue>> priorResults,
+            CancellationToken cancellationToken
+        ) {
+            if (importState.Version <= _lastVersion) {
+                return null;
+            }
+
+            var results = new Dictionary<string, IReadOnlyCollection<AnalysisValue>>();
+            foreach (var name in _importNames) {
+                var n = string.IsNullOrEmpty(name.Key) ? ModuleInfo.VariableName : name.Key;
+                if (n == "*") {
+                    IReadOnlyDictionary<string, Variable> vars = null;
+                    await importState.GetVariablesAndRules((v, _) => { vars = v; }, cancellationToken);
+                    foreach (var v in vars ?? Enumerable.Empty<KeyValuePair<string, Variable>>()) {
+                        results[v.Key] = v.Value.Types.ToArray();
+                    }
+                } else {
+                    results[name.Value] = await importState.GetTypesAsync(n, cancellationToken);
+                }
+            }
+            _lastVersion = importState.Version;
+            return results;
+        }
+
+        private async Task<Dictionary<string, IReadOnlyCollection<AnalysisValue>>> GetCrossContextImportsAsync(
+            PythonLanguageService analyzer,
+            AnalysisState state,
+            AnalysisState importState,
+            IReadOnlyDictionary<string, IReadOnlyCollection<AnalysisValue>> priorResults,
+            CancellationToken cancellationToken
+        ) {
+            if (importState.Version <= _lastVersion) {
                 return null;
             }
 

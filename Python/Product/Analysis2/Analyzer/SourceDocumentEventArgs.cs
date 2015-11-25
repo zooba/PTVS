@@ -15,16 +15,12 @@
 // permissions and limitations under the License.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
-    public class SourceDocumentContentChangedEventArgs : EventArgs {
+    public class SourceDocumentEventArgs : EventArgs {
         private readonly ISourceDocument _document;
 
-        public SourceDocumentContentChangedEventArgs(ISourceDocument document) {
+        public SourceDocumentEventArgs(ISourceDocument document) {
             _document = document;
         }
 

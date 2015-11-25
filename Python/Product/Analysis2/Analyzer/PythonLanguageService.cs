@@ -270,7 +270,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             await AddFileContextAsync(context, CancellationToken.None);
         }
 
-        private async void Context_SourceDocumentContentChanged(object sender, SourceDocumentContentChangedEventArgs e) {
+        private async void Context_SourceDocumentContentChanged(object sender, SourceDocumentEventArgs e) {
             var context = (PythonFileContext)sender;
             var item = await GetAnalysisStateAsync(context, e.Document.Moniker, false, CancellationToken.None)
                 .ConfigureAwait(false);
@@ -287,6 +287,53 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         }
 
+        internal async Task AddNotificationAsync(
+            AnalysisState whenUpdated,
+            AnalysisState reanalyze,
+            CancellationToken cancellationToken
+        ) {
+            await _contextLock.WaitAsync(cancellationToken);
+            try {
+                ContextState state;
+                HashSet<AnalysisState> states;
+                if (_contexts.TryGetValue(whenUpdated.Context, out state)) {
+                    var rou = state.ReanalyzeOnUpdate;
+                    if (rou == null) {
+                        state.ReanalyzeOnUpdate = rou = new Dictionary<string, HashSet<AnalysisState>>();
+                        whenUpdated.Context.SourceDocumentAnalysisChanged += Context_SourceDocumentAnalysisChanged;
+                    }
+                    if (!rou.TryGetValue(whenUpdated.Document.Moniker, out states)) {
+                        rou[whenUpdated.Document.Moniker] = states = new HashSet<AnalysisState>();
+                    }
+                    states.Add(reanalyze);
+                }
+            } finally {
+                _contextLock.Release();
+            }
+        }
+
+        private async void Context_SourceDocumentAnalysisChanged(object sender, SourceDocumentEventArgs e) {
+            var context = (PythonFileContext)sender;
+            IEnumerable<AnalysisState> toUpdate = null;
+            await _contextLock.WaitAsync(CancellationToken.None);
+            try {
+                ContextState state;
+                HashSet<AnalysisState> states = null;
+                if (_contexts.TryGetValue(context, out state) &&
+                    (state.ReanalyzeOnUpdate?.TryGetValue(e.Document.Moniker, out states) ?? false)) {
+                    toUpdate = states?.ToArray();
+                }
+            } finally {
+                _contextLock.Release();
+            }
+
+            if (toUpdate != null) {
+                foreach (var state in toUpdate) {
+                    await EnqueueAsync(state.Context, new UpdateRules(state), CancellationToken.None);
+                }
+            }
+        }
+
         internal async Task<AnalysisState> GetAnalysisStateAsync(
             PythonFileContext context,
             string moniker,
@@ -296,7 +343,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             AnalysisState item = null;
             await _contextLock.WaitAsync(cancellationToken);
             try {
-                ContextState state = default(ContextState);
+                ContextState state = null;
                 if (context != null) {
                     if (_contexts.TryGetValue(context, out state)) {
                         state.AnalysisStates.TryGetValue(moniker, out item);
@@ -317,7 +364,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     }
                 }
 
-                if (item?.Version == 0) {
+                if (item?.Version == 0 && state != null) {
                     state.Enqueue(new DocumentChanged(item, item.Document));
                 }
                 return item;
@@ -455,6 +502,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         sealed class ContextState : IDisposable {
             private readonly PathSet<AnalysisState> _analysisStates;
 
+
             private readonly Thread _thread;
             private readonly PythonLanguageService _analyzer;
             private readonly PythonFileContext _context;
@@ -487,6 +535,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             public PathSet<AnalysisState> AnalysisStates => _analysisStates;
+
+            public Dictionary<string, HashSet<AnalysisState>> ReanalyzeOnUpdate { get; set; }
 
             public void Dispose() {
                 if (_threadStarted) {

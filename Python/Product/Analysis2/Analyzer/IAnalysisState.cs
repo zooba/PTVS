@@ -18,6 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
@@ -26,5 +27,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         long Version { get; }
 
+        Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken);
+
+        Task<IReadOnlyCollection<AnalysisValue>> GetTypesAsync(string name, CancellationToken cancellationToken);
     }
 }

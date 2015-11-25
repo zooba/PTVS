@@ -86,7 +86,7 @@
     <Compile Include="Analyzer\PythonFileContext.cs" />
     <Compile Include="Analyzer\PythonFileContextProvider.cs" />
     <Compile Include="Analyzer\PythonSourceStreamReader.cs" />
-    <Compile Include="Analyzer\SourceDocumentContentChangedEventArgs.cs" />
+    <Compile Include="Analyzer\SourceDocumentEventArgs.cs" />
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="Interpreter\InterpreterConfiguration.cs" />
     <Compile Include="Interpreter\InterpreterUIMode.cs" />
