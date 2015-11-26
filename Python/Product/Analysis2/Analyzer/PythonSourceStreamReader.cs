@@ -86,7 +86,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 oldBuffer.Close();
             }
 
-            while ((newBuffer.Length < BufferFillChunkSize * 4 || newBuffer.Length < bytesRequested)&&
+            while ((newBuffer.Length < BufferFillChunkSize * 4 || newBuffer.Length < bytesRequested) &&
                 (read = await _stream.ReadAsync(bytes, 0, bytes.Length)) > 0) {
                 newBuffer.Write(bytes, 0, read);
             }
@@ -119,6 +119,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             await FillBufferAsync();
+            if (_buffer == null) {
+                return;
+            }
 
             var oldPos = _buffer.Position;
             try {
@@ -183,7 +186,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             await ReadEncodingAsync();
 
             var buffer = new byte[ReadLineBufferSize];
-            var bufferPos = _buffer.Position;
+            int bufferStart = 0;
+            int bufferOffset = (int)_buffer.Position;
             int read = _buffer.Read(buffer, 0, buffer.Length);
             int totalRead = read;
             int eol = FindNextLine(buffer, 0, read);
@@ -195,6 +199,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 totalRead += read;
                 if (read == 0) {
                     await FillBufferAsync(buffer.Length - totalRead);
+                    bufferStart = totalRead;
+                    bufferOffset = 0;
                     if (_eof) {
                         break;
                     }
@@ -204,11 +210,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         break;
                     }
                 }
-                eol = FindNextLine(buffer, 0, totalRead);
+                eol = FindNextLine(buffer, bufferStart, totalRead);
             }
 
             if (eol >= 0) {
-                _buffer.Seek(bufferPos + eol, SeekOrigin.Begin);
+                _buffer.Seek(eol - bufferStart + bufferOffset, SeekOrigin.Begin);
                 _line = _encoding.GetString(buffer, 0, eol);
                 _lineIndex = 0;
             } else {

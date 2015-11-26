@@ -259,8 +259,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             string quote;
             switch (inGroup) {
                 case TokenKind.RightSingleQuote:
+                    quote = "'";
+                    break;
                 case TokenKind.RightDoubleQuote:
-                    quote = inGroup == TokenKind.RightSingleQuote ? "'" : "\"";
+                    quote = "\"";
                     break;
                 case TokenKind.RightSingleTripleQuote:
                     quote = "'''";
@@ -273,7 +275,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
 
             int end = line.IndexOf(quote, start);
-            while (end > start && line[end - 1] == '\\' && (end - 2 < start || line[end - 2] != '\\')) {
+            while (end > start && line[end - 1] == '\\') {
+                int slashCount = 1;
+                for (int i = end - 2; i >= start && line[i] == '\\'; --i) {
+                    slashCount += 1;
+                }
+                if ((slashCount % 2) == 0) {
+                    break;
+                }
                 end = line.IndexOf(quote, end + 1);
             }
             if (end == start) {
@@ -515,13 +524,25 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private static TokenKind MaybeReadLongSuffix(string line, TokenKind kind, ref int end) {
-            if (end >= line.Length || kind != TokenKind.LiteralDecimal) {
+            if (end >= line.Length) {
                 return kind;
             }
 
             if (line[end] == 'l' || line[end] == 'L') {
+                switch (kind) {
+                    case TokenKind.LiteralDecimal:
+                        kind = TokenKind.LiteralDecimalLong;
+                        break;
+                    case TokenKind.LiteralHex:
+                        kind = TokenKind.LiteralHexLong;
+                        break;
+                    case TokenKind.LiteralOctal:
+                        kind = TokenKind.LiteralOctalLong;
+                        break;
+                    default:
+                        return kind;
+                }
                 end += 1;
-                kind = TokenKind.LiteralDecimalLong;
             }
 
             return kind;

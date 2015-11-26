@@ -92,5 +92,96 @@ namespace Analysis2Tests {
                 Assert.AreEqual("next line", reader.ReadLine());
             }
         }
+
+        private static string Shorten(string str) {
+            if ((str?.Length ?? 0) < 30) {
+                return str;
+            }
+            return str.Substring(0, 20) + "..." + str.Substring(str.Length - 10);
+        }
+
+        [TestMethod, Priority(0)]
+        public void VeryLongLines() {
+            var lls = new LongLineStream(100, 25229, "\r\n");
+            using (var reader = new PythonSourceStreamReader(lls, true)) {
+                int lineCount = 0;
+                string line;
+                while ((line = reader.ReadLine()) != null) {
+                    var actual = lineCount.ToString() + ": " + Shorten(line).Replace("\r", "\\r").Replace("\n", "\\n").Replace("\0", "\\0");
+                    Assert.AreEqual(25229, line.Length, actual);
+                    Assert.AreEqual("Lorem ipsum", line.Substring(0, 11), actual);
+                    Assert.AreEqual("\r\n", line.Substring(line.Length - 2), actual);
+                    lineCount += 1;
+                }
+            }
+        }
+
+
+        class LongLineStream : Stream {
+            private long _length, _charsPerLine, _read;
+            private const string Characters = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
+            private readonly IEnumerable<byte> _bytes;
+            private IEnumerator<byte> _characters;
+
+            public LongLineStream(int lineCount, int charsPerLine, string newLine) {
+                _length = lineCount * charsPerLine;
+                _charsPerLine = charsPerLine;
+                _read = 0;
+                var encoded = Encoding.ASCII.GetBytes(Characters);
+                var nlBytes = Encoding.ASCII.GetBytes(newLine);
+                _bytes = Enumerable.Repeat(encoded, charsPerLine / encoded.Length + 1)
+                    .SelectMany(b => b)
+                    .Take(charsPerLine - nlBytes.Length)
+                    .Concat(nlBytes);
+                _characters = _bytes.GetEnumerator();
+            }
+
+            public override bool CanRead => true;
+            public override bool CanSeek => true;
+            public override bool CanWrite => false;
+            public override long Length => _length;
+            public override long Position {
+                get { return _read; }
+                set { _read = value; }
+            }
+            public override void Flush() { }
+
+            public override int Read(byte[] buffer, int offset, int count) {
+                int read = 0;
+                for (int i = offset; i < buffer.Length && read < count && _read < _length; ++i) {
+                    if (!_characters.MoveNext()) {
+                        _characters = _bytes.GetEnumerator();
+                        _characters.MoveNext();
+                    }
+                    buffer[i] = _characters.Current;
+                    _read += 1;
+                    read += 1;
+                }
+                return read;
+            }
+
+            public override long Seek(long offset, SeekOrigin origin) {
+                switch (origin) {
+                    case SeekOrigin.Begin:
+                        _read = offset;
+                        break;
+                    case SeekOrigin.Current:
+                        _read += offset;
+                        break;
+                    case SeekOrigin.End:
+                        _read = Length + offset;
+                        break;
+                    default:
+                        break;
+                }
+                return _read;
+            }
+
+            public override void SetLength(long value) { _length = value; }
+
+            public override void Write(byte[] buffer, int offset, int count) {
+                throw new NotSupportedException();
+            }
+        }
     }
 }

@@ -24,7 +24,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class CompoundStatement : StatementWithExpression {
         private readonly TokenKind _kind;
         private Statement _body;
-        private SourceSpan _afterAsync, _beforeColon, _afterComment, _afterBody;
+        private SourceSpan _afterAsync, _beforeColon, _afterBody;
 
         public CompoundStatement(TokenKind kind) {
             _kind = kind;
@@ -53,11 +53,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public SourceSpan BeforeColon {
             get { return _beforeColon; }
             set { ThrowIfFrozen(); _beforeColon = value; }
-        }
-
-        public SourceSpan AfterComment {
-            get { return _afterComment; }
-            set { ThrowIfFrozen(); _afterComment = value; }
         }
 
         public SourceSpan AfterBody {
@@ -102,7 +97,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             BeforeColon.AppendCodeString(output, ast);
             output.Append(":");
             Comment?.AppendCodeString(output, ast, format);
-            AfterComment.AppendCodeString(output, ast);
             Body?.AppendCodeString(output, ast, format);
             AfterBody.AppendCodeString(output, ast);
         }

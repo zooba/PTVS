@@ -1,0 +1,7 @@
+fob = \
+oar \
+(
+eggs \
+) \
+. \
+spam

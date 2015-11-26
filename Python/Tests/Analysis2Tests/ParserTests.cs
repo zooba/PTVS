@@ -836,7 +836,11 @@ namespace AnalysisTests {
                         CheckUnaryStmt(PythonOperator.Negate, One),
                         CheckUnaryStmt(PythonOperator.Invert, One),
                         CheckUnaryStmt(PythonOperator.Pos, One),
-                        CheckUnaryStmt(PythonOperator.Not, One)
+                        CheckUnaryStmt(PythonOperator.Not, One),
+                        CheckUnaryStmt(PythonOperator.Negate, CheckUnaryExpression(PythonOperator.Negate, One)),
+                        CheckUnaryStmt(PythonOperator.Invert, CheckUnaryExpression(PythonOperator.Invert, One)),
+                        CheckUnaryStmt(PythonOperator.Pos, CheckUnaryExpression(PythonOperator.Pos, One)),
+                        CheckUnaryStmt(PythonOperator.Not, CheckUnaryExpression(PythonOperator.Not, One))
                     )
                 );
             }
@@ -1383,7 +1387,7 @@ namespace AnalysisTests {
 
                 ParseErrors(
                     "TryStmtV3.py", version,
-                    new ErrorInfo("'as' requires Python 2.6 or later", 33, 3, 18, 35, 3, 20)
+                    new ErrorInfo("'as' requires Python 2.6 or later", 23, 3, 8, 37, 3, 22)
                 );
             }
 
@@ -1504,6 +1508,19 @@ namespace AnalysisTests {
                 );
             }
         }
+
+        [TestMethod, Priority(0)]
+        public void ExplicitLineJoins() {
+            foreach (var version in AllVersions) {
+                CheckAst(
+                    ParseFileNoErrors("ExplicitLineJoins.py", version),
+                    CheckSuite(
+                        CheckAssignment(Fob, CheckMemberExpr(CheckCallExpression(Oar, CheckArg("eggs")), "spam"))
+                    )
+                );
+            }
+        }
+
 
         [TestMethod, Priority(0)]
         public void AssertStmt() {
@@ -1653,6 +1670,7 @@ namespace AnalysisTests {
                         CheckFromImport("sys", new[] { "winver" }, new[] { "baz" }),
                         CheckFromImport("sys.fob", new[] { "winver" }),
                         CheckFromImport("sys.fob", new[] { "winver" }, new[] { "baz" }),
+                        CheckFromImport(".", new[] { "oar" }),
                         CheckFromImport("...fob", new[] { "oar" }),
                         CheckFromImport("....fob", new[] { "oar" }),
                         CheckFromImport("......fob", new[] { "oar" }),
@@ -1714,7 +1732,7 @@ namespace AnalysisTests {
                             "f",
                             NoParameters,
                             CheckSuite(
-                                CheckFromImport("sys", new[] { "abc", "" })
+                                CheckFromImport("sys", new[] { "abc" })
                             )
                         )
                     )
@@ -1723,7 +1741,7 @@ namespace AnalysisTests {
                 ParseErrors(
                     "FromImportStmtIncomplete.py",
                     version,
-                    new ErrorInfo("trailing comma not allowed without surrounding parentheses", 34, 2, 25, 35, 2, 26)
+                    new ErrorInfo("trailing comma not allowed without surrounding parentheses", 33, 2, 24, 34, 2, 25)
                 );
             }
         }
@@ -2178,7 +2196,7 @@ namespace AnalysisTests {
         public void AwaitStmtPreV35() {
             foreach (var version in AllVersions.Except(V35AndUp)) {
                 ParseErrors("AwaitStmt.py", version,
-                    new ErrorInfo("invalid syntax", 0, 1, 1, 17, 1, 18),
+                    new ErrorInfo("invalid syntax", 6, 1, 7, 17, 1, 18),
                     new ErrorInfo("unexpected indent", 19, 2, 1, 23, 2, 5),
                     new ErrorInfo("invalid syntax", 29, 2, 11, 32, 2, 14),
                     new ErrorInfo("unexpected indent", 34, 3, 1, 38, 3, 5),
@@ -2199,7 +2217,7 @@ namespace AnalysisTests {
         public void AwaitAsyncNames() {
             var Async = CheckNameExpr("async");
             var Await = CheckNameExpr("await");
-            foreach (var version in V35AndUp) {
+            foreach (var version in AllVersions) {
                 var ast = ParseFileNoErrors("AwaitAsyncNames.py", version);
                 CheckAst(
                     ast,
@@ -2364,121 +2382,8 @@ namespace AnalysisTests {
         public void ParseComments() {
             var version = PythonLanguageVersion.V35;
             var tree = ParseFileNoErrors("Comments.py", version);
-            CheckAst(
-                tree,
-                CheckSuite(
-                    CheckCommentStatement("# Above", tree),
-                    CheckNameStmt("a"),
-                    CheckComment("# After", tree, CheckNameStmt("a")),
-                    CheckFuncDef("f",
-                        new[] { CheckComment("#param", tree, CheckParameter("a")) },
-                        CheckComment("#suite", tree, CheckSuite(
-                            CheckComment("#stmt", tree, CheckEmptyStmt()),
-                            CheckCommentStatement("#func", tree),
-                            CheckEmptyStmt(),
-                            CheckCommentStatement("#func", tree)
-                        ))
-                    ),
-                    CheckCommentStatement("#notfunc", tree),
-                    CheckNameStmt("a"),
-                    CheckCommentStatement("# Below", tree),
-                    //CheckIfStmt(tests => {
-                    //    Assert.AreEqual(1, tests.Count);
-                    //    CheckSuite(
-                    //        CheckCommentStatement("#block", tree),
-                    //        CheckEmptyStmt()
-                    //    )(tests[0].Body);
-                    //}),
-                    CheckCommentStatement("#eof", tree)
-                )
-            );
+            Assert.Fail("Not yet implemented");
         }
-
-        //[TestMethod, Priority(1), Timeout(10 * 60 * 1000)]
-        //public async Task StdLib() {
-        //    var tasks = new List<KeyValuePair<string, Task<string>>>();
-
-        //    foreach (var curVersion in new[] { PythonPaths.Python35 }) { // PythonPaths.Versions) {
-        //        Console.WriteLine("Starting: {0}", curVersion);
-        //        tasks.Add(new KeyValuePair<string, Task<string>>(
-        //            curVersion.ToString(),
-        //            Task.Run(() => StdLibWorker(curVersion))
-        //        ));
-        //    }
-        //    Console.WriteLine("Started {0} tests", tasks.Count);
-        //    Console.WriteLine(new string('=', 80));
-
-        //    bool anyErrors = false;
-        //    foreach (var task in tasks) {
-        //        string errors = null;
-        //        try {
-        //            errors = await task.Value;
-        //        } catch (Exception ex) {
-        //            errors = ex.ToString();
-        //        }
-
-        //        if (string.IsNullOrEmpty(errors)) {
-        //            Console.WriteLine("{0} passed", task.Key);
-        //        } else {
-        //            Console.WriteLine("{0} errors:", task.Key);
-        //            Console.WriteLine(errors);
-        //            anyErrors = true;
-        //        }
-        //        Console.WriteLine(new string('=', 80));
-        //    }
-
-        //    Assert.IsFalse(anyErrors, "Errors occurred. See output trace for details.");
-        //}
-
-        //private static string StdLibWorker(PythonVersion curVersion) {
-        //    var files = new List<string>();
-        //    CollectFiles(curVersion.LibPath, files, new[] { "site-packages" });
-
-        //    var skippedFiles = new HashSet<string>(new[] {
-        //            "py3_test_grammar.py",  // included in 2x distributions but includes 3x grammar
-        //            "py2_test_grammar.py",  // included in 3x distributions but includes 2x grammar
-        //            "proxy_base.py",        // included in Qt port to Py3k but installed in 2.x distributions
-        //            "test_pep3131.py"       // we need to update to support this.
-        //        });
-        //    var errors = new Dictionary<string, List<ErrorResult>>();
-        //    foreach (var file in files) {
-        //        string filename = Path.GetFileName(file);
-        //        if (skippedFiles.Contains(filename) || filename.StartsWith("badsyntax_") || filename.StartsWith("bad_coding") || file.IndexOf("\\lib2to3\\tests\\") != -1) {
-        //            continue;
-        //        }
-        //        var result = Parser.TokenizeAndParseAsync(
-        //            new FileSourceDocument(file),
-        //            curVersion.Version
-        //        ).WaitAndUnwrapExceptions();
-
-        //        if (result.Errors.Count != 0) {
-        //            var fileErrors = result.Errors.ToList();
-        //            if (curVersion.Configuration.Version == PythonLanguageVersion.V35) {
-        //                // TODO: https://github.com/Microsoft/PTVS/issues/337
-        //                fileErrors.RemoveAll(e => {
-        //                    return e.Message == "non-keyword arg after keyword arg";
-        //                });
-        //            }
-
-        //            if (fileErrors.Any()) {
-        //                errors["\"" + file + "\""] = fileErrors;
-        //            }
-        //        }
-        //    }
-
-        //    if (errors.Count != 0) {
-        //        StringBuilder errorList = new StringBuilder();
-        //        foreach (var keyValue in errors) {
-        //            errorList.Append(keyValue.Key + " :" + Environment.NewLine);
-        //            foreach (var error in keyValue.Value) {
-        //                errorList.AppendFormat("     {0} {1}{2}", error.Span, error.Message, Environment.NewLine);
-        //            }
-
-        //        }
-        //        return errorList.ToString();
-        //    }
-        //    return null;
-        //}
 
         #endregion
 
@@ -2817,17 +2722,11 @@ namespace AnalysisTests {
                 Assert.AreEqual(fromName, fiStmt.Root.MakeString());
                 Assert.AreEqual(names.Length, fiStmt.Names?.Count ?? 0);
                 for (int i = 0; i < names.Length; i++) {
-                    Assert.AreEqual(names[i], fiStmt.Names[i]?.Name ?? "");
-                }
-
-                if (asNames == null) {
-                    for (int i = 0; i < (fiStmt.AsNames?.Count ?? 0); i++) {
-                        Assert.AreEqual(null, fiStmt.AsNames[i]);
-                    }
-                } else {
-                    Assert.AreEqual(asNames.Length, fiStmt.AsNames?.Count ?? 0);
-                    for (int i = 0; i < asNames.Length; i++) {
-                        Assert.AreEqual(asNames[i], fiStmt.AsNames[i].Name);
+                    Assert.AreEqual(names[i], FromImportStatement.GetImportName(fiStmt.Names[i]) ?? "");
+                    if (asNames == null) {
+                        Assert.AreEqual(names[i], FromImportStatement.GetAsName(fiStmt.Names[i]) ?? "");
+                    } else {
+                        Assert.AreEqual(asNames[i], FromImportStatement.GetAsName(fiStmt.Names[i]));
                     }
                 }
             };

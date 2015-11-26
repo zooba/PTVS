@@ -19,32 +19,17 @@ using System.Text;
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class AsExpression : ExpressionWithExpression {
         private NameExpression _name;
-        private SourceSpan _beforeAs, _beforeName;
-
-        public SourceSpan BeforeAs {
-            get { return _beforeAs; }
-            set { ThrowIfFrozen(); _beforeAs = value; }
-        }
 
         public NameExpression Name {
             get { return _name; }
             set { ThrowIfFrozen(); _name = value; }
         }
 
-        public SourceSpan BeforeName {
-            get { return _beforeName; }
-            set { ThrowIfFrozen(); _beforeName = value; }
-        }
-
-        public SourceSpan AsSpan => new SourceSpan(BeforeAs.End, BeforeName.Start);
-
         internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
             // TODO: Apply formatting options
             BeforeNode.AppendCodeString(output, ast);
             Expression?.AppendCodeString(output, ast, format);
-            BeforeAs.AppendCodeString(output, ast);
             output.Append("as");
-            BeforeName.AppendCodeString(output, ast);
             Name?.AppendCodeString(output, ast, format);
             Comment?.AppendCodeString(output, ast, format);
             AfterNode.AppendCodeString(output, ast);

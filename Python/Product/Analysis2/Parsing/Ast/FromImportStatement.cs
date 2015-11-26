@@ -25,7 +25,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class FromImportStatement : Statement {
         private static readonly string[] _star = new[] { "*" };
         private DottedName _root;
-        private IList<NameExpression> _names, _asNames;
+        private IList<SequenceItemExpression> _names;
         private SourceSpan _beforeNames;
         private bool _hasParentheses;
 
@@ -35,7 +35,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             base.OnFreeze();
             _root?.Freeze();
             _names = FreezeList(_names);
-            _asNames = FreezeList(_asNames);
         }
 
         public DottedName Root {
@@ -45,14 +44,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public bool IsFromFuture => _root?.IsFuture ?? false;
 
-        public IList<NameExpression> Names {
+        public IList<SequenceItemExpression> Names {
             get { return _names; }
             set { ThrowIfFrozen(); _names = value; }
-        }
-
-        public IList<NameExpression> AsNames {
-            get { return _asNames; }
-            set { ThrowIfFrozen(); _asNames = value; }
         }
 
         public SourceSpan BeforeNames {
@@ -81,6 +75,20 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             if (walker.Walk(this)) {
             }
             walker.PostWalk(this);
+        }
+
+        public static string GetImportName(SequenceItemExpression expr) {
+            return (
+                (expr.Expression as NameExpression) ??
+                ((expr.Expression as AsExpression)?.Expression as NameExpression)
+            )?.Name;
+        }
+
+        public static string GetAsName(SequenceItemExpression expr) {
+            return (
+                (expr.Expression as NameExpression) ??
+                (expr.Expression as AsExpression)?.Name
+            )?.Name;
         }
 
         /// <summary>

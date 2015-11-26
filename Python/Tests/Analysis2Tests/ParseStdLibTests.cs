@@ -33,7 +33,7 @@ namespace Analysis2Tests {
             }
         }
 
-        private async Task<string> ParseOneFile(string path) {
+        internal async Task<string> ParseOneFile(string path) {
             var doc = new FileSourceDocument(path);
             var tok = await Tokenization.TokenizeAsync(doc, Configuration.Version);
             var parser = new Parser(tok);
@@ -67,8 +67,27 @@ namespace Analysis2Tests {
             return null;
         }
 
+        private async Task ParseOnePackage(string path) {
+            var output = new List<string>();
+
+            foreach (var file in Directory.EnumerateFiles(path, "*.py", SearchOption.AllDirectories)) {
+                var error = await ParseOneFile(file);
+                if (!string.IsNullOrEmpty(error)) {
+                    output.Add(error);
+                    break;
+                }
+            }
+
+            if (output.Any()) {
+                foreach (var text in output) {
+                    Trace.TraceError(text);
+                }
+                Assert.Fail("Errors parsing package");
+            }
+        }
+
         [TestMethod, Priority(0)]
-        public async Task ArgParseModule() {
+        public virtual async Task ArgParseModule() {
             var file = Path.Combine(Configuration.PrefixPath, "Lib", "argparse.py");
             Assert.IsTrue(File.Exists(file), "Cannot find " + file);
             var text = await ParseOneFile(file);
@@ -137,15 +156,65 @@ namespace Analysis2Tests {
             }
         }
 
+        [TestMethod, Priority(1)]
+        public virtual async Task CompilerPackage() {
+            var path = Path.Combine(Configuration.PrefixPath, "Lib", "compiler");
+            Assert.IsTrue(Directory.Exists(path), "Cannot find " + path);
+            await ParseOnePackage(path);
+        }
 
-        [TestMethod]
+        [TestMethod, Priority(1)]
+        public async Task CTypesPackage() {
+            var path = Path.Combine(Configuration.PrefixPath, "Lib", "ctypes");
+            Assert.IsTrue(Directory.Exists(path), "Cannot find " + path);
+            await ParseOnePackage(path);
+        }
+
+        [TestMethod, Priority(1)]
+        public async Task EmailPackage() {
+            var path = Path.Combine(Configuration.PrefixPath, "Lib", "email");
+            Assert.IsTrue(Directory.Exists(path), "Cannot find " + path);
+            await ParseOnePackage(path);
+        }
+
+
+        [TestMethod, Priority(1)]
         public async Task TopLevelStdLib() {
             var dir = Path.Combine(Configuration.PrefixPath, "Lib");
             Assert.IsTrue(Directory.Exists(dir), "Cannot find " + dir);
 
             var output = new List<string>();
 
+            var tasks = new List<Task<string>>();
             foreach (var file in Directory.EnumerateFiles(dir, "*.py", SearchOption.TopDirectoryOnly)) {
+                tasks.Add(ParseOneFile(file));
+            }
+
+            var errors = await Task.WhenAll(tasks);
+            foreach(var error in errors) {
+                if (!string.IsNullOrEmpty(error)) {
+                    output.Add(error);
+                    break;
+                }
+            }
+
+            if (output.Any()) {
+                foreach (var text in output) {
+                    Trace.TraceError(text);
+                }
+                Assert.Fail("Errors parsing files");
+            }
+        }
+
+        [TestMethod, Priority(2)]
+        [TestCategory("10s")]
+        public async Task FullStdLib() {
+            var dir = Path.Combine(Configuration.PrefixPath, "Lib");
+            Assert.IsTrue(Directory.Exists(dir), "Cannot find " + dir);
+
+            var output = new List<string>();
+
+            foreach (var file in Directory.EnumerateFiles(dir, "*.py", SearchOption.AllDirectories)) {
                 var error = await ParseOneFile(file);
                 if (!string.IsNullOrEmpty(error)) {
                     output.Add(error);
@@ -187,7 +256,56 @@ namespace Analysis2Tests {
     }
 
     [TestClass]
+    public class Parse26StdLib : ParseStdLibTests {
+        [Ignore]
+        public override async Task ArgParseModule() { }
+
+        [TestMethod, Priority(0)]
+        public async Task PyDocTopicsModule() {
+            var file = Path.Combine(Configuration.PrefixPath, "Lib", "pydoc_topics.py");
+            Assert.IsTrue(File.Exists(file), "Cannot find " + file);
+            var text = await ParseOneFile(file);
+            if (!string.IsNullOrEmpty(text)) {
+                Assert.Fail(text);
+            }
+        }
+
+        public override InterpreterConfiguration Configuration {
+            get {
+                return PythonPaths.Python26?.Configuration ??
+                    PythonPaths.Python26_x64?.Configuration;
+            }
+        }
+    }
+
+    [TestClass]
+    public class Parse27StdLib : ParseStdLibTests {
+        public override InterpreterConfiguration Configuration {
+            get {
+                return PythonPaths.Python27?.Configuration ??
+                    PythonPaths.Python27_x64?.Configuration;
+            }
+        }
+    }
+
+    [TestClass]
+    public class Parse34StdLib : ParseStdLibTests {
+        [Ignore]
+        public override async Task CompilerPackage() { }
+
+        public override InterpreterConfiguration Configuration {
+            get {
+                return PythonPaths.Python34?.Configuration ??
+                    PythonPaths.Python34_x64?.Configuration;
+            }
+        }
+    }
+
+    [TestClass]
     public class Parse35StdLib : ParseStdLibTests {
+        [Ignore]
+        public override async Task CompilerPackage() { }
+
         public override InterpreterConfiguration Configuration {
             get {
                 return PythonPaths.Python35?.Configuration ??

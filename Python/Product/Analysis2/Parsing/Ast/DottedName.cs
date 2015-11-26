@@ -36,7 +36,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public virtual string MakeString() {
             if (_names == null || _names.Count == 0) {
-                return String.Empty;
+                return string.Empty;
+            }
+
+            if (_names.Count == 1) {
+                if (string.IsNullOrEmpty(_names[0].Name)) {
+                    return ".";
+                } else {
+                    return _names[0].Name;
+                }
             }
 
             return string.Join(".", _names.Select(n => n?.Name ?? ""));

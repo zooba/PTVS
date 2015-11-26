@@ -42,7 +42,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
             // TODO: Apply formatting options
             BeforeNode.AppendCodeString(output, ast);
-            Span.AppendCodeString(output, ast);
+            Expression?.AppendCodeString(output, ast, format);
             if (HasComma) {
                 output.Append(',');
             }

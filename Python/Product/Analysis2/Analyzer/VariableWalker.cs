@@ -122,12 +122,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
             var importNames = new List<string>();
             var asNames = new List<string>();
-            for (int i = 0; i < node.Names.Count; ++i) {
-                var name = node.AsNames?[i] ?? node.Names[i];
-                importNames.Add(node.Names[i].Name);
-                asNames.Add(name.Name);
-                if (name.Name != "*") {
-                    Add(name.Name, null);
+            foreach(var n in node.Names) {
+                var importName = FromImportStatement.GetImportName(n);
+                var asName = FromImportStatement.GetAsName(n);
+                if (importName == null || asName == null) {
+                    continue;
+                }
+
+                importNames.Add(importName);
+                asNames.Add(asName);
+                if (asName != "*") {
+                    Add(asName, null);
                 }
             }
 
