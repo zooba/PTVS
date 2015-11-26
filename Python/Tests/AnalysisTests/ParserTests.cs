@@ -21,13 +21,14 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.VisualStudioTools;
 using TestUtilities;
 using TestUtilities.Python;
 
@@ -2472,7 +2473,8 @@ namespace AnalysisTests {
             Trace.TraceInformation("Parsing {0} with {1}", filename, version.ToVersion());
             var tokenization = Tokenization.TokenizeAsync(
                 new FileSourceDocument(PythonTestData.GetTestDataSourcePath("Grammar\\" + filename)),
-                version
+                version,
+                CancellationToken.None
             ).WaitAndUnwrapExceptions();
             return new Parser(tokenization);
         }
@@ -2739,20 +2741,8 @@ namespace AnalysisTests {
 
                 Assert.AreEqual(names.Length, fiStmt.Names.Count);
                 for (int i = 0; i < names.Length; i++) {
-                    Assert.AreEqual(names[i], fiStmt.Names[i].MakeString());
-                }
-
-                if (asNames == null) {
-                    if (fiStmt.AsNames != null) {
-                        for (int i = 0; i < fiStmt.AsNames.Count; i++) {
-                            Assert.AreEqual(null, fiStmt.AsNames[i]);
-                        }
-                    }
-                } else {
-                    Assert.AreEqual(asNames.Length, fiStmt.AsNames.Count);
-                    for (int i = 0; i < asNames.Length; i++) {
-                        Assert.AreEqual(asNames[i], fiStmt.AsNames[i].Name);
-                    }
+                    Assert.AreEqual(names[i], ImportStatement.GetImportName(fiStmt.Names[i]));
+                    Assert.AreEqual(asNames?[i] ?? names[i], ImportStatement.GetAsName(fiStmt.Names[i]));
                 }
             };
         }

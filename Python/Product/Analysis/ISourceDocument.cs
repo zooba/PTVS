@@ -14,13 +14,16 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+using System;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis {
     public interface ISourceDocument {
-        Task<Stream> ReadAsync();
+        Task<Stream> ReadAsync(CancellationToken cancellationToken);
+        Task ReadAndGetCookieAsync(Action<Stream, object> action, CancellationToken cancellationToken);
 
         string Moniker { get; }
     }
@@ -43,13 +46,21 @@ namespace Microsoft.PythonTools.Analysis {
             get { return _moniker; }
         }
 
-        public async Task<Stream> ReadAsync() {
+        public async Task<Stream> ReadAsync(CancellationToken cancellationToken) {
             var ms = new MemoryStream();
             using (var sw = new StreamWriter(ms, new UTF8Encoding(false), 4096, true)) {
                 await sw.WriteAsync(_document);
             }
             ms.Seek(0, SeekOrigin.Begin);
             return ms;
+        }
+
+        public async Task ReadAndGetCookieAsync(
+            Action<Stream, object> action,
+            CancellationToken cancellationToken
+        ) {
+            var stream = await ReadAsync(cancellationToken);
+            action(stream, null);
         }
     }
 }

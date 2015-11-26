@@ -42,7 +42,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
         ) {
             _item.SetDocument(_document);
 
-            var tokenization = await Tokenization.TokenizeAsync(_document, analyzer.Configuration.Version);
+            var tokenization = await Tokenization.TokenizeAsync(
+                _document,
+                analyzer.Configuration.Version,
+                cancellationToken
+            );
             _item.SetTokenization(tokenization);
 
             await analyzer.EnqueueAsync(context, new UpdateVariables(_item), cancellationToken);

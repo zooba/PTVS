@@ -14,15 +14,21 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.VisualStudio.TextManager.Interop;
+using System.ComponentModel.Composition;
+using Microsoft.VisualStudio.Utilities;
 
 namespace Microsoft.PythonTools.Editor {
-    interface IPythonEditorOptions {
-        vsIndentStyle IndentMode { get; }
+    static class ContentType {
+        public const string Name = "Python";
+
+        [Export]
+        [Name(Name)]
+        [BaseDefinition("code")]
+        internal static ContentTypeDefinition ContentTypeDefinition = null;
+
+        [Export]
+        [FileExtension(".py")]
+        [ContentType(Name)]
+        internal static FileExtensionToContentTypeDefinition PyFileExtensionDefinition = null;
     }
 }

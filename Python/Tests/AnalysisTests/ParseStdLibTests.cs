@@ -35,7 +35,7 @@ namespace Analysis2Tests {
 
         internal async Task<string> ParseOneFile(string path) {
             var doc = new FileSourceDocument(path);
-            var tok = await Tokenization.TokenizeAsync(doc, Configuration.Version);
+            var tok = await Tokenization.TokenizeAsync(doc, Configuration.Version, CancellationToken.None);
             var parser = new Parser(tok);
             var errors = new CollectingErrorSink();
 

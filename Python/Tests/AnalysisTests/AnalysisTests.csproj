@@ -70,6 +70,10 @@
       <Project>{be50a162-4056-4c3c-ad65-85e0417c73ae}</Project>
       <Name>Analysis</Name>
     </ProjectReference>
+    <ProjectReference Include="..\..\Product\Common\Common.csproj">
+      <Project>{b3db0521-d9e3-4f48-9e2e-e5ecae886049}</Project>
+      <Name>Common</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Utilities.Python.Analysis\TestUtilities.Python.Analysis.csproj">
       <Project>{a731c4c3-3741-4080-a946-c47574c1f3bf}</Project>
       <Name>TestUtilities.Python.Analysis</Name>

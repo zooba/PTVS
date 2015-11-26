@@ -1,16 +1,18 @@
-﻿/* ****************************************************************************
- *
- * Copyright (c) Microsoft Corporation. 
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- *
- * ***************************************************************************/
+﻿// Python Tools for Visual Studio
+// Copyright(c) Microsoft Corporation
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the License); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+// OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+// IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+// MERCHANTABLITY OR NON-INFRINGEMENT.
+//
+// See the Apache Version 2.0 License for specific language governing
+// permissions and limitations under the License.
 
 using System;
 using System.Collections.Generic;
@@ -18,9 +20,8 @@ using System.ComponentModel.Composition;
 using System.Windows.Media;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Editor.Properties;
-using Microsoft.PythonTools.Parsing;
+using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.VisualStudio.Language.StandardClassification;
-using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
@@ -39,12 +40,12 @@ namespace Microsoft.PythonTools.Editor {
     internal class PythonClassifierProvider : IClassifierProvider {
         private Dictionary<TokenCategory, IClassificationType> _categoryMap;
         private IClassificationType _comment;
+        private IClassificationType _grouping;
         private IClassificationType _stringLiteral;
         private IClassificationType _keyword;
         private IClassificationType _operator;
-        private IClassificationType _groupingClassification;
-        private IClassificationType _dotClassification;
-        private IClassificationType _commaClassification;
+        private IClassificationType _dot;
+        private IClassificationType _comma;
         
         /// <summary>
         /// Import the classification registry to be used for getting a reference
@@ -75,11 +76,7 @@ namespace Microsoft.PythonTools.Editor {
 
         [Export]
         [Name(PythonPredefinedClassificationTypeNames.Operator)]
-#if DEV11_OR_LATER
         [BaseDefinition(PredefinedClassificationTypeNames.Operator)]
-#else
-        [BaseDefinition(PredefinedClassificationTypeNames.FormalLanguage)]
-#endif
         internal static ClassificationTypeDefinition OperatorClassificationDefinition = null; // Set via MEF
 
         [Export]
@@ -97,59 +94,31 @@ namespace Microsoft.PythonTools.Editor {
             return buffer.Properties.GetOrCreateSingletonProperty(() => new PythonClassifier(this, buffer));
         }
 
-        public IClassificationType Comment {
-            get { return _comment; }
-        }
+        public IClassificationType Comment => _comment;
+        public IClassificationType StringLiteral => _stringLiteral;
+        public IClassificationType Keyword => _keyword;
+        public IClassificationType Operator => _operator;
+        public IClassificationType GroupingClassification => _grouping;
+        public IClassificationType DotClassification => _dot;
+        public IClassificationType CommaClassification => _comma;
 
-        public IClassificationType StringLiteral {
-            get { return _stringLiteral; }
-        }
-
-        public IClassificationType Keyword {
-            get { return _keyword; }
-        }
-
-        public IClassificationType Operator {
-            get { return _operator; }
-        }
-
-        public IClassificationType GroupingClassification {
-            get { return _groupingClassification; }
-        }
-
-        public IClassificationType DotClassification {
-            get { return _dotClassification; }
-        }
-
-        public IClassificationType CommaClassification {
-            get { return _commaClassification; }
-        }
-
-        internal Dictionary<TokenCategory, IClassificationType> CategoryMap {
-            get { return _categoryMap; }
-        }
+        internal Dictionary<TokenCategory, IClassificationType> CategoryMap => _categoryMap;
 
         private Dictionary<TokenCategory, IClassificationType> FillCategoryMap(IClassificationTypeRegistryService registry) {
             var categoryMap = new Dictionary<TokenCategory, IClassificationType>();
 
-            categoryMap[TokenCategory.DocComment] = _comment = registry.GetClassificationType(PredefinedClassificationTypeNames.Comment);
-            categoryMap[TokenCategory.LineComment] = registry.GetClassificationType(PredefinedClassificationTypeNames.Comment);
-            categoryMap[TokenCategory.Comment] = registry.GetClassificationType(PredefinedClassificationTypeNames.Comment);
-            categoryMap[TokenCategory.NumericLiteral] = registry.GetClassificationType(PredefinedClassificationTypeNames.Number);
-            categoryMap[TokenCategory.CharacterLiteral] = registry.GetClassificationType(PredefinedClassificationTypeNames.Character);
-            categoryMap[TokenCategory.StringLiteral] = _stringLiteral = registry.GetClassificationType(PredefinedClassificationTypeNames.String);
-            categoryMap[TokenCategory.Keyword] = _keyword = registry.GetClassificationType(PredefinedClassificationTypeNames.Keyword);
-            categoryMap[TokenCategory.Directive] = registry.GetClassificationType(PredefinedClassificationTypeNames.Keyword);
+            categoryMap[TokenCategory.None] = registry.GetClassificationType(PredefinedClassificationTypeNames.ExcludedCode);
             categoryMap[TokenCategory.Identifier] = registry.GetClassificationType(PredefinedClassificationTypeNames.Identifier);
+            categoryMap[TokenCategory.Keyword] = _keyword = registry.GetClassificationType(PredefinedClassificationTypeNames.Keyword);
             categoryMap[TokenCategory.Operator] = _operator = registry.GetClassificationType(PythonPredefinedClassificationTypeNames.Operator);
+            categoryMap[TokenCategory.StringLiteral] = _stringLiteral = registry.GetClassificationType(PredefinedClassificationTypeNames.String);
+            categoryMap[TokenCategory.NumericLiteral] = registry.GetClassificationType(PredefinedClassificationTypeNames.Number);
+            categoryMap[TokenCategory.Comment] = _comment = registry.GetClassificationType(PredefinedClassificationTypeNames.Comment);
+            categoryMap[TokenCategory.Grouping] = _grouping = registry.GetClassificationType(PythonPredefinedClassificationTypeNames.Grouping);
             categoryMap[TokenCategory.Delimiter] = registry.GetClassificationType(PythonPredefinedClassificationTypeNames.Operator);
-            categoryMap[TokenCategory.Grouping] = registry.GetClassificationType(PythonPredefinedClassificationTypeNames.Operator);
-            categoryMap[TokenCategory.WhiteSpace] = registry.GetClassificationType(PredefinedClassificationTypeNames.WhiteSpace);
-            categoryMap[TokenCategory.RegularExpressionLiteral] = registry.GetClassificationType(PredefinedClassificationTypeNames.Literal);
-            categoryMap[TokenCategory.BuiltinIdentifier] = registry.GetClassificationType(PythonPredefinedClassificationTypeNames.Builtin);
-            _groupingClassification = registry.GetClassificationType(PythonPredefinedClassificationTypeNames.Grouping);
-            _commaClassification = registry.GetClassificationType(PythonPredefinedClassificationTypeNames.Comma);
-            _dotClassification = registry.GetClassificationType(PythonPredefinedClassificationTypeNames.Dot);
+            categoryMap[TokenCategory.Whitespace] = registry.GetClassificationType(PredefinedClassificationTypeNames.WhiteSpace);
+            _comma = registry.GetClassificationType(PythonPredefinedClassificationTypeNames.Comma);
+            _dot = registry.GetClassificationType(PythonPredefinedClassificationTypeNames.Dot);
 
             return categoryMap;
         }

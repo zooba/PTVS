@@ -21,7 +21,7 @@ using System.Linq;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public class DottedName : Node {
+    public class DottedName : Expression {
         private IList<NameExpression> _names;
 
         public IList<NameExpression> Names {
@@ -51,6 +51,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         public bool IsFuture => Names?.Count == 1 && Names[0].Name == "__future__";
+
+        internal override string CheckName => null;
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {

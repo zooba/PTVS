@@ -23,7 +23,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Parsing;
-using Microsoft.VisualStudioTools;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.Win32;
 
 namespace Microsoft.PythonTools.Interpreter {

@@ -19,8 +19,7 @@ using System.Collections.Generic;
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public class ImportStatement : Statement {
-        private IList<DottedName> _names;
-        private IList<NameExpression> _asNames;
+        private IList<SequenceItemExpression> _names;
 
         private IList<PythonVariable> _variables;
 
@@ -33,26 +32,35 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             return GetVariableReferences(this, ast);
         }
 
-        public IList<DottedName> Names {
+        public IList<SequenceItemExpression> Names {
             get { return _names; }
             set { ThrowIfFrozen(); _names = value; }
-        }
-
-        public IList<NameExpression> AsNames {
-            get { return _asNames; }
-            set { ThrowIfFrozen(); _asNames = value; }
         }
 
         protected override void OnFreeze() {
             base.OnFreeze();
             _names = FreezeList(_names);
-            _asNames = FreezeList(_asNames);
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
             }
             walker.PostWalk(this);
+        }
+
+        public static string GetImportName(SequenceItemExpression expr) {
+            return (
+                (expr.Expression as DottedName) ??
+                ((expr.Expression as AsExpression)?.Expression as DottedName)
+            )?.MakeString();
+        }
+
+        public static string GetAsName(SequenceItemExpression expr) {
+            var dn = expr.Expression as DottedName;
+            if (dn != null) {
+                return dn.MakeString();
+            }
+            return (expr.Expression as AsExpression)?.Name?.Name;
         }
 
         /// <summary>

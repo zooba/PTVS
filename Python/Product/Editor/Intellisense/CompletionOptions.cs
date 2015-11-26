@@ -1,85 +1,42 @@
-﻿/* ****************************************************************************
- *
- * Copyright (c) Steve Dower (Zooba)
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- *
- * ***************************************************************************/
-
-using Microsoft.PythonTools.Analysis;
+﻿// Python Tools for Visual Studio
+// Copyright(c) Microsoft Corporation
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the License); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+// OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+// IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+// MERCHANTABLITY OR NON-INFRINGEMENT.
+//
+// See the Apache Version 2.0 License for specific language governing
+// permissions and limitations under the License.
 
 namespace Microsoft.PythonTools.Editor.Intellisense {
     public class CompletionOptions {
         /// <summary>
-        /// The set of options used by the analyzer.
-        /// </summary>
-        public GetMemberOptions MemberOptions { get; set; }
-        
-        /// <summary>
         /// Only show completions for members belonging to all potential types
         /// of the variable.
         /// </summary>
-        public bool IntersectMembers { 
-            get { return MemberOptions.HasFlag(GetMemberOptions.IntersectMultipleResults); }
-            set {
-                if (value) {
-                    MemberOptions |= GetMemberOptions.IntersectMultipleResults;
-                } else {
-                    MemberOptions &= ~GetMemberOptions.IntersectMultipleResults;
-                }
-            }
-        }
+        public bool IntersectMembers { get; set; }
 
         /// <summary>
         /// Omit completions for advanced members.
         /// </summary>
-        public bool HideAdvancedMembers {
-            get { return MemberOptions.HasFlag(GetMemberOptions.HideAdvancedMembers); }
-            set {
-                if (value) {
-                    MemberOptions |= GetMemberOptions.HideAdvancedMembers;
-                } else {
-                    MemberOptions &= ~GetMemberOptions.HideAdvancedMembers;
-                }
-            }
-        }
-
+        public bool HideAdvancedMembers { get; set; }
 
         /// <summary>
         /// Show context-sensitive completions for statement keywords.
         /// </summary>
-        public bool IncludeStatementKeywords {
-            get { return MemberOptions.HasFlag(GetMemberOptions.IncludeStatementKeywords); }
-            set {
-                if (value) {
-                    MemberOptions |= GetMemberOptions.IncludeStatementKeywords;
-                } else {
-                    MemberOptions &= ~GetMemberOptions.IncludeStatementKeywords;
-                }
-            }
-        }
+        public bool IncludeStatementKeywords { get; set; }
 
 
         /// <summary>
         /// Show context-sensitive completions for expression keywords.
         /// </summary>
-        public bool IncludeExpressionKeywords {
-            get { return MemberOptions.HasFlag(GetMemberOptions.IncludeExpressionKeywords); }
-            set {
-                if (value) {
-                    MemberOptions |= GetMemberOptions.IncludeExpressionKeywords;
-                } else {
-                    MemberOptions &= ~GetMemberOptions.IncludeExpressionKeywords;
-                }
-            }
-        }
-
+        public bool IncludeExpressionKeywords { get; set; }
 
         /// <summary>
         /// Convert Tab characters to TabSize spaces.
@@ -107,15 +64,9 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
         public FuzzyMatchMode SearchMode { get; set; }
 
         public CompletionOptions() {
-            MemberOptions = GetMemberOptions.IncludeStatementKeywords |
-                GetMemberOptions.IncludeExpressionKeywords |
-                GetMemberOptions.HideAdvancedMembers;
-            FilterCompletions = true;
-            SearchMode = FuzzyMatchMode.Default;
-        }
-
-        public CompletionOptions(GetMemberOptions options) {
-            MemberOptions = options;
+            IncludeStatementKeywords = true;
+            IncludeExpressionKeywords = true;
+            HideAdvancedMembers = true;
             FilterCompletions = true;
             SearchMode = FuzzyMatchMode.Default;
         }
@@ -125,13 +76,7 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
         /// by the code that provided the original.
         /// </summary>
         public CompletionOptions Clone() {
-            return new CompletionOptions(MemberOptions) {
-                ConvertTabsToSpaces = ConvertTabsToSpaces,
-                TabSize = TabSize,
-                IndentSize = IndentSize,
-                FilterCompletions = FilterCompletions,
-                SearchMode = SearchMode
-            };
+            return (CompletionOptions)MemberwiseClone();
         }
 
     }

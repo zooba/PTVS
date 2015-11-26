@@ -20,6 +20,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 
@@ -32,22 +33,41 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private readonly int[] _lineStarts;
         private readonly PythonLanguageVersion _languageVersion;
         private readonly Encoding _encoding;
+        private readonly object _cookie;
 
         public static async Task<Tokenization> TokenizeAsync(
             ISourceDocument document,
-            PythonLanguageVersion languageVersion
+            PythonLanguageVersion languageVersion,
+            CancellationToken cancellationToken
         ) {
-            using (var stream = await document.ReadAsync()) {
+            Stream stream = null;
+            object cookie = null;
+            try {
+                await document.ReadAndGetCookieAsync((s, c) => {
+                    stream = s;
+                    cookie = c;
+                }, cancellationToken);
                 var reader = new PythonSourceStreamReader(stream, false);
-                return await TokenizeAsync(reader, languageVersion, null, () => reader.Encoding);
+                return await TokenizeAsync(
+                    reader,
+                    cookie,
+                    languageVersion,
+                    null,
+                    () => reader.Encoding,
+                    cancellationToken
+                );
+            } finally {
+                stream?.Dispose();
             }
         }
 
         private static async Task<Tokenization> TokenizeAsync(
             TextReader reader,
+            object cookie,
             PythonLanguageVersion languageVersion,
-            Encoding encoding = null,
-            Func<Encoding> getEncoding = null
+            Encoding encoding,
+            Func<Encoding> getEncoding,
+            CancellationToken cancellationToken
         ) {
             var tokenizer = new Tokenizer(languageVersion);
 
@@ -76,7 +96,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 tokens.ToArray(),
                 lineStarts.ToArray(),
                 languageVersion,
-                encoding ?? (getEncoding != null ? getEncoding() : null) ?? Encoding.UTF8
+                encoding ?? (getEncoding != null ? getEncoding() : null) ?? Encoding.UTF8,
+                cookie
             );
         }
 
@@ -85,16 +106,19 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             Token[][] tokens,
             int[] lineStarts,
             PythonLanguageVersion languageVersion,
-            Encoding encoding
+            Encoding encoding,
+            object cookie
         ) {
             _lines = lines;
             _tokens = tokens;
             _lineStarts = lineStarts;
             _languageVersion = languageVersion;
             _encoding = encoding;
+            _cookie = cookie;
         }
 
         public Encoding Encoding => _encoding;
+        public object Cookie => _cookie;
 
         public string GetTokenText(SourceSpan span) {
             if (span.End.Index == int.MaxValue) {
@@ -204,6 +228,44 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         public IReadOnlyList<Token> GetLineByIndex(int index) {
             return GetLine(GetLineNumberByIndex(index));
+        }
+
+        /// <summary>
+        /// Enumerates over tokens from the start of line.
+        /// </summary>
+        public IEnumerable<Token> GetTokensStartingFromLine(int line) {
+            return _tokens
+                .Skip(Math.Max(line, 0))
+                .SelectMany(Identity);
+        }
+
+        /// <summary>
+        /// Enumerates over tokens that end after index.
+        /// </summary>
+        public IEnumerable<Token> GetTokensStartingFromIndex(int index) {
+            return GetTokensStartingFromLine(GetLineNumberByIndex(index))
+                .Where(t => t.Span.End.Index > index);
+        }
+
+        /// <summary>
+        /// Enumerates in reverse over tokens up to but not including line. The
+        /// first token yielded is the last token on the line before line.
+        /// </summary>
+        public IEnumerable<Token> GetTokensEndingAtLineReversed(int line) {
+            for (line = Math.Min(line - 1, _tokens.Length); line > 0; --line) {
+                var t = _tokens[line];
+                for (int i = t.Length - 1; i >= 0; --i) {
+                    yield return t[i];
+                }
+            }
+        }
+
+        /// <summary>
+        /// Enumerates in reverse over tokens that start before index.
+        /// </summary>
+        public IEnumerable<Token> GetTokensEndingAtIndexReversed(int index) {
+            return GetTokensEndingAtLineReversed(GetLineNumberByIndex(index))
+                .Where(t => t.Span.Start.Index < index);
         }
 
         public PythonLanguageVersion LanguageVersion {

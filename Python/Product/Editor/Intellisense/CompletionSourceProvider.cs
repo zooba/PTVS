@@ -29,9 +29,9 @@ using Microsoft.VisualStudio.Utilities;
 using IServiceProvider = System.IServiceProvider;
 
 namespace Microsoft.PythonTools.Editor.Intellisense {
-    [Export(typeof(ICompletionSourceProvider))]
-    [ContentType(ContentType.Name)]
-    [Name("CompletionProvider")]
+    //[Export(typeof(ICompletionSourceProvider))]
+    //[ContentType(ContentType.Name)]
+    //[Name("CompletionProvider")]
     internal class CompletionSourceProvider : ICompletionSourceProvider {
         [Import]
         internal ITextStructureNavigatorSelectorService _navigatorService = null;
@@ -141,8 +141,8 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
                 if (!typedChar.Equals(char.MinValue) && char.IsLetterOrDigit(typedChar)) {
                     if (_session == null || _session.IsDismissed) // If there is no active session, bring up completion
                     {
-                        this.TriggerCompletion();
-                        _session.Filter();
+                        TriggerCompletion();
+                        _session?.Filter();
                     } else     //the completion session is already active, so just filter
                       {
                         _session.Filter();

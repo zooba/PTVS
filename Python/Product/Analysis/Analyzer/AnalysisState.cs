@@ -80,7 +80,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             Interlocked.Increment(ref _version);
         }
 
-        private Task WaitForUpdateAsync(CancellationToken cancellationToken) {
+        internal Task WaitForUpdateAsync(CancellationToken cancellationToken) {
             var updated = _updated;
             if (updated == null) {
                 var tcs = new TaskCompletionSource<object>();

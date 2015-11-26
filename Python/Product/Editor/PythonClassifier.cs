@@ -1,15 +1,18 @@
-﻿/* ****************************************************************************
- *
- * Copyright (c) Microsoft Corporation. 
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- * ***************************************************************************/
+﻿// Python Tools for Visual Studio
+// Copyright(c) Microsoft Corporation
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the License); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+// OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+// IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+// MERCHANTABLITY OR NON-INFRINGEMENT.
+//
+// See the Apache Version 2.0 License for specific language governing
+// permissions and limitations under the License.
 
 using System;
 using System.Collections.Concurrent;
@@ -17,8 +20,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Analyzer;
-using Microsoft.PythonTools.Parsing;
+using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
@@ -53,7 +57,7 @@ namespace Microsoft.PythonTools.Editor {
             BeginUpdateClassifications(e.After);
         }
 
-        private void BeginUpdateClassifications(ITextSnapshot snapshot) {
+        internal void BeginUpdateClassifications(ITextSnapshot snapshot) {
             var task = ThreadHelper.JoinableTaskFactory.RunAsyncAsVsTask(
                 VsTaskRunContext.UIThreadBackgroundPriority,
                 ct => UpdateClassifications(_buffer.CurrentSnapshot, ct)
@@ -71,25 +75,27 @@ namespace Microsoft.PythonTools.Editor {
 
             ISourceDocument document;
             PythonFileContext context;
-            PythonLanguageService service;
+            PythonLanguageService analyzer;
 
             if (!buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) ||
                 !buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context) ||
-                !buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out service)) {
+                !buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer)) {
                 return false;
             }
+
+            var item = await analyzer.GetItemTokenAsync(context, document.Moniker, false, cancellationToken);
+            if (item == null) {
+                return false;
+            }
+
+            await analyzer.WaitForUpdateAsync(item, cancellationToken);
 
             //var start = e.Changes.Min(c => c.NewSpan.Start);
             //var end = e.Changes.Max(c => c.NewSpan.End);
             //var span = new SnapshotSpan(e.After, start, end - start);
             var span = new SnapshotSpan(snapshot, 0, snapshot.Length);
 
-            var tokenization = await service.GetNextTokenizationAsync(
-                context,
-                document.Moniker,
-                cancellationToken
-            );
-            cancellationToken.ThrowIfCancellationRequested();
+            var tokenization = await analyzer.GetTokenizationAsync(item, cancellationToken);
 
             var newClassifications = new List<ClassificationSpan>();
             foreach (var token in tokenization.AllTokens) {
@@ -151,38 +157,40 @@ namespace Microsoft.PythonTools.Editor {
             _buffer.Properties.RemoveProperty(typeof(PythonClassifier));
         }
 
-        private ClassificationSpan ClassifyToken(Tokenization tokenization, SnapshotSpan span, TokenInfo token) {
+        private ClassificationSpan ClassifyToken(Tokenization tokenization, SnapshotSpan span, Token token) {
             IClassificationType classification = null;
 
-            if (token.Category == TokenCategory.Operator) {
-                if (token.Trigger == TokenTriggers.MemberSelect) {
-                    classification = _provider.DotClassification;
-                }
-            } else if (token.Category == TokenCategory.Grouping) {
-                if ((token.Trigger & TokenTriggers.MatchBraces) != 0) {
-                    classification = _provider.GroupingClassification;
-                }
-            } else if (token.Category == TokenCategory.Delimiter) {
-                if (token.Trigger == TokenTriggers.ParameterNext) {
-                    classification = _provider.CommaClassification;
-                }
+            if (token.Is(TokenKind.Dot)) {
+                classification = _provider.DotClassification;
+            } else if (token.Is(TokenKind.Comma)) {
+                classification = _provider.CommaClassification;
+            } else {
+                CategoryMap.TryGetValue(token.Kind.GetCategory(), out classification);
             }
 
-            if (classification == null) {
-                CategoryMap.TryGetValue(token.Category, out classification);
+            if (classification == null || token.Span.Length == 0) {
+                return null;
             }
 
-            if (classification != null) {
-                var tokenSpan = new Span(token.StartIndex, token.EndIndex - token.StartIndex);
-                var intersection = span.Intersection(tokenSpan);
+            var tokenSnapshot = tokenization.Cookie as ITextSnapshot ?? span.Snapshot;
 
-                if (intersection != null && intersection.Value.Length > 0 ||
-                    // handle zero-length spans which Intersect and Overlap won't return true on ever.
-                    (span.Length == 0 && tokenSpan.Contains(span.Span))) {
-                    return new ClassificationSpan(new SnapshotSpan(span.Snapshot, tokenSpan), classification);
+            SnapshotSpan tokenSpan;
+            try {
+                if (tokenSnapshot == span.Snapshot) {
+                    tokenSpan = new SnapshotSpan(tokenSnapshot, token.Span.Start.Index, token.Span.Length);
+                } else {
+                    tokenSpan = tokenSnapshot
+                        .CreateTrackingSpan(token.Span.Start.Index, token.Span.Length, SpanTrackingMode.EdgeInclusive)
+                        .GetSpan(span.Snapshot);
                 }
+            } catch (ArgumentException) {
+                return null;
             }
 
+            if (span.Length == 0 && tokenSpan.Span.Contains(span) ||
+                (span.Intersection(tokenSpan) ?? default(Span)).Length > 0) {
+                return new ClassificationSpan(tokenSpan, classification);
+            }
             return null;
         }
     }
@@ -190,7 +198,7 @@ namespace Microsoft.PythonTools.Editor {
     internal static partial class ClassifierExtensions {
         public static PythonClassifier GetPythonClassifier(this ITextBuffer buffer) {
             PythonClassifier res;
-            if (buffer.Properties.TryGetProperty<PythonClassifier>(typeof(PythonClassifier), out res)) {
+            if (buffer.Properties.TryGetProperty(typeof(PythonClassifier), out res)) {
                 return res;
             }
             return null;

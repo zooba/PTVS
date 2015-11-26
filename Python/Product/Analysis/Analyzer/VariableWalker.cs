@@ -22,7 +22,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.PythonTools.Analysis.Values;
-using Microsoft.VisualStudioTools;
+using Microsoft.PythonTools.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     class VariableWalker : PythonWalker {
@@ -95,18 +95,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return false;
             }
 
-            for (int i = 0; i < node.Names.Count; ++i) {
-                string mi;
-                var name = node.AsNames?[i];
-                if (name == null) {
-                    name = node.Names[i].Names[0];
-                    mi = _analyzer.ResolveImportAsync(name.Name, "", CancellationToken.None).WaitAndUnwrapExceptions();
-                } else {
-                    var import = node.Names[i].MakeString();
-                    mi = _analyzer.ResolveImportAsync(import, "", CancellationToken.None).WaitAndUnwrapExceptions();
-                }
-                Add(name.Name, null);
-                Add(new Rules.ImportFromModule(mi, ModuleInfo.VariableName, name.Name));
+            foreach (var n in node.Names) {
+                var importName = ImportStatement.GetImportName(n);
+                var asName = ImportStatement.GetAsName(n);
+                var mi = _analyzer.ResolveImportAsync(importName, "", CancellationToken.None).WaitAndUnwrapExceptions();
+                Add(asName, null);
+                Add(new Rules.ImportFromModule(mi, ModuleInfo.VariableName, asName));
             }
 
             return false;

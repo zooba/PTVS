@@ -854,32 +854,37 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var start = Read(TokenKind.KeywordImport).Start;
             var stmt = new ImportStatement();
 
-            var names = new List<DottedName>();
-            var asNames = new List<NameExpression>();
-            var name = ReadDottedName();
-            while (name != null) {
-                names.Add(name);
+            var names = new List<SequenceItemExpression>();
+            var nameExpr = ReadDottedName();
+            var expr = (Expression)nameExpr;
+            while (!string.IsNullOrEmpty(nameExpr.MakeString())) {
                 if (TryRead(TokenKind.KeywordAs)) {
-                    var asStart = Current.Span.Start;
-                    asNames.Add(ReadName());
-                } else {
-                    asNames.Add(null);
+                    expr = new AsExpression {
+                        Expression = nameExpr,
+                        Name = ReadName(),
+                        Span = new SourceSpan(nameExpr.Span.Start, Current.Span.End)
+                    };
                 }
 
-                if (!TryRead(TokenKind.Comma)) {
-                    break;
-                }
+                nameExpr = WithCommentAndWhitespace(nameExpr);
+                nameExpr.Freeze();
 
-                name = ReadDottedName();
-                if (name == null) {
-                    names.Add(null);
-                    ReportError("trailing comma not allowed", Current.Span);
-                    break;
-                }
+                names.Add(WithCommentAndWhitespace(new SequenceItemExpression {
+                    Expression = expr,
+                    HasComma = TryRead(TokenKind.Comma),
+                    Span = new SourceSpan(nameExpr.Span.Start, Current.Span.End)
+                }));
+
+                nameExpr = ReadDottedName();
+                expr = nameExpr;
+            }
+
+            var lastName = names.LastOrDefault();
+            if (lastName?.HasComma ?? false) {
+                ReportError("trailing comma not allowed", lastName.Span);
             }
 
             stmt.Names = names;
-            stmt.AsNames = asNames;
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
             return WithCommentAndWhitespace(stmt);
@@ -2386,10 +2391,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private DottedName ReadDottedName() {
             var names = new List<NameExpression>();
-            var expr = new DottedName {
-                BeforeNode = ReadWhitespace(),
-                Names = names
-            };
+            var beforeNode = ReadWhitespace();
             while (true) {
                 var p = PeekNonWhitespace;
                 if (p.Is(TokenKind.Ellipsis)) {
@@ -2425,7 +2427,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     break;
                 }
             }
-            return WithCommentAndWhitespace(expr);
+            return WithCommentAndWhitespace(new DottedName {
+                BeforeNode = beforeNode,
+                Names = names,
+                Span = new SourceSpan((names.ElementAtOrDefault(0)?.Span.Start ?? beforeNode.End), Current.Span.End)
+            });
         }
 
         private NameExpression TryReadName(string prefix = null, bool allowStar = false) {

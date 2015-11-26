@@ -15,22 +15,20 @@
 // permissions and limitations under the License.
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer.Tasks;
-using Microsoft.PythonTools.Analysis.Values;
-using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
-using Microsoft.VisualStudioTools;
+using Microsoft.PythonTools.Common.Infrastructure;
+using Microsoft.PythonTools.Infrastructure;
+using Microsoft.PythonTools.Interpreter;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     public sealed class PythonLanguageService : IDisposable {
@@ -39,10 +37,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private readonly CancellationTokenSource _disposing;
         private int _users;
 
-        private readonly SemaphoreSlim _contextLock = new SemaphoreSlim(1, 1);
+        private readonly AsyncMutex _contextLock = new AsyncMutex();
         private readonly Dictionary<PythonFileContext, ContextState> _contexts;
 
-        private readonly SemaphoreSlim _searchPathsLock = new SemaphoreSlim(1, 1);
+        private readonly AsyncMutex _searchPathsLock = new AsyncMutex();
         private readonly List<KeyValuePair<string, string[]>> _searchPaths;
 
         private static readonly Regex ImportNameRegex = new Regex(
@@ -95,7 +93,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
             _disposing.CancelAfter(1000);
             try {
-                _provider.RemoveAsync(this, _disposing.Token).Wait();
+                _provider.RemoveAsync(this, _disposing.Token).Wait(_disposing.Token);
+            } catch (AggregateException ae) when (ae.InnerException is OperationCanceledException) {
             } catch (OperationCanceledException) {
             }
             if (!_disposing.IsCancellationRequested) {
@@ -110,6 +109,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 context.Key.SourceDocumentContentChanged -= Context_SourceDocumentContentChanged;
                 context.Value.Dispose();
             }
+
+            _contextLock.Dispose();
+            _searchPathsLock.Dispose();
+            _disposing.Dispose();
         }
 
         #endregion
@@ -119,32 +122,23 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         public async Task AddSearchPathAsync(string searchPath, string prefix, CancellationToken cancellationToken) {
-            await _searchPathsLock.WaitAsync(cancellationToken);
-            try {
+            using (await _searchPathsLock.WaitAsync(cancellationToken)) {
                 var prefixParts = string.IsNullOrEmpty(prefix) ? null : prefix.Split('.');
                 _searchPaths.Add(new KeyValuePair<string, string[]>(searchPath, prefixParts));
-            } finally {
-                _searchPathsLock.Release();
             }
         }
 
         public async Task ClearSearchPathsAsync(CancellationToken cancellationToken) {
-            await _searchPathsLock.WaitAsync(cancellationToken);
-            try {
+            using (await _searchPathsLock.WaitAsync(cancellationToken)) {
                 _searchPaths.Clear();
-            } finally {
-                _searchPathsLock.Release();
             }
         }
 
         private async Task<IReadOnlyCollection<KeyValuePair<string, string[]>>> GetSearchPathsAsync(
             CancellationToken cancellationToken
         ) {
-            await _searchPathsLock.WaitAsync(cancellationToken);
-            try {
+            using (await _searchPathsLock.WaitAsync(cancellationToken)) {
                 return _searchPaths.ToList();
-            } finally {
-                _searchPathsLock.Release();
             }
         }
 
@@ -184,9 +178,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string importingFromModule,
             CancellationToken cancellationToken
         ) {
+            if (string.IsNullOrEmpty(importName)) {
+                return null;
+            }
+
             var parts = GetModuleFullNameParts(importName, importingFromModule);
 
             var fileParts = parts.ToArray();
+            if (!fileParts.Any()) {
+                return null;
+            }
+
             fileParts[fileParts.Length - 1] += ".py";
 
             var initParts = parts.ToList();
@@ -194,8 +196,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
             var searchPaths = await GetSearchPathsAsync(cancellationToken);
 
-            await _contextLock.WaitAsync(cancellationToken);
-            try {
+            using (await _contextLock.WaitAsync(cancellationToken)) {
                 foreach (var kv in searchPaths) {
                     var rootPath = kv.Key;
                     var trimmedFileParts = kv.Value == null ?
@@ -214,8 +215,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         }
                     }
                 }
-            } finally {
-                _contextLock.Release();
             }
             return null;
         }
@@ -229,11 +228,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
             context.Disposed -= Context_Disposed;
 
-            await _contextLock.WaitAsync();
-            try {
+            using (_contextLock.WaitAsync(CancellationToken.None)) {
                 _contexts.Remove(context);
-            } finally {
-                _contextLock.Release();
             }
         }
 
@@ -242,16 +238,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
             ContextState state;
 
-            await _contextLock.WaitAsync(cancellationToken);
-            try {
+            using (await _contextLock.WaitAsync(cancellationToken)) {
                 if (!_contexts.TryGetValue(context, out state)) {
                     _contexts[context] = state = new ContextState(this, context, _disposing.Token);
                     context.Disposed += Context_Disposed;
                     context.DocumentsChanged += Context_DocumentsChanged;
                     context.SourceDocumentContentChanged += Context_SourceDocumentContentChanged;
                 }
-            } finally {
-                _contextLock.Release();
             }
 
             var docs = await context.GetDocumentsAsync(cancellationToken);
@@ -275,16 +268,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             var item = await GetAnalysisStateAsync(context, e.Document.Moniker, false, CancellationToken.None)
                 .ConfigureAwait(false);
 
-            await _contextLock.WaitAsync(CancellationToken.None);
-            try {
+            using (await _contextLock.WaitAsync(CancellationToken.None)) {
                 ContextState state;
                 if (_contexts.TryGetValue(context, out state)) {
                     state.Enqueue(new DocumentChanged(item, e.Document));
                 }
-            } finally {
-                _contextLock.Release();
             }
-
         }
 
         internal async Task AddNotificationAsync(
@@ -292,8 +281,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             AnalysisState reanalyze,
             CancellationToken cancellationToken
         ) {
-            await _contextLock.WaitAsync(cancellationToken);
-            try {
+            using (await _contextLock.WaitAsync(cancellationToken)) {
                 ContextState state;
                 HashSet<AnalysisState> states;
                 if (_contexts.TryGetValue(whenUpdated.Context, out state)) {
@@ -307,24 +295,19 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     }
                     states.Add(reanalyze);
                 }
-            } finally {
-                _contextLock.Release();
             }
         }
 
         private async void Context_SourceDocumentAnalysisChanged(object sender, SourceDocumentEventArgs e) {
             var context = (PythonFileContext)sender;
             IEnumerable<AnalysisState> toUpdate = null;
-            await _contextLock.WaitAsync(CancellationToken.None);
-            try {
+            using (await _contextLock.WaitAsync(CancellationToken.None)) {
                 ContextState state;
                 HashSet<AnalysisState> states = null;
                 if (_contexts.TryGetValue(context, out state) &&
                     (state.ReanalyzeOnUpdate?.TryGetValue(e.Document.Moniker, out states) ?? false)) {
                     toUpdate = states?.ToArray();
                 }
-            } finally {
-                _contextLock.Release();
             }
 
             if (toUpdate != null) {
@@ -341,8 +324,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             CancellationToken cancellationToken
         ) {
             AnalysisState item = null;
-            await _contextLock.WaitAsync(cancellationToken);
-            try {
+            using (await _contextLock.WaitAsync(cancellationToken)) {
                 ContextState state = null;
                 if (context != null) {
                     if (_contexts.TryGetValue(context, out state)) {
@@ -368,9 +350,35 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     state.Enqueue(new DocumentChanged(item, item.Document));
                 }
                 return item;
-            } finally {
-                _contextLock.Release();
             }
+        }
+
+        public async Task<object> GetItemTokenAsync(
+            PythonFileContext context,
+            string moniker,
+            bool searchAllContexts,
+            CancellationToken cancellationToken
+        ) {
+            return await GetAnalysisStateAsync(context, moniker, searchAllContexts, cancellationToken);
+        }
+
+        public async Task WaitForUpdateAsync(
+            PythonFileContext context,
+            string moniker,
+            CancellationToken cancellationToken
+        ) {
+            await WaitForUpdateAsync(
+                await GetAnalysisStateAsync(context, moniker, true, cancellationToken),
+                cancellationToken
+            );
+        }
+
+        public async Task WaitForUpdateAsync(object token, CancellationToken cancellationToken) {
+            var state = token as AnalysisState;
+            if (state == null) {
+                return;
+            }
+            await state.WaitForUpdateAsync(cancellationToken);
         }
 
         public async Task<Tokenization> GetTokenizationAsync(
@@ -378,7 +386,14 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string moniker,
             CancellationToken cancellationToken
         ) {
-            var state = await GetAnalysisStateAsync(context, moniker, true, cancellationToken);
+            return await GetTokenizationAsync(
+                await GetAnalysisStateAsync(context, moniker, true, cancellationToken),
+                cancellationToken
+            );
+        }
+
+        public async Task<Tokenization> GetTokenizationAsync(object token, CancellationToken cancellationToken) {
+            var state = token as AnalysisState;
             if (state == null) {
                 return null;
             }
@@ -390,7 +405,14 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string moniker,
             CancellationToken cancellationToken
         ) {
-            var state = await GetAnalysisStateAsync(context, moniker, true, cancellationToken);
+            return await GetAstAsync(
+                await GetAnalysisStateAsync(context, moniker, true, cancellationToken),
+                cancellationToken
+            );
+        }
+
+        public async Task<PythonAst> GetAstAsync(object token, CancellationToken cancellationToken) {
+            var state = token as AnalysisState;
             if (state == null) {
                 return null;
             }
@@ -405,8 +427,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             var searchPaths = await GetSearchPathsAsync(cancellationToken);
             var parts = GetModuleFullNameParts(importName, importingFromModule);
 
-            await _contextLock.WaitAsync(cancellationToken);
-            try {
+            using (await _contextLock.WaitAsync(cancellationToken)) {
                 var result = new Dictionary<string, string>();
 
                 foreach (var searchPath in searchPaths) {
@@ -438,8 +459,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 }
 
                 return result;
-            } finally {
-                _contextLock.Release();
             }
         }
 
@@ -488,14 +507,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             QueueItem item,
             CancellationToken cancellationToken
         ) {
-            await _contextLock.WaitAsync(cancellationToken);
-            try {
+            using (await _contextLock.WaitAsync(cancellationToken)) {
                 ContextState state;
                 if (_contexts.TryGetValue(context, out state)) {
                     state.Enqueue(item);
                 }
-            } finally {
-                _contextLock.Release();
             }
         }
 

@@ -17,17 +17,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.PythonTools.Interpreter;
+using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     public sealed class PythonFileContext : IDisposable {
         private readonly string _contextRoot;
         private readonly string _packageName;
         private readonly PathSet<ISourceDocument> _files;
-        private readonly SemaphoreSlim _filesLock = new SemaphoreSlim(1, 1);
+        private readonly AsyncMutex _filesLock = new AsyncMutex();
 
         public PythonFileContext(
             string contextRoot,
@@ -59,13 +58,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             CancellationToken cancellationToken
         ) {
             bool anyAdded = false;
-            await _filesLock.WaitAsync(cancellationToken);
-            try {
+            using (await _filesLock.WaitAsync(cancellationToken)) {
                 foreach (var file in inputFiles) {
                     anyAdded |= _files.Add(file.Moniker, file);
                 }
-            } finally {
-                _filesLock.Release();
             }
             if (anyAdded) {
                 DocumentsChanged?.Invoke(this, EventArgs.Empty);
@@ -73,28 +69,22 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         public async Task<IReadOnlyCollection<ISourceDocument>> GetDocumentsAsync(CancellationToken cancellationToken) {
-            await _filesLock.WaitAsync(cancellationToken);
-            try {
+            using (await _filesLock.WaitAsync(cancellationToken)) {
                 return _files.GetValues().ToList();
-            } finally {
-                _filesLock.Release();
             }
         }
 
         public async Task<bool> ContainsAsync(string filePath, CancellationToken cancellationToken) {
-            await _filesLock.WaitAsync(cancellationToken);
-            try {
+            using (await _filesLock.WaitAsync(cancellationToken)) {
                 return _files.Contains(filePath);
-            } finally {
-                _filesLock.Release();
             }
         }
 
-        internal void NotifyDocumentContentChanged(ISourceDocument document) {
+        public void NotifyDocumentContentChanged(ISourceDocument document) {
             SourceDocumentContentChanged?.Invoke(this, new SourceDocumentEventArgs(document));
         }
 
-        internal void NotifyDocumentAnalysisChanged(ISourceDocument document) {
+        public void NotifyDocumentAnalysisChanged(ISourceDocument document) {
             SourceDocumentAnalysisChanged?.Invoke(this, new SourceDocumentEventArgs(document));
         }
     }

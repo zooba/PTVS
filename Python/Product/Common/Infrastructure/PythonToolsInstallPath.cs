@@ -20,7 +20,7 @@ using System.IO;
 using System.Reflection;
 using Microsoft.Win32;
 
-namespace Microsoft.PythonTools {
+namespace Microsoft.PythonTools.Infrastructure {
     static class PythonToolsInstallPath {
         private static string GetFromAssembly(Assembly assembly, string filename) {
             string path = Path.Combine(

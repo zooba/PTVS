@@ -21,22 +21,24 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Common.Infrastructure;
 using Microsoft.PythonTools.Interpreter;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     [Export(typeof(PythonLanguageServiceProvider))]
     public sealed class PythonLanguageServiceProvider : IDisposable {
         private readonly PathSet<PythonLanguageService> _services;
-        private readonly SemaphoreSlim _servicesLock = new SemaphoreSlim(1, 1);
+        private readonly AsyncMutex _servicesLock = new AsyncMutex();
 
         public PythonLanguageServiceProvider() {
             _services = new PathSet<PythonLanguageService>(null);
         }
 
         public void Dispose() {
-            _servicesLock.Wait();
-            foreach (var v in _services.GetValues()) {
-                v.Dispose();
+            using (_servicesLock.WaitAndDispose(1000)) {
+                foreach (var v in _services.GetValues()) {
+                    v.Dispose();
+                }
             }
         }
 
@@ -45,8 +47,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             PythonFileContextProvider fileContextProvider,
             CancellationToken cancellationToken
         ) {
-            await _servicesLock.WaitAsync(cancellationToken);
-            try {
+            using (await _servicesLock.WaitAsync(cancellationToken)) {
                 PythonLanguageService service;
                 if (!_services.TryGetValue(config.InterpreterPath, out service) || !service.AddReference()) {
                     service = new PythonLanguageService(this, config);
@@ -63,17 +64,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     _services.Add(config.InterpreterPath, service);
                 }
                 return service;
-            } finally {
-                _servicesLock.Release();
             }
         }
 
         internal async Task RemoveAsync(PythonLanguageService service, CancellationToken cancellationToken) {
-            await _servicesLock.WaitAsync(cancellationToken);
-            try {
+            using (await _servicesLock.WaitAsync(cancellationToken)) {
                 _services.Remove(service.Configuration.InterpreterPath);
-            } finally {
-                _servicesLock.Release();
             }
         }
     }

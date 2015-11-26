@@ -26,7 +26,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private static readonly string[] _star = new[] { "*" };
         private DottedName _root;
         private IList<SequenceItemExpression> _names;
-        private SourceSpan _beforeNames;
+        private SourceSpan _beforeRoot, _beforeNames;
         private bool _hasParentheses;
 
         private IList<PythonVariable> _variables;
@@ -47,6 +47,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public IList<SequenceItemExpression> Names {
             get { return _names; }
             set { ThrowIfFrozen(); _names = value; }
+        }
+
+        public SourceSpan BeforeRoot {
+            get { return _beforeRoot; }
+            set { ThrowIfFrozen(); _beforeRoot = value; }
         }
 
         public SourceSpan BeforeNames {

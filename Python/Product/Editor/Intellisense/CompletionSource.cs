@@ -19,11 +19,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Interpreter;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
-using Microsoft.VisualStudioTools;
 
 namespace Microsoft.PythonTools.Editor.Intellisense {
     class CompletionSource : ICompletionSource {

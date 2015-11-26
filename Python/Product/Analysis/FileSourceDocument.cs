@@ -16,6 +16,7 @@
 
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis {
@@ -30,7 +31,11 @@ namespace Microsoft.PythonTools.Analysis {
             get { return _fullPath; }
         }
 
-        public async Task<Stream> ReadAsync() {
+        public async Task ReadAndGetCookieAsync(Action<Stream, object> action, CancellationToken cancellationToken) {
+            action(await ReadAsync(cancellationToken), null);
+        }
+
+        public async Task<Stream> ReadAsync(CancellationToken cancellationToken) {
             return new FileStream(_fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, true);
         }
     }

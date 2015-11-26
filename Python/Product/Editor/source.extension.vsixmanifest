@@ -1,10 +1,10 @@
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="7332C6A5-B54E-4CE6-B71E-48149C47BA82" Version="2.2" Language="en-US" Publisher="Microsoft" />
+    <Identity Id="7332C6A5-B54E-4CE6-B71E-48149C47BA83" Version="3.0" Language="en-US" Publisher="Microsoft Corporation" />
     <DisplayName>Python Tools for Visual Studio - Editor</DisplayName>
     <Description xml:space="preserve">Provides support for editing and debugging Python programs.</Description>
-    <MoreInfo>http://pytools.codeplex.com</MoreInfo>
-    <GettingStartedGuide>http://pytools.codeplex.com</GettingStartedGuide>
+    <MoreInfo>http://aka.ms/ptvs</MoreInfo>
+    <GettingStartedGuide>http://aka.ms/ptvs</GettingStartedGuide>
   </Metadata>
   <Installation InstalledByMsi="true">
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="14.0" />
@@ -15,9 +15,11 @@
     <Asset Type="Microsoft.VisualStudio.Package" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
     <Asset Type="Microsoft.VisualStudio.Assembly" Path="|%CurrentProject%;_GetTargetPath|" AssemblyName="|%CurrentProject%;_GetAssemblyName|" />
     <Asset Type="Microsoft.VisualStudio.Assembly" Path="|Microsoft.PythonTools.Analysis;_GetTargetPath|" AssemblyName="|Microsoft.PythonTools.Analysis;_GetAssemblyName|" />
+    <Asset Type="Microsoft.VisualStudio.Assembly" Path="|Microsoft.PythonTools.Common;_GetTargetPath|" AssemblyName="|Microsoft.PythonTools.Common;_GetAssemblyName|" />
     <Asset Type="Microsoft.VisualStudio.Assembly" Path="|Microsoft.PythonTools.Interpreter;_GetTargetPath|" AssemblyName="|Microsoft.PythonTools.Interpreter;_GetAssemblyName|" />
     <Asset Type="Microsoft.VisualStudio.MefComponent" Path="|%CurrentProject%;_GetTargetPath|" />
     <Asset Type="Microsoft.VisualStudio.MefComponent" Path="|Microsoft.PythonTools.Analysis;_GetTargetPath|" />
+    <Asset Type="Microsoft.VisualStudio.MefComponent" Path="|Microsoft.PythonTools.Common;_GetTargetPath|" />
     <Asset Type="Microsoft.VisualStudio.MefComponent" Path="|Microsoft.PythonTools.Interpreter;_GetTargetPath|" />
   </Assets>
 </PackageManifest>

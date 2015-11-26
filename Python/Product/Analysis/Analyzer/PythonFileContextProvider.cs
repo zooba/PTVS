@@ -23,14 +23,15 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Common.Infrastructure;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Interpreter;
-using Microsoft.VisualStudioTools;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     [Export(typeof(PythonFileContextProvider))]
-    public sealed class PythonFileContextProvider {
+    public sealed class PythonFileContextProvider : IDisposable {
         private readonly List<PythonFileContext> _contexts;
-        private readonly SemaphoreSlim _contextsLock = new SemaphoreSlim(1, 1);
+        private readonly AsyncMutex _contextsLock = new AsyncMutex();
 
         public PythonFileContextProvider() {
             _contexts = new List<PythonFileContext>();
@@ -41,17 +42,22 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string filePath,
             CancellationToken cancellationToken
         ) {
-            var res = new List<PythonFileContext>();
-            await _contextsLock.WaitAsync(cancellationToken);
-            try {
+            using (await _contextsLock.WaitAsync(cancellationToken)) {
+                var res = new List<PythonFileContext>();
                 foreach (var c in _contexts) {
                     if (await c.ContainsAsync(filePath, cancellationToken)) {
                         res.Add(c);
                     }
                 }
                 return res.AsReadOnly();
-            } finally {
-                _contextsLock.Release();
+            }
+        }
+
+        public void Dispose() {
+            using (_contextsLock.WaitAndDispose(1000)) {
+                foreach (var c in _contexts) {
+                    c.Dispose();
+                }
             }
         }
 
@@ -171,14 +177,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             var contexts = await GetContextsAsync(workspaceLocation, progress, cancellationToken);
 
             bool any = false;
-            await _contextsLock.WaitAsync(cancellationToken);
-            try {
-                foreach(var pfc in contexts) {
+            using (await _contextsLock.WaitAsync(cancellationToken)) {
+                foreach (var pfc in contexts) {
                     _contexts.Add(pfc);
                     any = true;
                 }
-            } finally {
-                _contextsLock.Release();
             }
 
             if (any) {

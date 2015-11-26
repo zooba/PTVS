@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Analyzer;
@@ -40,14 +41,16 @@ namespace AnalysisTests {
         private static Tokenization Tokenize(ISourceDocument document, PythonLanguageVersion version) {
             return Tokenization.TokenizeAsync(
                 document,
-                version
+                version,
+                CancellationToken.None
             ).GetAwaiter().GetResult();
         }
 
         private static Tokenization Tokenize(string text, PythonLanguageVersion version) {
             return Tokenization.TokenizeAsync(
                 new StringLiteralDocument(text),
-                version
+                version,
+                CancellationToken.None
             ).GetAwaiter().GetResult();
         }
 
