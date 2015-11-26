@@ -49,20 +49,18 @@ namespace Microsoft.PythonTools.Editor {
             public bool ShouldDedentAfter;
         }
 
-        private static async Task<int> CalculateIndentationAsync(
-            string baseline,
+        private static async Task<int?> CalculateIndentationAsync(
             ITextSnapshotLine line,
             IEditorOptions options,
             CancellationToken cancellationToken
         ) {
             int tabSize = options.GetTabSize();
             int indentSize = options.GetIndentSize();
-            int indentation = GetIndentation(baseline, tabSize);
 
             var tokenization = await line.Snapshot.TextBuffer.GetTokenizationAsync(cancellationToken);
             var tokens = tokenization?.GetTokensEndingAtLineReversed(line.LineNumber);
             if (tokens == null) {
-                return indentation;
+                return null;
             }
 
             var tokenStack = new Stack<Token>();
@@ -121,11 +119,9 @@ namespace Microsoft.PythonTools.Editor {
                 }
             }
 
-            indentation = current.Indentation +
+            return current.Indentation +
                 (current.ShouldIndentAfter ? indentSize : 0) -
                 (current.ShouldDedentAfter ? indentSize : 0);
-
-            return indentation;
         }
 
         private static bool ShouldDedentAfterKeyword(Token token) {
@@ -169,10 +165,6 @@ namespace Microsoft.PythonTools.Editor {
         internal static int? GetLineIndentation(ITextSnapshotLine line, ITextView textView) {
             var options = textView.Options;
 
-            ITextSnapshotLine baseline;
-            string baselineText;
-            SkipPreceedingBlankLines(line, out baselineText, out baseline);
-
             ITextBuffer targetBuffer = textView.TextBuffer;
             if (!targetBuffer.ContentType.IsOfType(ContentType.Name)) {
                 var match = textView.BufferGraph.MapDownToFirstMatch(line.Start, PointTrackingMode.Positive, EditorExtensions.IsPythonContent, PositionAffinity.Successor);
@@ -190,8 +182,7 @@ namespace Microsoft.PythonTools.Editor {
             }
 
             var desiredIndentation = CalculateIndentationAsync(
-                baselineText,
-                baseline,
+                line,
                 options,
                 CancellationToken.None
             ).WaitAndUnwrapExceptions();
@@ -216,7 +207,7 @@ namespace Microsoft.PythonTools.Editor {
                             // we would dedent this line (e.g. there's a return on the previous line) but the user is
                             // hitting enter with a statement to the right of the caret and they're in the middle of white space.
                             // So we need to instead just maintain the existing indentation level.
-                            desiredIndentation = Math.Max(GetIndentation(baselineText, options.GetTabSize()) - indentationUpdate, 0);
+                            //desiredIndentation = Math.Max(GetIndentation(baselineText, options.GetTabSize()) - indentationUpdate, 0);
                         } else {
                             desiredIndentation -= indentationUpdate;
                         }

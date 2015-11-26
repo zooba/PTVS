@@ -98,7 +98,8 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
 
             var classifier = buffer.GetPythonClassifier();
             classifier?.BeginUpdateClassifications(buffer.CurrentSnapshot);
-
+            var analysisClassifier = buffer.GetPythonAnalysisClassifier();
+            analysisClassifier?.BeginUpdateClassifications(buffer.CurrentSnapshot);
         }
 
         private void ClearBufferProperties(ITextBuffer buffer) {

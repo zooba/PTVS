@@ -1337,7 +1337,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var args = new List<Arg>();
             var names = new HashSet<string>();
 
-            while (!Peek.Is(closing)) {
+            while (!Peek.Is(closing) && !Peek.Is(TokenKind.EndOfFile)) {
                 var a = new Arg();
 
                 var expr = ParseSingleExpression(allowSlice: allowSlice);
@@ -1359,6 +1359,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 MaybeReadComment(a);
                 a.HasCommaAfterNode = TryRead(TokenKind.Comma);
                 a.Freeze();
+
+                if (Expression.IsNullOrEmpty(a.Expression) &&
+                    a.Comment == null &&
+                    !a.HasCommaAfterNode) {
+                    break;
+                }
 
                 args.Add(a);
             }

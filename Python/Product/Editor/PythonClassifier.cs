@@ -30,7 +30,7 @@ using Microsoft.VisualStudio.Text.Classification;
 
 namespace Microsoft.PythonTools.Editor {
     /// <summary>
-    /// Provides classification based upon the DLR TokenCategory enum.
+    /// Provides classification based upon the TokenCategory enum.
     /// </summary>
     internal sealed class PythonClassifier : IClassifier, IDisposable {
         private readonly PythonClassifierProvider _provider;

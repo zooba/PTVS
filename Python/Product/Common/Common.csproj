@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Infrastructure\CommonUtils.cs" />
+    <Compile Include="Infrastructure\EnumerableExtensions.cs" />
     <Compile Include="Infrastructure\ExceptionExtensions.cs" />
     <Compile Include="Infrastructure\AsyncMutex.cs" />
     <Compile Include="Infrastructure\ProcessOutput.cs" />

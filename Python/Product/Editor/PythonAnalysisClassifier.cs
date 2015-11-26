@@ -21,12 +21,16 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
-using Microsoft.PythonTools.Intellisense;
+using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.VisualStudio.Language.StandardClassification;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
+using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.PythonTools.Analysis.Parsing;
+using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Editor {
     struct CachedClassification {
@@ -42,163 +46,134 @@ namespace Microsoft.PythonTools.Editor {
     /// <summary>
     /// Provides classification based upon the AST and analysis.
     /// </summary>
-    internal class PythonAnalysisClassifier : IClassifier {
-        private List<List<CachedClassification>> _spanCache;
-        private readonly object _spanCacheLock = new object();
+    /// <summary>
+    /// Provides classification based upon the DLR TokenCategory enum.
+    /// </summary>
+    internal sealed class PythonAnalysisClassifier : IClassifier, IDisposable {
         private readonly PythonAnalysisClassifierProvider _provider;
         private readonly ITextBuffer _buffer;
-        private IPythonProjectEntry _entry;
+
+        private IVsTask _currentTask;
+
+        private readonly object _classificationsLock = new object();
+        private ITextVersion _classificationsVersion;
+        private List<List<CachedClassification>> _classifications;
 
         internal PythonAnalysisClassifier(PythonAnalysisClassifierProvider provider, ITextBuffer buffer) {
-            buffer.Changed += BufferChanged;
-            buffer.ContentTypeChanged += BufferContentTypeChanged;
-
             _provider = provider;
             _buffer = buffer;
-            EnsureAnalysis();
+            _classifications = new List<List<CachedClassification>>();
+
+            _buffer.Changed += Buffer_Changed;
+            _buffer.ContentTypeChanged += BufferContentTypeChanged;
+
+            BeginUpdateClassifications(_buffer.CurrentSnapshot);
         }
 
-        public void NewVersion() {
-            var newEntry = _buffer.GetPythonProjectEntry();
-            var oldEntry = Interlocked.Exchange(ref _entry, newEntry);
-            if (oldEntry != null && oldEntry != newEntry) {
-                oldEntry.OnNewAnalysis -= OnNewAnalysis;
+        private void Buffer_Changed(object sender, TextContentChangedEventArgs e) {
+            BeginUpdateClassifications(e.After);
+        }
+
+        internal void BeginUpdateClassifications(ITextSnapshot snapshot) {
+            var task = ThreadHelper.JoinableTaskFactory.RunAsyncAsVsTask(
+                VsTaskRunContext.UIThreadBackgroundPriority,
+                ct => UpdateClassifications(_buffer.CurrentSnapshot, ct)
+            );
+            task.Description = GetType().FullName;
+            var oldTask = Interlocked.Exchange(ref _currentTask, task);
+            if (oldTask != null) {
+                oldTask.Cancel();
             }
-            if (newEntry != null) {
-                newEntry.OnNewAnalysis += OnNewAnalysis;
-                if (newEntry.IsAnalyzed) {
-                    // Ensure we get classifications if we've already been
-                    // analyzed
-                    OnNewAnalysis(_entry, EventArgs.Empty);
+        }
+
+        private async Task<bool> UpdateClassifications(ITextSnapshot snapshot, CancellationToken cancellationToken) {
+            var buffer = snapshot.TextBuffer;
+            var version = snapshot.Version;
+
+            ISourceDocument document;
+            PythonFileContext context;
+            PythonLanguageService analyzer;
+
+            if (!buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) ||
+                !buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context) ||
+                !buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer)) {
+                return false;
+            }
+
+            var item = await analyzer.GetItemTokenAsync(context, document.Moniker, false, cancellationToken);
+            if (item == null) {
+                return false;
+            }
+
+            await analyzer.WaitForUpdateAsync(item, cancellationToken);
+
+            var ast = await analyzer.GetAstAsync(item, cancellationToken);
+
+            //var start = e.Changes.Min(c => c.NewSpan.Start);
+            //var end = e.Changes.Max(c => c.NewSpan.End);
+            //var span = new SnapshotSpan(e.After, start, end - start);
+            var span = new SnapshotSpan(snapshot, 0, snapshot.Length);
+
+            var walker = new ClassifierWalker(ast, analyzer, span.Snapshot, _provider.CategoryMap);
+            ast.Walk(walker);
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            bool changed = false;
+            lock (_classificationsLock) {
+                if (_classificationsVersion == null ||
+                    _classificationsVersion.VersionNumber < version.VersionNumber) {
+                    _classificationsVersion = version;
+                    _classifications = walker.Spans;
+                    changed = true;
                 }
             }
+
+            if (changed) {
+                ClassificationChanged?.Invoke(this, new ClassificationChangedEventArgs(span));
+            }
+            return changed;
         }
 
-        private void EnsureAnalysis() {
-            if (_entry == null) {
-                NewVersion();
-            }
-        }
-
-        private void OnNewAnalysis(object sender, EventArgs e) {
-            var entry = sender as IPythonProjectEntry;
-            if (entry == null || entry != _entry || !entry.IsAnalyzed) {
-                Debug.Fail("Project entry does not match expectation");
-                return;
-            }
-
-            var pyService = _provider._serviceProvider.GetPythonToolsService();
-            var options = pyService != null ? pyService.AdvancedOptions : null;
-            if (options == null || options.ColorNames == false) {
-                lock (_spanCacheLock) {
-                    if (_spanCache != null) {
-                        _spanCache = null;
-                        OnNewClassifications(_buffer.CurrentSnapshot);
-                    }
-                }
-                return;
-            }
-
-            PythonAst tree;
-            IAnalysisCookie cookie;
-            entry.GetTreeAndCookie(out tree, out cookie);
-            var sCookie = cookie as SnapshotCookie;
-            var snapshot = sCookie != null ? sCookie.Snapshot : null;
-            if (tree == null || snapshot == null) {
-                return;
-            }
-
-
-            var moduleAnalysis = options.ColorNamesWithAnalysis ? entry.Analysis : null;
-
-            var walker = new ClassifierWalker(tree, moduleAnalysis, snapshot, Provider.CategoryMap);
-            tree.Walk(walker);
-            var newCache = walker.Spans;
-
-            lock (_spanCacheLock) {
-                if (snapshot == snapshot.TextBuffer.CurrentSnapshot) {
-                    // Ensure we have not raced with another update
-                    _spanCache = newCache;
-                } else {
-                    snapshot = null;
-                }
-            }
-            if (snapshot != null) {
-                OnNewClassifications(snapshot);
-            }
-        }
-
-        private void OnNewClassifications(ITextSnapshot snapshot) {
-            var changed = ClassificationChanged;
-            if (changed != null) {
-                changed(this, new ClassificationChangedEventArgs(new SnapshotSpan(snapshot, 0, snapshot.Length)));
-            }
+        void IDisposable.Dispose() {
+            _buffer.Changed -= Buffer_Changed;
+            _buffer.ContentTypeChanged -= BufferContentTypeChanged;
         }
 
         public event EventHandler<ClassificationChangedEventArgs> ClassificationChanged;
 
+        /// <summary>
+        /// This method classifies the given snapshot span.
+        /// </summary>
         public IList<ClassificationSpan> GetClassificationSpans(SnapshotSpan span) {
-            EnsureAnalysis();
-            
-            var classifications = new List<ClassificationSpan>();
-            var snapshot = span.Snapshot;
-            var spans = _spanCache;
-
-            if (span.Length <= 0 || span.Snapshot.IsReplBufferWithCommand() || spans == null) {
-                return classifications;
+            List<List<CachedClassification>> classifications;
+            lock (_classificationsLock) {
+                classifications = _classifications;
             }
 
-
-            var firstLine = 0; // span.Start.GetContainingLine().LineNumber;
-            var lastLine = int.MaxValue; // span.End.GetContainingLine().LineNumber;
-            for (int line = firstLine; line <= lastLine && line < spans.Count; ++line) {
-                var lineSpan = spans[line];
-                if (lineSpan != null) {
-                    foreach (var cc in lineSpan) {
-                        if (cc.Span.TextBuffer != snapshot.TextBuffer) {
-                            continue;
-                        }
-                        var cs = cc.Span.GetSpan(snapshot);
-                        if (!cs.IntersectsWith(span)) {
-                            continue;
-                        }
-
-                        IClassificationType classification;
-                        if (_provider.CategoryMap.TryGetValue(cc.Classification, out classification)) {
-                            Debug.Assert(classification != null, "Did not find " + cc.Classification);
-                            classifications.Add(new ClassificationSpan(cc.Span.GetSpan(snapshot), classification));
-                        }
+            var map = CategoryMap;
+            var result = new List<ClassificationSpan>();
+            int lastLine = span.End.GetContainingLine().LineNumber;
+            for (int line = span.Start.GetContainingLine().LineNumber; line <= lastLine; ++line) {
+                foreach (var cs in classifications.ElementAtOrDefault(line).MaybeEnumerate()) {
+                    var s = cs.Span.GetSpan(span.Snapshot);
+                    IClassificationType ct;
+                    if (s.OverlapsWith(span) && map.TryGetValue(cs.Classification, out ct)) {
+                        result.Add(new ClassificationSpan(s, ct));
                     }
                 }
             }
 
-            return classifications;
+            return result;
         }
 
-        public PythonAnalysisClassifierProvider Provider {
-            get {
-                return _provider;
-            }
-        }
-
-        #region Private Members
+        public PythonAnalysisClassifierProvider Provider => _provider;
+        private Dictionary<string, IClassificationType> CategoryMap => _provider.CategoryMap;
 
         private void BufferContentTypeChanged(object sender, ContentTypeChangedEventArgs e) {
-            _spanCache = null;
-            _buffer.Changed -= BufferChanged;
+            _buffer.Changed -= Buffer_Changed;
             _buffer.ContentTypeChanged -= BufferContentTypeChanged;
-            if (_entry != null) {
-                _entry.OnNewAnalysis -= OnNewAnalysis;
-                _entry = null;
-            }
-            _buffer.Properties.RemoveProperty(typeof(PythonAnalysisClassifier));
+            _buffer.Properties.RemoveProperty(typeof(PythonClassifier));
         }
-
-        private void BufferChanged(object sender, TextContentChangedEventArgs e) {
-            EnsureAnalysis();
-        }
-
-        #endregion
     }
 
     internal static partial class ClassifierExtensions {
@@ -218,7 +193,7 @@ namespace Microsoft.PythonTools.Editor {
             public readonly HashSet<string> Functions;
             public readonly HashSet<string> Types;
             public readonly HashSet<string> Modules;
-            public readonly List<Tuple<string, Span>> Names;
+            public readonly List<Tuple<string, SourceSpan>> Names;
             public readonly StackData Previous;
 
             public StackData(string name, StackData previous) {
@@ -228,7 +203,7 @@ namespace Microsoft.PythonTools.Editor {
                 Functions = new HashSet<string>();
                 Types = new HashSet<string>();
                 Modules = new HashSet<string>();
-                Names = new List<Tuple<string, Span>>();
+                Names = new List<Tuple<string, SourceSpan>>();
             }
 
             public IEnumerable<StackData> EnumerateTowardsGlobal {
@@ -241,27 +216,28 @@ namespace Microsoft.PythonTools.Editor {
         }
         
         private readonly PythonAst _ast;
-        private readonly ModuleAnalysis _analysis;
+        private readonly PythonLanguageService _analyzer;
         private readonly ITextSnapshot _snapshot;
         private readonly Dictionary<string, IClassificationType> _formatMap;
         private StackData _head;
         public readonly List<List<CachedClassification>> Spans;
 
-        public ClassifierWalker(PythonAst ast, ModuleAnalysis analysis, ITextSnapshot snapshot, Dictionary<string, IClassificationType> formatMap) {
+        public ClassifierWalker(
+            PythonAst ast,
+            PythonLanguageService analyzer,
+            ITextSnapshot snapshot,
+            Dictionary<string, IClassificationType> formatMap
+        ) {
             _ast = ast;
-            _analysis = analysis;
+            _analyzer = analyzer;
             _snapshot = snapshot;
             _formatMap = formatMap;
             Spans = new List<List<CachedClassification>>();
         }
 
-        private void AddSpan(Tuple<string, Span> node, string type) {
-            int lineNo;
-            try {
-                lineNo = _snapshot.GetLineNumberFromPosition(node.Item2.Start);
-            } catch (ArgumentException) {
-                return;
-            }
+        private void AddSpan(Tuple<string, SourceSpan> node, string type) {
+            var span = node.Item2;
+            int lineNo = span.Start.Line;
             var existing = lineNo < Spans.Count ? Spans[lineNo] : null;
             if (existing == null) {
                 while (lineNo >= Spans.Count) {
@@ -270,7 +246,7 @@ namespace Microsoft.PythonTools.Editor {
                 Spans[lineNo] = existing = new List<CachedClassification>();
             }
             existing.Add(new CachedClassification(
-                _snapshot.CreateTrackingSpan(node.Item2, SpanTrackingMode.EdgeExclusive),
+                _snapshot.CreateTrackingSpan(span.Start.Index, span.Length, SpanTrackingMode.EdgeExclusive),
                 type
             ));
         }
@@ -289,7 +265,7 @@ namespace Microsoft.PythonTools.Editor {
         private void AddParameter(Parameter node) {
             Debug.Assert(_head != null);
             _head.Parameters.Add(node.Name);
-            _head.Names.Add(Tuple.Create(node.Name, new Span(node.StartIndex, node.Name.Length)));
+            _head.Names.Add(Tuple.Create(node.Name, node.NameExpression.Span));
         }
 
         private void AddParameter(Node node) {
@@ -308,16 +284,16 @@ namespace Microsoft.PythonTools.Editor {
         }
 
         public override bool Walk(NameExpression node) {
-            _head.Names.Add(Tuple.Create(node.Name, Span.FromBounds(node.StartIndex, node.EndIndex)));
+            _head.Names.Add(Tuple.Create(node.Name, node.Span));
             return base.Walk(node);
         }
 
         private static string GetFullName(MemberExpression expr) {
-            var ne = expr.Target as NameExpression;
+            var ne = expr.Expression as NameExpression;
             if (ne != null) {
                 return ne.Name + "." + expr.Name ?? string.Empty;
             }
-            var me = expr.Target as MemberExpression;
+            var me = expr.Expression as MemberExpression;
             if (me != null) {
                 var baseName = GetFullName(me);
                 if (baseName == null) {
@@ -331,21 +307,23 @@ namespace Microsoft.PythonTools.Editor {
         public override bool Walk(MemberExpression node) {
             var fullname = GetFullName(node);
             if (fullname != null) {
-                _head.Names.Add(Tuple.Create(fullname, Span.FromBounds(node.NameHeader, node.EndIndex)));
+                _head.Names.Add(Tuple.Create(fullname, node.NameExpression.Span));
             }
             return base.Walk(node);
         }
 
         public override bool Walk(DottedName node) {
-            string totalName = "";
-            foreach (var name in node.Names) {
-                _head.Names.Add(Tuple.Create(totalName + name.Name, Span.FromBounds(name.StartIndex, name.EndIndex)));
-                totalName += name.Name + ".";
+            if ((node.Names?.Count ?? 0) > 0) {
+                string totalName = "";
+                foreach (var name in node.Names) {
+                    _head.Names.Add(Tuple.Create(totalName + name.Name, new SourceSpan(node.Span.Start, name.Span.End)));
+                    totalName += name.Name + ".";
+                }
             }
             return base.Walk(node);
         }
 
-        private string ClassifyName(Tuple<string, Span> node) {
+        private string ClassifyName(Tuple<string, SourceSpan> node) {
             var name = node.Item1;
             foreach (var sd in _head.EnumerateTowardsGlobal) {
                 if (sd.Parameters.Contains(name)) {
@@ -359,24 +337,24 @@ namespace Microsoft.PythonTools.Editor {
                 }
             }
 
-            if (_analysis != null) {
-                var memberType = PythonMemberType.Unknown;
-                lock (_analysis) {
-                    memberType = _analysis
-                        .GetValuesByIndex(name, node.Item2.Start)
-                        .Select(v => v.MemberType)
-                        .DefaultIfEmpty(PythonMemberType.Unknown)
-                        .Aggregate((a, b) => a == b ? a : PythonMemberType.Unknown);
-                }
-
-                if (memberType == PythonMemberType.Module) {
-                    return PythonPredefinedClassificationTypeNames.Module;
-                } else if (memberType == PythonMemberType.Class) {
-                    return PythonPredefinedClassificationTypeNames.Class;
-                } else if (memberType == PythonMemberType.Function || memberType == PythonMemberType.Method) {
-                    return PythonPredefinedClassificationTypeNames.Function;
-                }
-            }
+            //if (_analysis != null) {
+            //    var memberType = PythonMemberType.Unknown;
+            //    lock (_analysis) {
+            //        memberType = _analysis
+            //            .GetValuesByIndex(name, node.Item2.Start)
+            //            .Select(v => v.MemberType)
+            //            .DefaultIfEmpty(PythonMemberType.Unknown)
+            //            .Aggregate((a, b) => a == b ? a : PythonMemberType.Unknown);
+            //    }
+            //
+            //    if (memberType == PythonMemberType.Module) {
+            //        return PythonPredefinedClassificationTypeNames.Module;
+            //    } else if (memberType == PythonMemberType.Class) {
+            //        return PythonPredefinedClassificationTypeNames.Class;
+            //    } else if (memberType == PythonMemberType.Function || memberType == PythonMemberType.Method) {
+            //        return PythonPredefinedClassificationTypeNames.Function;
+            //    }
+            //}
 
             return null;
         }
@@ -422,9 +400,9 @@ namespace Microsoft.PythonTools.Editor {
         }
 
         public override bool Walk(FunctionDefinition node) {
-            if (node.IsCoroutine) {
-                AddSpan(Tuple.Create("", new Span(node.StartIndex, 5)), PredefinedClassificationTypeNames.Keyword);
-            }
+            //if (node.IsAsync) {
+            //    AddSpan(Tuple.Create("", new Span(node.StartIndex, 5)), PredefinedClassificationTypeNames.Keyword);
+            //}
 
             Debug.Assert(_head != null);
             _head.Functions.Add(node.NameExpression.Name);
@@ -460,30 +438,22 @@ namespace Microsoft.PythonTools.Editor {
 
         public override bool Walk(ImportStatement node) {
             Debug.Assert(_head != null);
-            if (node.AsNames != null) {
-                foreach (var name in node.AsNames) {
-                    if (name != null && !string.IsNullOrEmpty(name.Name)) {
-                        _head.Modules.Add(name.Name);
-                        _head.Names.Add(Tuple.Create(name.Name, Span.FromBounds(name.StartIndex, name.EndIndex)));
+            foreach(var name in node.Names.MaybeEnumerate()) {
+                AsExpression asName;
+                DottedName importName;
+                if ((asName = name.Expression as AsExpression) != null &&
+                    ((importName = asName.Expression as DottedName) != null)) {
+                    foreach (var n in importName.Names.MaybeEnumerate()) {
+                        // Only want to highlight this instance of the
+                        // name, since it isn't going to be bound in the
+                        // rest of the module.
+                        AddSpan(Tuple.Create(n.Name, n.Span), PythonPredefinedClassificationTypeNames.Module);
                     }
-                }
-            }
-            if (node.Names != null) {
-                for (int i = 0; i < node.Names.Count; ++i) {
-                    var dottedName = node.Names[i];
-                    var hasAsName = (node.AsNames != null && node.AsNames.Count > i) ? node.AsNames[i] != null : false;
-                    foreach (var name in dottedName.Names) {
-                        if (name != null && !string.IsNullOrEmpty(name.Name)) {
-                            if (!hasAsName) {
-                                _head.Modules.Add(name.Name);
-                                _head.Names.Add(Tuple.Create(name.Name, Span.FromBounds(name.StartIndex, name.EndIndex)));
-                            } else {
-                                // Only want to highlight this instance of the
-                                // name, since it isn't going to be bound in the
-                                // rest of the module.
-                                AddSpan(Tuple.Create(name.Name, Span.FromBounds(name.StartIndex, name.EndIndex)), PythonPredefinedClassificationTypeNames.Module);
-                            }
-                        }
+                    _head.Modules.Add(asName.Name.Name);
+                } else if ((importName = name.Expression as DottedName) != null) {
+                    foreach (var n in importName.Names.MaybeEnumerate()) {
+                        _head.Modules.Add(n.Name);
+                        _head.Names.Add(Tuple.Create(n.Name, n.Span));
                     }
                 }
             }
@@ -492,18 +462,20 @@ namespace Microsoft.PythonTools.Editor {
 
         public override bool Walk(FromImportStatement node) {
             Debug.Assert(_head != null);
-            if (node.Root != null) {
-                foreach (var name in node.Root.Names) {
-                    if (name != null && !string.IsNullOrEmpty(name.Name)) {
-                        AddSpan(Tuple.Create(name.Name, Span.FromBounds(name.StartIndex, name.EndIndex)), PythonPredefinedClassificationTypeNames.Module);
-                    }
+            foreach (var name in node.Root?.Names.MaybeEnumerate()) {
+                if (!string.IsNullOrEmpty(name?.Name)) {
+                    AddSpan(Tuple.Create(name.Name, name.Span), PythonPredefinedClassificationTypeNames.Module);
                 }
             }
-            if (node.Names != null) {
-                foreach (var name in node.Names) {
-                    if (name != null && !string.IsNullOrEmpty(name.Name)) {
-                        _head.Names.Add(Tuple.Create(name.Name, Span.FromBounds(name.StartIndex, name.EndIndex)));
-                    }
+            foreach (var name in node.Names.MaybeEnumerate()) {
+                AsExpression asName;
+                NameExpression importName;
+                if ((asName = name.Expression as AsExpression) != null &&
+                    (importName = asName.Expression as NameExpression) != null) {
+                    _head.Names.Add(Tuple.Create(asName.Name.Name, asName.Name.Span));
+                    AddSpan(Tuple.Create(importName.Name, importName.Span), PythonPredefinedClassificationTypeNames.Module);
+                } else if ((importName = name.Expression as NameExpression) != null) {
+                    _head.Names.Add(Tuple.Create(importName.Name, importName.Span));
                 }
             }
             return base.Walk(node);
@@ -542,23 +514,23 @@ namespace Microsoft.PythonTools.Editor {
         }
 
 
-        public override bool Walk(AwaitExpression node) {
-            AddSpan(Tuple.Create("", new Span(node.StartIndex, 5)), PredefinedClassificationTypeNames.Keyword);
-            return base.Walk(node);
-        }
+        //public override bool Walk(AwaitExpression node) {
+        //    AddSpan(Tuple.Create("", new Span(node.StartIndex, 5)), PredefinedClassificationTypeNames.Keyword);
+        //    return base.Walk(node);
+        //}
 
-        public override bool Walk(ForStatement node) {
-            if (node.IsAsync) {
-                AddSpan(Tuple.Create("", new Span(node.StartIndex, 5)), PredefinedClassificationTypeNames.Keyword);
-            }
-            return base.Walk(node);
-        }
+        //public override bool Walk(ForStatement node) {
+        //    if (node.IsAsync) {
+        //        AddSpan(Tuple.Create("", new Span(node.StartIndex, 5)), PredefinedClassificationTypeNames.Keyword);
+        //    }
+        //    return base.Walk(node);
+        //}
 
-        public override bool Walk(WithStatement node) {
-            if (node.IsAsync) {
-                AddSpan(Tuple.Create("", new Span(node.StartIndex, 5)), PredefinedClassificationTypeNames.Keyword);
-            }
-            return base.Walk(node);
-        }
+        //public override bool Walk(WithStatement node) {
+        //    if (node.IsAsync) {
+        //        AddSpan(Tuple.Create("", new Span(node.StartIndex, 5)), PredefinedClassificationTypeNames.Keyword);
+        //    }
+        //    return base.Walk(node);
+        //}
     }
 }

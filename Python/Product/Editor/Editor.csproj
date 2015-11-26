@@ -114,12 +114,13 @@
     <Compile Include="Intellisense\FuzzyStringMatcher.cs" />
     <Compile Include="Intellisense\ReverseExpressionParser.cs" />
     <Compile Include="Intellisense\TextBufferSourceDocument.cs" />
+    <Compile Include="PythonEditorOptions.cs" />
     <Compile Include="TextSnapshotStream.cs" />
     <Compile Include="TextViewStream.cs" />
     <Compile Include="IPythonEditorOptions.cs" />
     <Compile Include="LanguagePreferences.cs" />
-    <None Include="PythonAnalysisClassifier.cs" />
-    <None Include="PythonAnalysisClassifierProvider.cs" />
+    <Compile Include="PythonAnalysisClassifier.cs" />
+    <Compile Include="PythonAnalysisClassifierProvider.cs" />
     <Compile Include="PythonClassifier.cs" />
     <Compile Include="PythonClassifierProvider.cs" />
     <Compile Include="PythonPredefinedClassificationTypeNames.cs" />
