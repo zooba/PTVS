@@ -14,16 +14,21 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-namespace Microsoft.PythonTools.Parsing {
+
+namespace Microsoft.PythonTools.Analysis.Parsing {
     public struct ErrorResult {
         public readonly string Message;
-        public readonly IndexSpan Span;
+        public readonly SourceSpan Span;
         public readonly Severity Severity;
 
-        public ErrorResult(string message, IndexSpan span, Severity severity) {
+        public ErrorResult(string message, SourceSpan span, Severity severity) {
             Message = message;
             Span = span;
             Severity = severity;
+        }
+
+        public override string ToString() {
+            return $"{Message} ({Span.Start}-{Span.End})";
         }
     }
 }

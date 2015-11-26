@@ -14,9 +14,10 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 
-namespace Microsoft.PythonTools.Parsing {
+namespace Microsoft.PythonTools.Analysis.Parsing {
     /// <summary>
     /// Specifies the version of the Python language to be used for parsing.
     /// 
@@ -24,7 +25,6 @@ namespace Microsoft.PythonTools.Parsing {
     /// </summary>
     public enum PythonLanguageVersion {
         None = 0,
-        V24 = 0x0204,
         V25 = 0x0205,
         V26 = 0x0206,
         V27 = 0x0207,
@@ -62,7 +62,6 @@ namespace Microsoft.PythonTools.Parsing {
                     break;
                 case 2:
                     switch (version.Minor) {
-                        case 4: return PythonLanguageVersion.V24;
                         case 5: return PythonLanguageVersion.V25;
                         case 6: return PythonLanguageVersion.V26;
                         case 7: return PythonLanguageVersion.V27;

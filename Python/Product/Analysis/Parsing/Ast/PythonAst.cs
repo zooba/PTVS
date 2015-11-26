@@ -14,32 +14,37 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 using System.Collections.Generic;
 using System.Text;
-using Microsoft.PythonTools.Analysis;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     /// <summary>
     /// Top-level ast for all Python code.  Holds onto the body and the line mapping information.
     /// </summary>
-    public sealed class PythonAst : ScopeStatement, ILocationResolver {
-        private readonly Statement _body;
+    public sealed class PythonAst : ScopeStatement /*, ILocationResolver*/ {
         private readonly Tokenization _tokenization;
         private readonly Dictionary<Node, Dictionary<object, object>> _attributes = new Dictionary<Node, Dictionary<object, object>>();
         private string _privatePrefix;
         private ErrorResult[] _errors;
 
+#if DEBUG
+        internal static readonly object VariableReference = "VariableReference";
+#else
+        internal static readonly object VariableReference = new object();
+#endif
+
         public PythonAst(
             Statement body,
             Tokenization tokenization
-        ) {
+        ) : base(TokenKind.Unknown) {
             if (body == null) {
                 throw new ArgumentNullException("body");
             }
             _tokenization = tokenization;
-            _body = body;
+            Body = body;
         }
 
         internal void SetErrors(ErrorResult[] errors) {
@@ -69,24 +74,17 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             }
         }
 
-        /// <summary>
-        /// True if the AST was created with verbatim strings.
-        /// </summary>
-        public bool HasVerbatim { get; internal set; }
-
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _body.Walk(walker);
+                Body.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
-        public override Statement Body {
-            get { return _body; }
-        }
+        public PythonLanguageVersion LanguageVersion => _tokenization.LanguageVersion;
 
-        public PythonLanguageVersion LanguageVersion {
-            get { return _tokenization.LanguageVersion; }
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            Body.AppendCodeString(output, ast, format);
         }
 
         internal bool TryGetAttribute(Node node, object key, out object value) {
@@ -119,92 +117,79 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             }
         }
 
-        internal SourceLocation IndexToLocation(int index) {
-            return SourceLocation.FromIndex(GlobalParent._tokenization, index);
-        }
-
         #region Name Binding Support
 
-        internal override bool ExposesLocalVariable(PythonVariable variable) {
-            return true;
-        }
+        //internal override void FinishBind(PythonNameBinder binder) {
+        //}
 
-        internal override void FinishBind(PythonNameBinder binder) {
-        }
+        //internal override PythonVariable BindReference(PythonNameBinder binder, string name) {
+        //    return EnsureVariable(name);
+        //}
 
-        internal override PythonVariable BindReference(PythonNameBinder binder, string name) {
-            return EnsureVariable(name);
-        }
+        //internal override bool TryBindOuter(ScopeStatement from, string name, bool allowGlobals, out PythonVariable variable) {
+        //    if (allowGlobals) {
+        //        // Unbound variable
+        //        from.AddReferencedGlobal(name);
 
-        internal override bool TryBindOuter(ScopeStatement from, string name, bool allowGlobals, out PythonVariable variable) {
-            if (allowGlobals) {
-                // Unbound variable
-                from.AddReferencedGlobal(name);
+        //        if (from.HasLateBoundVariableSets) {
+        //            // If the context contains unqualified exec, new locals can be introduced
+        //            // Therefore we need to turn this into a fully late-bound lookup which
+        //            // happens when we don't have a PythonVariable.
+        //            variable = null;
+        //            return false;
+        //        } else {
+        //            // Create a global variable to bind to.
+        //            variable = EnsureGlobalVariable(name);
+        //            return true;
+        //        }
+        //    }
+        //    variable = null;
+        //    return false;
+        //}
 
-                if (from.HasLateBoundVariableSets) {
-                    // If the context contains unqualified exec, new locals can be introduced
-                    // Therefore we need to turn this into a fully late-bound lookup which
-                    // happens when we don't have a PythonVariable.
-                    variable = null;
-                    return false;
-                } else {
-                    // Create a global variable to bind to.
-                    variable = EnsureGlobalVariable(name);
-                    return true;
-                }
-            }
-            variable = null;
-            return false;
-        }
-
-        internal override bool IsGlobal {
-            get { return true; }
-        }
+        //internal override bool IsGlobal {
+        //    get { return true; }
+        //}
 
         /// <summary>
         /// Creates a variable at the global level.  Called for known globals (e.g. __name__),
         /// for variables explicitly declared global by the user, and names accessed
         /// but not defined in the lexical scope.
         /// </summary>
-        internal PythonVariable/*!*/ EnsureGlobalVariable(string name) {
-            PythonVariable variable;
-            if (!TryGetVariable(name, out variable)) {
-                variable = CreateVariable(name, VariableKind.Global);
-            }
+        //internal PythonVariable/*!*/ EnsureGlobalVariable(string name) {
+        //    PythonVariable variable;
+        //    if (!TryGetVariable(name, out variable)) {
+        //        variable = CreateVariable(name, VariableKind.Global);
+        //    }
+        //
+        //    return variable;
+        //}
 
-            return variable;
-        }
 
-
-        internal PythonVariable/*!*/ EnsureNonlocalVariable(string name) {
-            PythonVariable variable;
-            if (!TryGetVariable(name, out variable)) {
-                variable = CreateVariable(name, VariableKind.Nonlocal);
-            }
-
-            return variable;
-        }
+        //internal PythonVariable/*!*/ EnsureNonlocalVariable(string name) {
+        //    PythonVariable variable;
+        //    if (!TryGetVariable(name, out variable)) {
+        //        variable = CreateVariable(name, VariableKind.Nonlocal);
+        //    }
+        //
+        //    return variable;
+        //}
 
         #endregion
 
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            _body.AppendCodeString(res, ast, format);
-            res.Append(this.GetExtraVerbatimText(ast));
-        }
-
         #region ILocationResolver Members
 
-        LocationInfo ILocationResolver.ResolveLocation(IProjectEntry project, object location) {
-            Node node = (Node)location;
-            MemberExpression me = node as MemberExpression;
-            SourceSpan span;
-            if (me != null) {
-                span = me.GetNameSpan(this);
-            } else {
-                span = node.GetSpan(this);
-            }
-            return new LocationInfo(project, span.Start.Line, span.Start.Column);
-        }
+        //LocationInfo ILocationResolver.ResolveLocation(IProjectEntry project, object location) {
+        //    Node node = (Node)location;
+        //    MemberExpression me = node as MemberExpression;
+        //    SourceSpan span;
+        //    if (me != null) {
+        //        span = me.GetNameSpan(this);
+        //    } else {
+        //        span = node.GetSpan(this);
+        //    }
+        //    return new LocationInfo(project, span.Start.Line, span.Start.Column);
+        //}
 
         #endregion
     }

@@ -14,180 +14,85 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     /// <summary>
     /// Parameter base class
     /// </summary>
     public class Parameter : Node {
-        /// <summary>
-        /// Position of the parameter: 0-based index
-        /// </summary>
-        private readonly string/*!*/ _name;
-        internal readonly ParameterKind _kind;
-        internal Expression _defaultValue, _annotation;
+        private NameExpression _name;
+        private ParameterKind _kind;
+        private Expression _defaultValue, _annotationOrSublist;
+        private bool _hasCommaBeforeComment, _hasCommaAfterNode;
 
-        public Parameter(string name, ParameterKind kind) {
-            _name = name ?? "";
-            _kind = kind;
-        }
+        public Parameter() { }
 
-        public override string NodeName {
-            get {
-                return "parameter name";
-            }
-        }
-
-        /// <summary>
-        /// Parameter name
-        /// </summary>
-        public string/*!*/ Name {
+        public NameExpression NameExpression {
             get { return _name; }
+            set { ThrowIfFrozen(); _name = value; }
+        }
+
+        public string Name {
+            get { return _name?.Name; }
         }
 
         public Expression DefaultValue {
             get { return _defaultValue; }
-            set { _defaultValue = value; }
+            set { ThrowIfFrozen(); _defaultValue = value; }
         }
 
         public Expression Annotation {
-            get {
-                return _annotation;
-            }
-            set {
-                _annotation = value;
-            }
+            get { return _annotationOrSublist; }
+            set { ThrowIfFrozen(); _annotationOrSublist = value; }
         }
 
-        public bool IsList {
-            get {
-                return _kind == ParameterKind.List;
-            }
+        public TupleExpression Sublist {
+            get { return IsSublist ? (TupleExpression)_annotationOrSublist : null; }
+            set { ThrowIfFrozen(); _annotationOrSublist = value; }
         }
 
-        public bool IsDictionary {
-            get {
-                return _kind == ParameterKind.Dictionary;
-            }
+        public bool HasCommaBeforeComment {
+            get { return _hasCommaBeforeComment; }
+            set { ThrowIfFrozen(); _hasCommaBeforeComment = value; }
         }
 
-        public bool IsKeywordOnly {
-            get {
-                return _kind == ParameterKind.KeywordOnly;
-            }
+        public bool HasCommaAfterNode {
+            get { return _hasCommaAfterNode; }
+            set { ThrowIfFrozen(); _hasCommaAfterNode = value; }
         }
+
+        public bool IsEmpty => _name == null;
+
+        public bool IsList => _kind == ParameterKind.List;
+
+        public bool IsDictionary => _kind == ParameterKind.Dictionary;
+
+        public bool IsKeywordOnly => _kind == ParameterKind.KeywordOnly;
+
+        public bool IsSublist => _kind == ParameterKind.Sublist;
 
         internal ParameterKind Kind {
-            get {
-                return _kind;
-            }
+            get { return _kind; }
+            set { ThrowIfFrozen(); _kind = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_annotation != null) {
-                    _annotation.Walk(walker);
-                }
-                if (_defaultValue != null) {
-                    _defaultValue.Walk(walker);
-                }
+                _annotationOrSublist?.Walk(walker);
+                _defaultValue?.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
         public PythonVariable GetVariable(PythonAst ast) {
             object reference;
-            if (ast.TryGetAttribute(this, NodeAttributes.Variable, out reference)) {
+            if (ast.TryGetAttribute(this, PythonVariable.AstKey, out reference)) {
                 return (PythonVariable)reference;
             }
             return null;
         }
-
-        public void AddPreceedingWhiteSpace(PythonAst ast, string whiteSpace) {
-            ast.SetAttribute(this, NodeAttributes.PrecedingWhiteSpace, whiteSpace);
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            AppendCodeString(res, ast, format, null);
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format, string leadingWhiteSpace) {
-            string kwOnlyText = this.GetExtraVerbatimText(ast);
-            if (kwOnlyText != null) {
-                if (leadingWhiteSpace != null) {
-                    res.Append(leadingWhiteSpace);
-                    res.Append(kwOnlyText.TrimStart());
-                    leadingWhiteSpace = null;
-                } else {
-                    res.Append(kwOnlyText);
-                }
-            }
-            switch (Kind) {
-                case ParameterKind.Dictionary:
-                    res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpace(ast));
-                    res.Append("**");
-                    res.Append(this.GetSecondWhiteSpace(ast));
-                    res.Append(this.GetVerbatimImage(ast) ?? _name);
-                    AppendAnnotation(res, ast, format);
-                    break;
-                case ParameterKind.List:
-                    res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpace(ast));
-                    res.Append('*');
-                    res.Append(this.GetSecondWhiteSpace(ast));
-                    res.Append(this.GetVerbatimImage(ast) ?? _name);
-                    AppendAnnotation(res, ast, format);
-                    break;
-                case ParameterKind.Normal:
-                    if (this.IsAltForm(ast)) {
-                        res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpace(ast));
-                        res.Append('(');
-                        res.Append(this.GetThirdWhiteSpace(ast));
-                        res.Append(this.GetVerbatimImage(ast) ?? _name);
-                        if (!this.IsMissingCloseGrouping(ast)) {
-                            res.Append(this.GetSecondWhiteSpace(ast));
-                            res.Append(')');
-                        }
-                    } else {
-                        res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpaceDefaultEmpty(ast));
-                        res.Append(this.GetVerbatimImage(ast) ?? _name);
-                        AppendAnnotation(res, ast, format);
-                    }
-                    break;
-                case ParameterKind.KeywordOnly:
-                    res.Append(leadingWhiteSpace ?? this.GetPrecedingWhiteSpace(ast));
-                    res.Append(this.GetVerbatimImage(ast) ?? _name);
-                    AppendAnnotation(res, ast, format);
-                    break;
-                default: throw new InvalidOperationException();
-            }
-
-            if (_defaultValue != null) {
-                format.Append(
-                    res,
-                    format.SpaceAroundDefaultValueEquals,
-                    " ",
-                    "",
-                    this.GetSecondWhiteSpace(ast)
-                );
-
-                res.Append('=');
-                if (format.SpaceAroundDefaultValueEquals != null) {
-                    _defaultValue.AppendCodeString(res, ast, format, format.SpaceAroundDefaultValueEquals.Value ? " " : "");
-                } else {
-                    _defaultValue.AppendCodeString(res, ast, format);
-                }
-            }
-        }
-
-        private void AppendAnnotation(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            if (_annotation != null) {
-                res.Append(this.GetThirdWhiteSpace(ast));
-                res.Append(':');
-                _annotation.AppendCodeString(res, ast, format);
-            }
-        }
     }
-
 }

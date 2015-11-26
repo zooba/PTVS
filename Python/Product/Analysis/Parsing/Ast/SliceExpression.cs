@@ -14,94 +14,43 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class SliceExpression : Expression {
-        private readonly Expression _sliceStart;
-        private readonly Expression _sliceStop;
-        private readonly Expression _sliceStep;
-        private readonly bool _stepProvided;
-
-        public SliceExpression(Expression start, Expression stop, Expression step, bool stepProvided) {
-            _sliceStart = start;
-            _sliceStop = stop;
-            _sliceStep = step;
-            _stepProvided = stepProvided;
-        }
+        private Expression _sliceStart, _sliceStop, _sliceStep;
 
         public Expression SliceStart {
             get { return _sliceStart; }
+            set { ThrowIfFrozen(); _sliceStart = value; }
         }
 
         public Expression SliceStop {
             get { return _sliceStop; }
+            set { ThrowIfFrozen(); _sliceStop = value; }
         }
 
         public Expression SliceStep {
             get { return _sliceStep; }
+            set { ThrowIfFrozen(); _sliceStep = value; }
         }
 
         /// <summary>
         /// True if the user provided a step parameter (either providing an explicit parameter
         /// or providing an empty step parameter) false if only start and stop were provided.
         /// </summary>
-        public bool StepProvided {
-            get {
-                return _stepProvided;
-            }
-        }
+        public bool StepProvided => _sliceStep != null;
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_sliceStart != null) {
-                    _sliceStart.Walk(walker);
-                }
-                if (_sliceStop != null) {
-                    _sliceStop.Walk(walker);
-                }
-                if (_sliceStep != null) {
-                    _sliceStep.Walk(walker);
-                }
+                _sliceStart?.Walk(walker);
+                _sliceStop?.Walk(walker);
+                _sliceStep?.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            if (_sliceStart != null) {
-                _sliceStart.AppendCodeString(res, ast, format);
-            }
-            if (!this.IsIncompleteNode(ast)) {
-                res.Append(this.GetPrecedingWhiteSpace(ast));
-                res.Append(':');
-                if (_sliceStop != null) {
-                    _sliceStop.AppendCodeString(res, ast, format);
-                }
-                if (_stepProvided) {
-                    res.Append(this.GetSecondWhiteSpace(ast));
-                    res.Append(':');
-                    if (_sliceStep != null) {
-                        _sliceStep.AppendCodeString(res, ast, format);
-                    }
-                }
-            }
-        }
-
-
-        public override string GetLeadingWhiteSpace(PythonAst ast) {
-            if (_sliceStart != null) {
-                return _sliceStart.GetLeadingWhiteSpace(ast);
-            }
-            return this.GetPrecedingWhiteSpace(ast);
-        }
-
-        public override void SetLeadingWhiteSpace(PythonAst ast, string whiteSpace) {
-            if (_sliceStart != null) {
-                _sliceStart.SetLeadingWhiteSpace(ast, whiteSpace);
-            } else {
-                base.SetLeadingWhiteSpace(ast, whiteSpace);
-            }
-        }
-
+        internal override string CheckName => "slice literal";
     }
 }

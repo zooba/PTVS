@@ -14,10 +14,11 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 using Microsoft.PythonTools.Analysis;
 
-namespace Microsoft.PythonTools.Parsing {
+namespace Microsoft.PythonTools.Analysis.Parsing {
     /// <summary>
     /// Provides the localized description of a code formatting option.
     /// 
@@ -35,13 +36,13 @@ namespace Microsoft.PythonTools.Parsing {
 
         public string ShortDescription {
             get {
-                return Resources.ResourceManager.GetString(_short);
+                return "";// Resources.ResourceManager.GetString(_short);
             }
         }
 
         public string LongDescription {
             get {
-                return Resources.ResourceManager.GetString(_long);
+                return "";// Resources.ResourceManager.GetString(_long);
             }
         }
     }

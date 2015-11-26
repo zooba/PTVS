@@ -14,20 +14,28 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public sealed class SuiteStatement : Statement {
-        private readonly Statement[] _statements;
+        private readonly IReadOnlyList<Statement> _statements;
+        private readonly SourceSpan _indent;
 
-        public SuiteStatement(Statement[] statements) {
+        public SuiteStatement(IReadOnlyList<Statement> statements, SourceSpan indent) {
             _statements = statements;
+            _indent = indent;
         }
 
-        public IList<Statement> Statements {
+        public IReadOnlyList<Statement> Statements {
             get { return _statements; }
+        }
+
+        public SourceSpan Indent {
+            get { return _indent; }
         }
 
         public override void Walk(PythonWalker walker) {
@@ -43,11 +51,21 @@ namespace Microsoft.PythonTools.Parsing.Ast {
 
         public override string Documentation {
             get {
-                if (_statements.Length > 0) {
-                    return _statements[0].Documentation;
-                }
-                return null;
+                return _statements?.FirstOrDefault()?.Documentation;
             }
+        }
+
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            // TODO: Apply formatting options
+            BeforeNode.AppendCodeString(output, ast);
+            if (_statements != null) {
+                foreach (var s in _statements) {
+                    Indent.AppendCodeString(output, ast);
+                    s.AppendCodeString(output, ast, format);
+                }
+            }
+            Comment?.AppendCodeString(output, ast, format);
+            AfterNode.AppendCodeString(output, ast);
         }
 
         /// <summary>
@@ -62,101 +80,9 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 statements[i - start] = Statements[i];
             }
 
-            var res = new SuiteStatement(statements);
-
-            // propagate white space so we stay mostly the same...
-            var itemWhiteSpace = this.GetListWhiteSpace(ast);
-            var colonWhiteSpace = this.GetPrecedingWhiteSpaceDefaultEmpty(ast);
-
-            if (itemWhiteSpace != null) {
-                // semi-colon list of statements, must end in a new line, but the original new line
-                // could be multiple lines.
-                ast.SetAttribute(res, NodeAttributes.ListWhiteSpace, new string[0]);
-            } else {
-                ast.SetAttribute(res, NodeAttributes.IsAltFormValue, NodeAttributes.IsAltFormValue);
-            }
+            var res = new SuiteStatement(statements, _indent);
 
             return res;
-        }
-
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            // SuiteStatement comes in 3 forms:
-            //  1. The body of a if/else/while/for/etc... where there's an opening colon
-            //  2. A set of semi-colon separated items
-            //  3. A top-level group of statements in a top-level PythonAst node.
-            var itemWhiteSpace = this.GetListWhiteSpace(ast);
-            if (this.IsAltForm(ast)) {
-                // suite statement in top-level PythonAst, we have no colons or other delimiters
-                foreach (var statement in _statements) {
-                    statement.AppendCodeString(res, ast, format);
-                }
-                return;
-            }
-
-            if (itemWhiteSpace == null) {
-                // 3rd form, suite statement as the body of a class/function, we
-                // include the colon.
-                res.Append(this.GetPrecedingWhiteSpaceDefaultEmpty(ast));
-                res.Append(':');
-                format.ReflowComment(res, this.GetComment(ast));
-
-                foreach (var statement in _statements) {
-                    statement.AppendCodeString(res, ast, format);
-                }
-                return;
-            }
-
-            if (format.BreakMultipleStatementsPerLine && _statements.Length > 1) {
-                string leadingWhiteSpace = "";
-                StringBuilder tmp = new StringBuilder();
-                _statements[0].AppendCodeString(tmp, ast, format);
-                var stmt = tmp.ToString();
-                res.Append(stmt);
-
-                // figure out the whitespace needed for the next statement based upon the current statement
-                for (int curChar = 0; curChar < stmt.Length; curChar++) {
-                    if (!char.IsWhiteSpace(stmt[curChar])) {
-                        leadingWhiteSpace = format.GetNextLinePrecedingText(stmt.Substring(0, curChar));
-                        break;
-                    }
-                }
-
-                for (int i = 1; i < _statements.Length; i++) {
-                    _statements[i].AppendCodeString(res, ast, format, leadingWhiteSpace);
-                }
-            } else {
-                // form 2, semi-colon seperated list.
-                for (int i = 0; i < _statements.Length; i++) {
-                    if (i > 0) {
-                        if (i - 1 < itemWhiteSpace.Length) {
-                            res.Append(itemWhiteSpace[i - 1]);
-                        }
-                        res.Append(';');
-                    }
-                    _statements[i].AppendCodeString(res, ast, format);
-                }
-            }
-
-            if (itemWhiteSpace.Length == _statements.Length && _statements.Length != 0) {
-                // trailing semi-colon
-                if (!format.RemoveTrailingSemicolons) {
-                    res.Append(itemWhiteSpace[itemWhiteSpace.Length - 1]);
-                    res.Append(";");
-                }
-            }
-        }
-
-        public override string GetLeadingWhiteSpace(PythonAst ast) {
-            if (_statements.Length == 0) {
-                return "";
-            }
-            return _statements[0].GetLeadingWhiteSpace(ast);
-        }
-
-        public override void SetLeadingWhiteSpace(PythonAst ast, string whiteSpace) {
-            if (_statements.Length != 0) {
-                _statements[0].SetLeadingWhiteSpace(ast, whiteSpace);
-            }
         }
     }
 }

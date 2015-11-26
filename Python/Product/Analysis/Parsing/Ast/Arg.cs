@@ -14,39 +14,40 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public sealed class Arg : Node {
-        private readonly Expression _name;
-        private readonly Expression _expression;
+        private Expression _name, _expression;
+        private bool _hasCommaAfterNode;
 
-        public Arg(Expression expression) : this(null, expression) { }
-
-        public Arg(Expression name, Expression expression) {
-            _name = name;
-            _expression = expression;
-        }
+        public Arg() { }
 
         public string Name {
-            get {
-                var nameExpr = _name as NameExpression;
-                if (nameExpr != null) {
-                    return nameExpr.Name;
-                }
-                return null;
-            }
+            get { return (_name as NameExpression)?.Name; }
+        }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _name?.Freeze();
+            _expression?.Freeze();
         }
 
         public Expression NameExpression {
-            get {
-                return _name;
-            }
+            get { return _name; }
+            set { ThrowIfFrozen(); _name = value; }
         }
 
         public Expression Expression {
             get { return _expression; }
-        } 
+            set { ThrowIfFrozen(); _expression = value; }
+        }
+
+        public bool HasCommaAfterNode {
+            get { return _hasCommaAfterNode; }
+            set { ThrowIfFrozen(); _hasCommaAfterNode = value; }
+        }
 
         public override string ToString() {
             return base.ToString() + ":" + _name;
@@ -54,29 +55,9 @@ namespace Microsoft.PythonTools.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
+                _expression?.Walk(walker);
             }
             walker.PostWalk(this);
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format)
-        {
-            if (_name != null) {
-                if (Name == "*" || Name == "**") {
-                    _name.AppendCodeString(res, ast, format);
-                    _expression.AppendCodeString(res, ast, format);
-                } else {
-                    // keyword arg
-                    _name.AppendCodeString(res, ast, format);
-                    res.Append(this.GetPrecedingWhiteSpace(ast));
-                    res.Append('=');
-                    _expression.AppendCodeString(res, ast, format);
-                }
-            } else {
-                _expression.AppendCodeString(res, ast, format);
-            }
         }
     }
 }

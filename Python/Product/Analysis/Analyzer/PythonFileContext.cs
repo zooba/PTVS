@@ -1,4 +1,20 @@
-﻿using System;
+﻿// Python Tools for Visual Studio
+// Copyright(c) Microsoft Corporation
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the License); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+// OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+// IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+// MERCHANTABLITY OR NON-INFRINGEMENT.
+//
+// See the Apache Version 2.0 License for specific language governing
+// permissions and limitations under the License.
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -28,7 +44,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         public event EventHandler Disposed;
 
-        public event EventHandler<SourceDocumentContentChangedEventArgs> SourceDocumentContentChanged;
+        public event EventHandler DocumentsChanged;
+
+        public event EventHandler<SourceDocumentEventArgs> SourceDocumentContentChanged;
+
+        public event EventHandler<SourceDocumentEventArgs> SourceDocumentAnalysisChanged;
 
         public string ContextRoot {
             get { return _contextRoot; }
@@ -38,13 +58,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             IReadOnlyCollection<ISourceDocument> inputFiles,
             CancellationToken cancellationToken
         ) {
+            bool anyAdded = false;
             await _filesLock.WaitAsync(cancellationToken);
             try {
                 foreach (var file in inputFiles) {
-                    _files.Add(file.Moniker, file);
+                    anyAdded |= _files.Add(file.Moniker, file);
                 }
             } finally {
                 _filesLock.Release();
+            }
+            if (anyAdded) {
+                DocumentsChanged?.Invoke(this, EventArgs.Empty);
             }
         }
 
@@ -66,12 +90,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        public void NotifyDocumentContentChanged(ISourceDocument document) {
-            SourceDocumentContentChanged?.Invoke(this, new SourceDocumentContentChangedEventArgs(document));
+        internal void NotifyDocumentContentChanged(ISourceDocument document) {
+            SourceDocumentContentChanged?.Invoke(this, new SourceDocumentEventArgs(document));
         }
 
-        public object First() {
-            throw new NotImplementedException();
+        internal void NotifyDocumentAnalysisChanged(ISourceDocument document) {
+            SourceDocumentAnalysisChanged?.Invoke(this, new SourceDocumentEventArgs(document));
         }
     }
 }

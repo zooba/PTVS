@@ -14,14 +14,14 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
-using Microsoft.PythonTools.Parsing.Ast;
 
-namespace Microsoft.PythonTools.Parsing {
+namespace Microsoft.PythonTools.Analysis.Parsing {
     /// <summary>
     /// Represents a location in source code.
     /// </summary>
@@ -131,6 +131,15 @@ namespace Microsoft.PythonTools.Parsing {
         }
 
         /// <summary>
+        /// Adds a certain number of columns to the location. This never changes
+        /// the line number.
+        /// </summary>
+        public static SourceLocation operator +(SourceLocation left, int right) {
+            return new SourceLocation(left.Index + right, left.Line, left.Column + right);
+        }
+        
+
+        /// <summary>
         /// Compares two specified location values to see if they are equal.
         /// </summary>
         /// <param name="left">One location to compare.</param>
@@ -217,6 +226,11 @@ namespace Microsoft.PythonTools.Parsing {
         /// A minimal valid location.
         /// </summary>
         public static readonly SourceLocation MinValue = new SourceLocation(0, 1, 1);
+
+        /// <summary>
+        /// A maximal valid (though incredibly unlikely) location.
+        /// </summary>
+        public static readonly SourceLocation MaxValue = new SourceLocation(int.MaxValue, int.MaxValue, int.MaxValue);
 
         /// <summary>
         /// Whether the location is a valid location.

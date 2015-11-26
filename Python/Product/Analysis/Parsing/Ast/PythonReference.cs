@@ -14,7 +14,8 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     /// <summary>
     /// Represents a reference to a name.  A PythonReference is created for each locatio
     /// where a name is referred to in a scope (global, class, or function).  

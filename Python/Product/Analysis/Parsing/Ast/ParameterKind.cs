@@ -15,11 +15,13 @@
 // permissions and limitations under the License.
 
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public enum ParameterKind {
         Normal,
         List,
         Dictionary,
-        KeywordOnly
+        KeywordOnly,
+        Sublist
     }
 }

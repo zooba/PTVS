@@ -14,46 +14,19 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
-    public class AssertStatement : Statement {
-        private readonly Expression _test, _message;
+using System.Linq;
 
-        public AssertStatement(Expression test, Expression message) {
-            _test = test;
-            _message = message;
-        }
-
-        public Expression Test {
-            get { return _test; }
-        }
-
-        public Expression Message {
-            get { return _message; }
-        }
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class AssertStatement : StatementWithExpression {
+        public Expression Test => (Expression as TupleExpression)?.Items?[0].Expression ?? Expression;
+        public Expression Message => (Expression as TupleExpression)?.Items?.ElementAtOrDefault(1)?.Expression;
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_test != null) {
-                    _test.Walk(walker);
-                }
-                if (_message != null) {
-                    _message.Walk(walker);
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
-        }
-
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append("assert");
-            _test.AppendCodeString(res, ast, format);
-            if (_message != null) {
-                res.Append(this.GetSecondWhiteSpace(ast));
-                res.Append(',');
-                _message.AppendCodeString(res, ast, format);
-            }
         }
     }
 }

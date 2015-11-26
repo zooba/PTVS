@@ -1,4 +1,20 @@
-﻿using System;
+﻿// Python Tools for Visual Studio
+// Copyright(c) Microsoft Corporation
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the License); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+// OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+// IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+// MERCHANTABLITY OR NON-INFRINGEMENT.
+//
+// See the Apache Version 2.0 License for specific language governing
+// permissions and limitations under the License.
+
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -12,12 +28,13 @@ using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer.Tasks;
 using Microsoft.PythonTools.Analysis.Values;
 using Microsoft.PythonTools.Interpreter;
-using Microsoft.PythonTools.Parsing;
-using Microsoft.PythonTools.Parsing.Ast;
+using Microsoft.PythonTools.Analysis.Parsing;
+using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.VisualStudioTools;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     public sealed class PythonLanguageService : IDisposable {
+        private readonly PythonLanguageServiceProvider _provider;
         private readonly InterpreterConfiguration _config;
         private readonly CancellationTokenSource _disposing;
         private int _users;
@@ -34,7 +51,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             TimeSpan.FromSeconds(1)
         );
 
-        public PythonLanguageService(InterpreterConfiguration config) {
+        internal static readonly IReadOnlyCollection<AnalysisValue> EmptyAnalysisValues = new AnalysisValue[0];
+
+        public PythonLanguageService(PythonLanguageServiceProvider provider, InterpreterConfiguration config) {
+            _provider = provider;
             _users = 1;
 
             _disposing = new CancellationTokenSource();
@@ -49,8 +69,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         #region Lifetime Management
 
-        internal void AddReference() {
-            Interlocked.Increment(ref _users);
+        internal bool AddReference() {
+            while (true) {
+                int users = Volatile.Read(ref _users);
+                if (users == 0) {
+                    return false;
+                }
+                int oldValue = Interlocked.CompareExchange(ref _users, users + 1, users);
+                if (oldValue == users) {
+                    return true;
+                }
+            }
         }
 
         private void ThrowIfDisposed() {
@@ -64,12 +93,20 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return;
             }
 
-            _disposing.Cancel();
+            _disposing.CancelAfter(1000);
+            try {
+                _provider.RemoveAsync(this, _disposing.Token).Wait();
+            } catch (OperationCanceledException) {
+            }
+            if (!_disposing.IsCancellationRequested) {
+                _disposing.Cancel();
+            }
 
             // TODO: Clean up service
 
             foreach (var context in _contexts) {
                 context.Key.Disposed -= Context_Disposed;
+                context.Key.DocumentsChanged -= Context_DocumentsChanged;
                 context.Key.SourceDocumentContentChanged -= Context_SourceDocumentContentChanged;
                 context.Value.Dispose();
             }
@@ -173,7 +210,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         // TODO: Check whether .py file precedes /__init__.py
                         if (context.AnalysisStates.TryFindValueByParts(kv.Key, trimmedFileParts, out value) ||
                             context.AnalysisStates.TryFindValueByParts(kv.Key, trimmedInitParts, out value)) {
-                            return value.Document.Get().Moniker;
+                            return value.Document.Moniker;
                         }
                     }
                 }
@@ -210,6 +247,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 if (!_contexts.TryGetValue(context, out state)) {
                     _contexts[context] = state = new ContextState(this, context, _disposing.Token);
                     context.Disposed += Context_Disposed;
+                    context.DocumentsChanged += Context_DocumentsChanged;
                     context.SourceDocumentContentChanged += Context_SourceDocumentContentChanged;
                 }
             } finally {
@@ -224,13 +262,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     item = new AnalysisState(doc, context);
                     state.AnalysisStates.Add(doc.Moniker, item);
                 }
-                state.Enqueue(new DocumentChanged(item, doc));
             }
         }
 
-        private async void Context_SourceDocumentContentChanged(object sender, SourceDocumentContentChangedEventArgs e) {
+        private async void Context_DocumentsChanged(object sender, EventArgs e) {
             var context = (PythonFileContext)sender;
-            var item = await GetAnalysisStateAsync(context, e.Document.Moniker, CancellationToken.None)
+            await AddFileContextAsync(context, CancellationToken.None);
+        }
+
+        private async void Context_SourceDocumentContentChanged(object sender, SourceDocumentEventArgs e) {
+            var context = (PythonFileContext)sender;
+            var item = await GetAnalysisStateAsync(context, e.Document.Moniker, false, CancellationToken.None)
                 .ConfigureAwait(false);
 
             await _contextLock.WaitAsync(CancellationToken.None);
@@ -245,30 +287,85 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         }
 
-        private async Task<AnalysisState> GetAnalysisStateAsync(
-            PythonFileContext context,
-            string moniker,
+        internal async Task AddNotificationAsync(
+            AnalysisState whenUpdated,
+            AnalysisState reanalyze,
             CancellationToken cancellationToken
         ) {
             await _contextLock.WaitAsync(cancellationToken);
             try {
-                AnalysisState item;
-                if (context == null) {
-                    foreach (var c in _contexts.Values) {
-                        if (c.AnalysisStates.TryGetValue(moniker, out item)) {
-                            return item;
-                        }
-                    }
-                    return null;
-                }
-
                 ContextState state;
-                if (!_contexts.TryGetValue(context, out state)) {
-                    return null;
+                HashSet<AnalysisState> states;
+                if (_contexts.TryGetValue(whenUpdated.Context, out state)) {
+                    var rou = state.ReanalyzeOnUpdate;
+                    if (rou == null) {
+                        state.ReanalyzeOnUpdate = rou = new Dictionary<string, HashSet<AnalysisState>>();
+                        whenUpdated.Context.SourceDocumentAnalysisChanged += Context_SourceDocumentAnalysisChanged;
+                    }
+                    if (!rou.TryGetValue(whenUpdated.Document.Moniker, out states)) {
+                        rou[whenUpdated.Document.Moniker] = states = new HashSet<AnalysisState>();
+                    }
+                    states.Add(reanalyze);
+                }
+            } finally {
+                _contextLock.Release();
+            }
+        }
+
+        private async void Context_SourceDocumentAnalysisChanged(object sender, SourceDocumentEventArgs e) {
+            var context = (PythonFileContext)sender;
+            IEnumerable<AnalysisState> toUpdate = null;
+            await _contextLock.WaitAsync(CancellationToken.None);
+            try {
+                ContextState state;
+                HashSet<AnalysisState> states = null;
+                if (_contexts.TryGetValue(context, out state) &&
+                    (state.ReanalyzeOnUpdate?.TryGetValue(e.Document.Moniker, out states) ?? false)) {
+                    toUpdate = states?.ToArray();
+                }
+            } finally {
+                _contextLock.Release();
+            }
+
+            if (toUpdate != null) {
+                foreach (var state in toUpdate) {
+                    await EnqueueAsync(state.Context, new UpdateRules(state), CancellationToken.None);
+                }
+            }
+        }
+
+        internal async Task<AnalysisState> GetAnalysisStateAsync(
+            PythonFileContext context,
+            string moniker,
+            bool searchAllContexts,
+            CancellationToken cancellationToken
+        ) {
+            AnalysisState item = null;
+            await _contextLock.WaitAsync(cancellationToken);
+            try {
+                ContextState state = null;
+                if (context != null) {
+                    if (_contexts.TryGetValue(context, out state)) {
+                        state.AnalysisStates.TryGetValue(moniker, out item);
+                    }
+                    if (item == null && !searchAllContexts) {
+                        return null;
+                    }
                 }
 
-                if (!state.AnalysisStates.TryGetValue(moniker, out item)) {
-                    return null;
+                if (item == null) {
+                    foreach (var c in _contexts.Values) {
+                        if (!c.AnalysisStates.TryGetValue(moniker, out item)) {
+                            continue;
+                        }
+
+                        state = c;
+                        break;
+                    }
+                }
+
+                if (item?.Version == 0 && state != null) {
+                    state.Enqueue(new DocumentChanged(item, item.Document));
                 }
                 return item;
             } finally {
@@ -276,16 +373,16 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        public async Task<Tokenization> GetNextTokenizationAsync(
+        public async Task<Tokenization> GetTokenizationAsync(
             PythonFileContext context,
             string moniker,
             CancellationToken cancellationToken
         ) {
-            var state = await GetAnalysisStateAsync(context, moniker, cancellationToken);
+            var state = await GetAnalysisStateAsync(context, moniker, true, cancellationToken);
             if (state == null) {
                 return null;
             }
-            return await state.Tokenization.GetNewVersionAsync();
+            return await state.GetTokenizationAsync(cancellationToken);
         }
 
         public async Task<PythonAst> GetAstAsync(
@@ -293,11 +390,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string moniker,
             CancellationToken cancellationToken
         ) {
-            var state = await GetAnalysisStateAsync(context, moniker, cancellationToken);
+            var state = await GetAnalysisStateAsync(context, moniker, true, cancellationToken);
             if (state == null) {
                 return null;
             }
-            return await state.Tree.GetAsync();
+            return await state.GetAstAsync(cancellationToken);
         }
 
         public async Task<IReadOnlyDictionary<string, string>> GetImportableModulesAsync(
@@ -346,27 +443,45 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        public async Task<IReadOnlyDictionary<string, PythonMemberType>> GetModuleMembersAsync(
+        public async Task<IReadOnlyCollection<string>> GetModuleMembersAsync(
             PythonFileContext context,
             string moniker,
             string localName,
             CancellationToken cancellationToken
         ) {
-            var state = await GetAnalysisStateAsync(context, moniker, cancellationToken);
+            var state = await GetAnalysisStateAsync(context, moniker, true, cancellationToken);
             if (state == null) {
                 return null;
             }
 
-            var members = await state.MemberList.GetAsync();
+            var members = await state.GetVariablesAsync(cancellationToken);
 
             string prefix = null;
             if (!string.IsNullOrEmpty(localName)) {
                 prefix = localName + ".";
+                return members
+                    .Where(n => n.StartsWith(prefix) && n.IndexOf('.', prefix.Length) < 0)
+                    .Select(n => n.Substring(prefix.Length))
+                    .ToArray();
             }
-            //return new DictionaryPrefixWrapper<PythonMemberType>(members, prefix, new[] { '.' });
-            return members;
+            return members
+                .Where(n => n.IndexOf('.') < 0)
+                .ToArray();
         }
 
+        public async Task<IReadOnlyCollection<AnalysisValue>> GetModuleMemberTypesAsync(
+            PythonFileContext context,
+            string moniker,
+            string name,
+            CancellationToken cancellationToken
+        ) {
+            var state = await GetAnalysisStateAsync(context, moniker, true, cancellationToken);
+            if (state == null) {
+                return EmptyAnalysisValues;
+            }
+
+            return await state.GetTypesAsync(name, cancellationToken);
+        }
 
         internal async Task EnqueueAsync(
             PythonFileContext context,
@@ -384,131 +499,145 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        sealed class QueueThread : IDisposable {
-            private readonly Queue<QueueItem>[] _queue;
+        sealed class ContextState : IDisposable {
+            private readonly PathSet<AnalysisState> _analysisStates;
+
+
             private readonly Thread _thread;
-            private readonly ManualResetEventSlim _queueChanged;
             private readonly PythonLanguageService _analyzer;
             private readonly PythonFileContext _context;
             private readonly CancellationToken _cancel;
+            private bool _threadStarted;
             private ExceptionDispatchInfo _edi;
+            private TaskCompletionSource<TaskScheduler> _tasks;
 
-            public QueueThread(
+            public ContextState(
                 PythonLanguageService analyzer,
                 PythonFileContext context,
-                string threadName,
                 CancellationToken cancellationToken
             ) {
-                _queue = new Queue<QueueItem>[Enum.GetValues(typeof(ThreadPriority)).Length];
-                _queueChanged = new ManualResetEventSlim();
+                _analysisStates = new PathSet<AnalysisState>(context.ContextRoot);
                 _analyzer = analyzer;
                 _context = context;
                 _cancel = cancellationToken;
+                _tasks = new TaskCompletionSource<TaskScheduler>();
                 _thread = new Thread(Worker);
 
                 var name = context.ContextRoot;
                 if (!string.IsNullOrEmpty(name)) {
                     if (name.Length > 30) {
-                        name = name.Substring(0, 13) + "..." + name.Substring(name.Length - 13);
+                        name = name.Substring(0, 7) + "..." + name.Substring(name.Length - 19);
                     }
-                    _thread.Name = threadName + ": " + name;
+                    _thread.Name = "Analyzer: " + name;
                 } else {
-                    _thread.Name = threadName;
+                    _thread.Name = "Analyzer";
                 }
-                _thread.Start(this);
             }
 
+            public PathSet<AnalysisState> AnalysisStates => _analysisStates;
+
+            public Dictionary<string, HashSet<AnalysisState>> ReanalyzeOnUpdate { get; set; }
+
             public void Dispose() {
-                _queueChanged.Dispose();
-                _thread.Join(1000);
+                if (_threadStarted) {
+                    _thread.Join(1000);
+                }
                 if (_edi != null) {
                     _edi.Throw();
                 }
             }
 
             public void Enqueue(QueueItem item) {
-                if (_edi != null) {
-                    _edi.Throw();
+                _edi?.Throw();
+
+                if (!_threadStarted) {
+                    _threadStarted = true;
+                    _thread.Start(this);
+                    _tasks.Task.Wait();
                 }
-                lock (_queue) {
-                    var q = _queue[(int)item.Priority];
-                    if (q == null) {
-                        _queue[(int)item.Priority] = q = new Queue<QueueItem>();
-                    }
-                    q.Enqueue(item);
-                    _queueChanged.Set();
-                }
+
+                Task.Factory.StartNew(async () => {
+                    await item.PerformAsync(_analyzer, _context, _cancel);
+                }, CancellationToken.None, TaskCreationOptions.None, _tasks.Task.Result);
             }
 
             private static void Worker(object o) {
-                var thread = (QueueThread)o;
+                var syncContext = new AnalysisSynchronizationContext();
+                SynchronizationContext.SetSynchronizationContext(syncContext);
+                var thread = (ContextState)o;
+
+                var tasks = TaskScheduler.FromCurrentSynchronizationContext();
+                thread._tasks.SetResult(tasks);
                 try {
-                    thread.QueueWorker();
+                    while (true) {
+                        syncContext.RunNext(thread._cancel);
+                    }
                 } catch (OperationCanceledException) {
-                } catch (Exception ex) {
+                } catch (Exception ex) when (!ex.IsCriticalException()) {
+                    Debug.Fail(ex.ToString());
                     thread._edi = ExceptionDispatchInfo.Capture(ex);
                 }
             }
 
-            private void QueueWorker() {
-                while (true) {
-                    try {
-                        _queueChanged.Wait(_cancel);
-                    } catch (ObjectDisposedException) {
-                        throw new OperationCanceledException();
-                    }
+            class AnalysisSynchronizationContext : SynchronizationContext {
+                struct Item {
+                    public SendOrPostCallback d;
+                    public object state;
+                    public ManualResetEventSlim complete;
+                }
 
-                    if (_cancel.IsCancellationRequested) {
-                        break;
-                    }
+                private readonly ManualResetEventSlim _posted;
+                private readonly Queue<Item> _queue;
 
-                    try {
-                        _queueChanged.Reset();
-                    } catch (ObjectDisposedException) {
-                        throw new OperationCanceledException();
-                    }
+                public AnalysisSynchronizationContext() {
+                    _posted = new ManualResetEventSlim();
+                    _queue = new Queue<Item>();
+                }
 
-                    QueueItem item;
-                    while (true) {
+                private AnalysisSynchronizationContext(AnalysisSynchronizationContext copy) {
+                    _posted = copy._posted;
+                    _queue = copy._queue;
+                }
+
+                public override SynchronizationContext CreateCopy() {
+                    return new AnalysisSynchronizationContext(this);
+                }
+
+                public override void Post(SendOrPostCallback d, object state) {
+                    lock (_queue) {
+                        _queue.Enqueue(new Item { d = d, state = state });
+                    }
+                    _posted.Set();
+                }
+
+                public override void Send(SendOrPostCallback d, object state) {
+                    using (var complete = new ManualResetEventSlim()) {
                         lock (_queue) {
-                            item = null;
-                            for (int i = _queue.Length - 1; i >= 0; --i) {
-                                var q = _queue[i];
-                                if (q != null && q.Any()) {
-                                    item = q.Dequeue();
-                                    break;
-                                }
-                            }
-                            if (item == null) {
-                                break;
-                            }
+                            _queue.Enqueue(new Item { d = d, state = state, complete = complete });
                         }
-                        item.PerformAsync(_analyzer, _context, _cancel).GetAwaiter().GetResult();
+                        _posted.Set();
+                        complete.Wait();
                     }
                 }
-            }
-        }
 
-        private struct ContextState {
-            public readonly PathSet<AnalysisState> AnalysisStates;
-            public readonly QueueThread Thread;
-
-            public ContextState(
-                PythonLanguageService analyzer,
-                PythonFileContext context,
-                CancellationToken disposalToken
-            ) {
-                AnalysisStates = new PathSet<AnalysisState>(context.ContextRoot);
-                
-                Thread = new QueueThread(analyzer, context, "Analysis", disposalToken);
-            }
-
-            public void Dispose() {
-                Thread.Dispose();
-            }
-
-            internal void Enqueue(QueueItem item) {
-                Thread.Enqueue(item);
+                public void RunNext(CancellationToken cancellationToken) {
+                    _posted.Wait(cancellationToken);
+                    Item item;
+                    lock (_queue) {
+                        if (!_queue.Any()) {
+                            return;
+                        }
+                        item = _queue.Dequeue();
+                        if (!_queue.Any()) {
+                            _posted.Reset();
+                        }
+                    }
+                    try {
+                        item.d(item.state);
+                    } finally {
+                        item.complete?.Set();
+                    }
+                }
             }
         }
     }

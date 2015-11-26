@@ -14,11 +14,14 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
+using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
-namespace Microsoft.PythonTools.Parsing {
+namespace Microsoft.PythonTools.Analysis.Parsing {
 
     /// <summary>
     /// Stores the location of a span of text in a source file.
@@ -38,6 +41,14 @@ namespace Microsoft.PythonTools.Parsing {
             this._start = start;
             this._end = end;
         }
+
+        /// <summary>
+        /// Constructs a new span with a specific start location and number of
+        /// columns. This never wraps onto a second line.
+        /// </summary>
+        /// <param name="start">The beginning of the span.</param>
+        /// <param name="columns">The number of columns in the span.</param>
+        public SourceSpan(SourceLocation start, int columns) : this(start, start + columns) { }
 
         public static SourceSpan FromIndexSpan(Tokenization tokenization, IndexSpan span) {
             return new SourceSpan(
@@ -138,6 +149,12 @@ namespace Microsoft.PythonTools.Parsing {
             // 7 bits for each column (0-128), 9 bits for each row (0-512), xor helps if
             // we have a bigger file.
             return (_start.Column) ^ (_end.Column << 7) ^ (_start.Line << 14) ^ (_end.Line << 23);
+        }
+
+        internal void AppendCodeString(StringBuilder output, PythonAst ast) {
+            if (Length > 0) {
+                output.Append(ast.Tokenization.GetTokenText(this));
+            }
         }
 
         internal string ToDebugString() {

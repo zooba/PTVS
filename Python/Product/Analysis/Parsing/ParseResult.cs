@@ -14,10 +14,11 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System.Collections.Generic;
-using Microsoft.PythonTools.Parsing.Ast;
 
-namespace Microsoft.PythonTools.Parsing {
+using System.Collections.Generic;
+using Microsoft.PythonTools.Analysis.Parsing.Ast;
+
+namespace Microsoft.PythonTools.Analysis.Parsing {
     public sealed class ParseResult {
         private readonly PythonAst _tree;
         private readonly ParseState _state;

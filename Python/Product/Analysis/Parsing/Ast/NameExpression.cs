@@ -14,33 +14,41 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
+using System;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class NameExpression : Expression {
         public static readonly NameExpression[] EmptyArray = new NameExpression[0];
-        public static readonly NameExpression Empty = new NameExpression("");
 
         private readonly string _name;
+        private readonly string _prefix;
 
-        public NameExpression(string name) {
+        public NameExpression(string name, string prefix = null) {
             _name = name ?? "";
+            _prefix = string.IsNullOrEmpty(prefix) ? null : prefix;
         }
 
-        public string/*!*/ Name {
+        public static NameExpression Empty(SourceLocation at, SourceSpan? beforeNode = null) {
+            return new NameExpression("") {
+                BeforeNode = beforeNode ?? new SourceSpan(at, at),
+                Span = new SourceSpan(at, at)
+            };
+        }
+
+        public string Name {
             get { return _name; }
         }
 
+        public string Prefix {
+            get { return _prefix; }
+        }
+
+        public bool IsStar => _name == "*";
+
         public override string ToString() {
             return base.ToString() + ":" + _name;
-        }
-
-        internal override string CheckAssign() {
-            return null;
-        }
-
-        internal override string CheckDelete() {
-            return null;
         }
 
         public override void Walk(PythonWalker walker) {
@@ -49,18 +57,17 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             walker.PostWalk(this);
         }
 
+        internal override string CheckName => null;
+
         public PythonReference GetVariableReference(PythonAst ast) {
             return GetVariableReference(this, ast);
         }
 
-        public void AddPreceedingWhiteSpace(PythonAst ast, string whiteSpace) {
-            ast.SetAttribute(this, NodeAttributes.PrecedingWhiteSpace, whiteSpace);
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpaceDefaultEmpty(ast));
-            res.Append(this.GetVerbatimImage(ast) ?? _name);
-            format.ReflowComment(res, this.GetComment(ast));
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            BeforeNode.AppendCodeString(output, ast);
+            output.Append(Name);
+            Comment?.AppendCodeString(output, ast, format);
+            AfterNode.AppendCodeString(output, ast);
         }
     }
 }

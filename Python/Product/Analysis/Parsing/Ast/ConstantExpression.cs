@@ -14,32 +14,33 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ConstantExpression : Expression {
-        private readonly object _value;
+        private object _value;
 
-        public ConstantExpression(object value) {
-            _value = value;
-        }
+        public ConstantExpression() { }
 
         public object Value {
-            get {
-                return _value; 
-            }
+            get { return _value; }
+            set { ThrowIfFrozen(); _value = value; }
         }
 
-        internal override string CheckAssign() {
+        internal override string CheckName => "literal";
+
+        internal override void CheckAssign(Parser parser) {
             if (_value == null) {
-                return "assignment to None";
+                parser.ReportError("assignment to None", Span);
+                return;
             }
 
-            return "can't assign to literal";
+            base.CheckAssign(parser);
         }
 
         public override void Walk(PythonWalker walker) {
@@ -48,28 +49,12 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             walker.PostWalk(this);
         }
 
-        public override string NodeName {
-            get {
-                return "literal";
-            }
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            var verbatimPieces = this.GetVerbatimNames(ast);
-            var verbatimComments = this.GetListWhiteSpace(ast);
-            if (verbatimPieces != null) {
-                // string+ / bytes+, such as "abc" "abc", which can spawn multiple lines, and 
-                // have comments in between the peices.
-                for (int i = 0; i < verbatimPieces.Length; i++) {
-                    if (verbatimComments != null && i < verbatimComments.Length) {
-                        format.ReflowComment(res, verbatimComments[i]);
-                    }
-                    res.Append(verbatimPieces[i]);
-                }
-            } else {
-                res.Append(this.GetPrecedingWhiteSpaceDefaultEmpty(ast));
-                res.Append(this.GetExtraVerbatimText(ast) ?? GetConstantRepr(ast.LanguageVersion));
-            }
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            // TODO: Apply formatting options
+            BeforeNode.AppendCodeString(output, ast);
+            output.Append(GetConstantRepr(ast.LanguageVersion));
+            Comment?.AppendCodeString(output, ast, format);
+            AfterNode.AppendCodeString(output, ast);
         }
 
         private static bool IsNegativeZero(double value) {
@@ -82,13 +67,14 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         private void AppendEscapedString(StringBuilder res, string s, bool escape8bitStrings) {
-            res.Append("'");
+            char quote = s.Contains("'") && !s.Contains("\"") ? '"' : '\'';
+            res.Append(quote);
             foreach (var c in s) {
                 switch (c) {
                     case '\n': res.Append("\\n"); break;
                     case '\r': res.Append("\\r"); break;
                     case '\t': res.Append("\\t"); break;
-                    case '\'': res.Append("\\'"); break;
+                    case '\'': res.Append(quote == c ? "\\'" : "'"); break;
                     case '\\': res.Append("\\\\"); break;
                     default:
                         ushort cp = (ushort)c;
@@ -102,7 +88,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                         break;
                 }
             }
-            res.Append("'");
+            res.Append(quote);
         }
 
         public string GetConstantRepr(PythonLanguageVersion version, bool escape8bitStrings = false) {

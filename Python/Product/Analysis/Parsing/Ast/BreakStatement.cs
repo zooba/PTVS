@@ -14,9 +14,10 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class BreakStatement : Statement {
         public BreakStatement() {
         }
@@ -25,11 +26,6 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             if (walker.Walk(this)) {
             }
             walker.PostWalk(this);
-        }
-
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append("break");            
         }
     }
 }

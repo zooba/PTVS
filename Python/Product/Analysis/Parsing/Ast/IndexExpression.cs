@@ -14,88 +14,29 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
-    public class IndexExpression : Expression {
-        private readonly Expression _target;
-        private readonly Expression _index;
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class IndexExpression : ExpressionWithExpression {
+        private Expression _index;
 
-        public IndexExpression(Expression target, Expression index) {
-            _target = target;
-            _index = index;
-        }
-
-        public Expression Target {
-            get { return _target; }
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _index?.Freeze();
         }
 
         public Expression Index {
             get { return _index; }
+            set { ThrowIfFrozen(); _index = value; }
         }
 
-        internal override string CheckAssign() {
-            return null;
-        }
-
-        internal override string CheckDelete() {
-            return null;
-        }
+        internal override string CheckName => null;
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_target != null) {
-                    _target.Walk(walker);
-                }
-                if (_index != null) {
-                    _index.Walk(walker);
-                }
+                base.Walk(walker);
+                _index?.Walk(walker);
             }
             walker.PostWalk(this);
-        }
-
-        private bool IsSlice {
-            get {
-                return _index is SliceExpression;
-            }
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            Target.AppendCodeString(res, ast, format);
-            format.Append(
-                res,
-                format.SpaceBeforeIndexBracket,
-                " ",
-                "",
-                this.GetPrecedingWhiteSpace(ast)
-            );
-
-            res.Append('[');
-            _index.AppendCodeString(
-                res, 
-                ast, 
-                format, 
-                format.SpaceWithinIndexBrackets != null ? format.SpaceWithinIndexBrackets.Value ? " " : "" : null
-            );
-
-            if (!this.IsMissingCloseGrouping(ast)) {
-                format.Append(
-                    res,
-                    format.SpaceWithinIndexBrackets,
-                    " ",
-                    "",
-                    this.GetSecondWhiteSpace(ast)
-                );
-                res.Append(']');
-            }
-        }
-
-        public override string GetLeadingWhiteSpace(PythonAst ast) {
-            return Target.GetLeadingWhiteSpace(ast);
-        }
-
-        public override void SetLeadingWhiteSpace(PythonAst ast, string whiteSpace) {
-            Target.SetLeadingWhiteSpace(ast, whiteSpace);
         }
     }
 }

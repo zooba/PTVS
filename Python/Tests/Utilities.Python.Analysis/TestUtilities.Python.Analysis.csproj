@@ -64,9 +64,9 @@
       <Project>{d092d54e-ff29-4d32-9aee-4ef704c92f67}</Project>
       <Name>TestUtilities</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Product\Analysis2\Analysis2.csproj">
+    <ProjectReference Include="..\..\Product\Analysis\Analysis.csproj">
       <Project>{be50a162-4056-4c3c-ad65-85e0417c73ae}</Project>
-      <Name>Analysis2</Name>
+      <Name>Analysis</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="..\TestProjectAfter.settings" />

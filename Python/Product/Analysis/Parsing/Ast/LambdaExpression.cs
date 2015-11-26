@@ -14,50 +14,56 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System.Diagnostics;
+
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
-    public class LambdaExpression : Expression {
-        private readonly FunctionDefinition _function;
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class LambdaExpression : ExpressionWithExpression {
+        private ParameterList _parameters;
+        private SourceSpan _beforeColon;
+        private bool _generator;
 
-        public LambdaExpression(FunctionDefinition function) {
-            _function = function;
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _parameters?.Freeze();
         }
 
-        public FunctionDefinition Function {
-            get { return _function; }
+        public ParameterList Parameters {
+            get { return _parameters; }
+            set { ThrowIfFrozen(); _parameters = value; }
+        }
+
+        public SourceSpan BeforeColon {
+            get { return _beforeColon; }
+            set { ThrowIfFrozen(); _beforeColon = value; }
+        }
+
+        public bool IsGenerator {
+            get { return _generator; }
+            set { ThrowIfFrozen(); _generator = value; }
+        }
+
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            // TODO: Apply formatting options
+            var t = ast.Tokenization;
+            BeforeNode.AppendCodeString(output, ast);
+            output.Append("lambda");
+            Parameters?.AppendCodeString(output, ast, format);
+            BeforeColon.AppendCodeString(output, ast);
+            output.Append(":");
+            Expression?.AppendCodeString(output, ast, format);
+            Comment?.AppendCodeString(output, ast, format);
+            AfterNode.AppendCodeString(output, ast);
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_function != null) {
-                    _function.Walk(walker);
-                }
+                _parameters?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            format.ReflowComment(res, this.GetPrecedingWhiteSpace(ast));
-            res.Append("lambda");
-            var commaWhiteSpace = this.GetListWhiteSpace(ast);
-
-            _function.ParamsToString(res, ast, commaWhiteSpace, format);
-            string namedOnlyText = this.GetExtraVerbatimText(ast);
-            if (namedOnlyText != null) {
-                res.Append(namedOnlyText);
-            }
-            if (!this.IsIncompleteNode(ast)) {
-                res.Append(this.GetSecondWhiteSpace(ast));
-                res.Append(":");
-                if (_function.Body is ReturnStatement) {
-                    ((ReturnStatement)_function.Body).Expression.AppendCodeString(res, ast, format);
-                } else {
-                    Debug.Assert(_function.Body is ExpressionStatement);
-                    ((ExpressionStatement)_function.Body).Expression.AppendCodeString(res, ast, format);
-                }
-            }
-        }
+        internal override string CheckName => "lambda";
     }
 }

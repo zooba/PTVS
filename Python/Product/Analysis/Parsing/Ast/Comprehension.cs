@@ -14,60 +14,85 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class ComprehensionIterator : Node {
     }
 
+    public class ComprehensionIf : ComprehensionIterator {
+        private Expression _test;
+
+        public ComprehensionIf() { }
+
+        public Expression Test {
+            get { return _test; }
+            set { ThrowIfFrozen(); _test = value; }
+        }
+
+        public override void Walk(PythonWalker walker) {
+            if (walker.Walk(this)) {
+                _test?.Walk(walker);
+            }
+            walker.PostWalk(this);
+        }
+    }
+
+    public class ComprehensionFor : ComprehensionIterator {
+        private Expression _lhs, _list;
+
+        public ComprehensionFor() { }
+
+        public Expression Left {
+            get { return _lhs; }
+            set { ThrowIfFrozen(); _lhs = value; }
+        }
+
+        public Expression List {
+            get { return _list; }
+            set { ThrowIfFrozen(); _list = value; }
+        }
+        public override void Walk(PythonWalker walker) {
+            if (walker.Walk(this)) {
+                _lhs?.Walk(walker);
+                _list?.Walk(walker);
+            }
+            walker.PostWalk(this);
+        }
+    }
+
     public abstract class Comprehension : Expression {
-        public abstract IList<ComprehensionIterator> Iterators { get; }
-        public abstract override string NodeName { get; }
+        private IList<ComprehensionIterator> _iterators;
+        private CommentExpression _firstComment;
+
+        public IList<ComprehensionIterator> Iterators {
+            get { return _iterators; }
+            set { ThrowIfFrozen(); _iterators = value; }
+        }
+
+        internal CommentExpression FirstComment {
+            get { return _firstComment; }
+            set { ThrowIfFrozen(); _firstComment = value; }
+        }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _iterators = FreezeList(_iterators);
+            _firstComment?.Freeze();
+        }
 
         public abstract override void Walk(PythonWalker walker);
-
-        internal void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format, string start, string end, Expression item) {
-            if (!String.IsNullOrEmpty(start)) {
-                format.ReflowComment(res, this.GetPrecedingWhiteSpace(ast));
-                res.Append(start);
-            }
-
-            item.AppendCodeString(res, ast, format);
-
-            for (int i = 0; i < Iterators.Count; i++) {
-                Iterators[i].AppendCodeString(res, ast, format);
-            }
-
-            if (!String.IsNullOrEmpty(end)) {
-                res.Append(this.GetSecondWhiteSpace(ast));
-                res.Append(end);
-            }
-        }
     }
 
     public sealed class ListComprehension : Comprehension {
-        private readonly ComprehensionIterator[] _iterators;
-        private readonly Expression _item;
-
-        public ListComprehension(Expression item, ComprehensionIterator[] iterators) {
-            _item = item;
-            _iterators = iterators;
-        }
+        private Expression _item;
 
         public Expression Item {
             get { return _item; }
-        }
-
-        public override IList<ComprehensionIterator> Iterators {
-            get { return _iterators; }
-        }
-
-        public override string NodeName {
-            get {
-                return "list comprehension";
-            }
+            set { ThrowIfFrozen(); _item = value; }
         }
 
         public override void Walk(PythonWalker walker) {
@@ -75,8 +100,8 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 if (_item != null) {
                     _item.Walk(walker);
                 }
-                if (_iterators != null) {
-                    foreach (ComprehensionIterator ci in _iterators) {
+                if (Iterators != null) {
+                    foreach (ComprehensionIterator ci in Iterators) {
                         ci.Walk(walker);
                     }
                 }
@@ -84,32 +109,15 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             walker.PostWalk(this);
         }
 
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            AppendCodeString(res, ast, format, "[", this.IsMissingCloseGrouping(ast) ? "" : "]", _item);
-        }
+        internal override string CheckName => "list comprehension";
     }
 
     public sealed class SetComprehension : Comprehension {
-        private readonly ComprehensionIterator[] _iterators;
-        private readonly Expression _item;
-
-        public SetComprehension(Expression item, ComprehensionIterator[] iterators) {
-            _item = item;
-            _iterators = iterators;
-        }
+        private Expression _item;
 
         public Expression Item {
             get { return _item; }
-        }
-
-        public override IList<ComprehensionIterator> Iterators {
-            get { return _iterators; }
-        }
-
-        public override string NodeName {
-            get {
-                return "set comprehension";
-            }
+            set { ThrowIfFrozen(); _item = value; }
         }
 
         public override void Walk(PythonWalker walker) {
@@ -117,8 +125,8 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 if (_item != null) {
                     _item.Walk(walker);
                 }
-                if (_iterators != null) {
-                    foreach (ComprehensionIterator ci in _iterators) {
+                if (Iterators != null) {
+                    foreach (ComprehensionIterator ci in Iterators) {
                         ci.Walk(walker);
                     }
                 }
@@ -126,46 +134,29 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             walker.PostWalk(this);
         }
 
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            AppendCodeString(res, ast, format, "{", this.IsMissingCloseGrouping(ast) ? "" : "}", _item);
-        }
+        internal override string CheckName => "set comprehension";
     }
 
     public sealed class DictionaryComprehension : Comprehension {
-        private readonly ComprehensionIterator[] _iterators;
-        private readonly SliceExpression _value;
-
-        public DictionaryComprehension(SliceExpression value, ComprehensionIterator[] iterators) {
-            _value = value;
-            _iterators = iterators;
-        }
+        private Expression _key, _value;
 
         public Expression Key {
-            get { return _value.SliceStart; }
+            get { return _key; }
+            set { ThrowIfFrozen(); _key = value; }
         }
 
         public Expression Value {
-            get { return _value.SliceStop; }
-        }
-
-        public override IList<ComprehensionIterator> Iterators {
-            get { return _iterators; }
-        }
-
-        public override string NodeName {
-            get {
-                return "dict comprehension";
-            }
+            get { return _value; }
+            set { ThrowIfFrozen(); _value = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_value != null) {
-                    _value.Walk(walker);
-                }
+                _key?.Walk(walker);
+                _value?.Walk(walker);
 
-                if (_iterators != null) {
-                    foreach (ComprehensionIterator ci in _iterators) {
+                if (Iterators != null) {
+                    foreach (ComprehensionIterator ci in Iterators) {
                         ci.Walk(walker);
                     }
                 }
@@ -173,8 +164,6 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             walker.PostWalk(this);
         }
 
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            AppendCodeString(res, ast, format, "{", this.IsMissingCloseGrouping(ast) ? "" : "}", _value);
-        }
+        internal override string CheckName => "set comprehension";
     }
 }

@@ -14,18 +14,21 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 using System.Collections.Generic;
 
-namespace Microsoft.PythonTools.Parsing {
+namespace Microsoft.PythonTools.Analysis.Parsing {
     class CollectingErrorSink : ErrorSink {
         private readonly List<ErrorResult> _errors;
 
-        public CollectingErrorSink(List<ErrorResult> errors) {
-            _errors = errors;
+        public CollectingErrorSink() {
+            _errors = new List<ErrorResult>();
         }
 
-        public override void Add(string message, IndexSpan span, int errorCode, Severity severity) {
+        public IReadOnlyList<ErrorResult> Errors => _errors;
+
+        public override void Add(string message, SourceSpan span, int errorCode, Severity severity) {
             _errors.Add(new ErrorResult(message, span, severity));
         }
     }

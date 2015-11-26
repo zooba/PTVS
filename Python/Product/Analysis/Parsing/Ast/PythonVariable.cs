@@ -14,11 +14,14 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class PythonVariable {
         private readonly string _name;
         private readonly ScopeStatement/*!*/ _scope;
         private VariableKind _kind;    // the type of variable, 
+
+        internal static readonly object AstKey = new object();
 
         // variables used during the named binding to report errors
         private bool _deleted;                  // del x, the variable gets deleted at some point
@@ -49,7 +52,7 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         /// </summary>
         internal bool IsGlobal {
             get {
-                return Kind == VariableKind.Global || Scope.IsGlobal;
+                return Kind == VariableKind.Global; // || Scope.IsGlobal;
             }
         }
 

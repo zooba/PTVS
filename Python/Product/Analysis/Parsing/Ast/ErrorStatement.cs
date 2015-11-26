@@ -14,28 +14,19 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ErrorStatement : Statement {
-        private readonly Statement[] _preceeding;
+        private readonly string _message;
 
-        public ErrorStatement(Statement[] preceeding) {
-            _preceeding = preceeding;
-        }
-
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            foreach(var preceeding in _preceeding) {
-                preceeding.AppendCodeString(res, ast, format);
-            }
-            res.Append(this.GetVerbatimImage(ast) ?? "<error stmt>");
+        public ErrorStatement(string message = "invalid syntax") {
+            _message = message;
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                foreach (var preceeding in _preceeding) {
-                    preceeding.Walk(walker);
-                }
             }
             walker.PostWalk(this);
         }

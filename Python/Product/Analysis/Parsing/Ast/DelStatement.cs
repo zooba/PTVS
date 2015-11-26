@@ -14,35 +14,17 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Collections.Generic;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
-
-    public class DelStatement : Statement {
-        private readonly Expression[] _expressions;
-
-        public DelStatement(Expression[] expressions) {
-            _expressions = expressions;
-        }
-
-        public IList<Expression> Expressions {
-            get { return _expressions; }
-        }
-
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class DelStatement : StatementWithExpression {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expressions != null) {
-                    foreach (Expression expression in _expressions) {
-                        expression.Walk(walker);
-                    }
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
-        }
-
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            ListExpression.AppendItems(res, ast, format, "del", "", this, Expressions);
         }
     }
 }

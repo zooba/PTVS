@@ -14,9 +14,10 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 
-namespace Microsoft.PythonTools.Parsing {
+namespace Microsoft.PythonTools.Analysis.Parsing {
     /// <summary>
     /// Provides a category for a code formatting option.  Categories group various options
     /// based upon what syntactic elements they alter.

@@ -1,147 +1,178 @@
-﻿using System;
+﻿// Python Tools for Visual Studio
+// Copyright(c) Microsoft Corporation
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the License); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+// OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+// IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+// MERCHANTABLITY OR NON-INFRINGEMENT.
+//
+// See the Apache Version 2.0 License for specific language governing
+// permissions and limitations under the License.
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 
-namespace Microsoft.PythonTools.Parsing {
+namespace Microsoft.PythonTools.Analysis.Parsing {
     public sealed class Tokenization {
-        private static readonly TokenInfo[] EmptyTokenInfoArray = new TokenInfo[0];
-
         // Not RO as it may be cleared to reduce memory usage
-        private TokenWithSpan[][] _tokens;
+        private Token[][] _tokens;
 
-        private readonly TokenInfo[][] _lines;
+        private readonly string[] _lines;
         private readonly int[] _lineStarts;
-        private readonly ErrorResult[] _errors;
         private readonly PythonLanguageVersion _languageVersion;
-        private readonly TokenizerOptions _options;
+        private readonly Encoding _encoding;
 
         public static async Task<Tokenization> TokenizeAsync(
             ISourceDocument document,
-            PythonLanguageVersion languageVersion,
-            TokenizerOptions options,
-            Severity indentationInconsistency
+            PythonLanguageVersion languageVersion
         ) {
             using (var stream = await document.ReadAsync()) {
-                var errors = new List<ErrorResult>();
-                var reader = PythonEncoding.GetStreamReaderWithEncoding(
-                    stream,
-                    languageVersion,
-                    new CollectingErrorSink(errors)
-                );
-                return await TokenizeAsync(reader, languageVersion, options, indentationInconsistency, errors);
+                var reader = new PythonSourceStreamReader(stream, false);
+                return await TokenizeAsync(reader, languageVersion, null, () => reader.Encoding);
             }
         }
 
         private static async Task<Tokenization> TokenizeAsync(
             TextReader reader,
             PythonLanguageVersion languageVersion,
-            TokenizerOptions options,
-            Severity indentationInconsistency
+            Encoding encoding = null,
+            Func<Encoding> getEncoding = null
         ) {
-            var errors = new List<ErrorResult>();
-            return await TokenizeAsync(reader, languageVersion, options, indentationInconsistency, errors);
-        }
+            var tokenizer = new Tokenizer(languageVersion);
 
-        private static async Task<Tokenization> TokenizeAsync(
-            TextReader reader,
-            PythonLanguageVersion languageVersion,
-            TokenizerOptions options,
-            Severity indentationInconsistency,
-            List<ErrorResult> errors
-        ) {
-            var tokenizer = new Tokenizer(
-                languageVersion,
-                new CollectingErrorSink(errors),
-                options,
-                indentationInconsistency
-            );
-
-            tokenizer.Initialize(null, reader, SourceLocation.MinValue);
-
-            List<TokenWithSpan[]> tokens;
-            List<int> lineStarts;
-            tokenizer.ReadAllTokens(out tokens, out lineStarts);
+            var lines = new List<string>();
+            var tokens = new List<Token[]>();
+            var lineStarts = new List<int>() { 0 };
+            string line;
+            while ((line = await reader.ReadLineAsync()) != null) {
+                lines.Add(line);
+                var tok = tokenizer.GetTokens(line).ToArray();
+                tokens.Add(tok);
+                Debug.Assert(tok.Length > 0);
+                if (tok.Last().Is(TokenKind.NewLine)) {
+                    lineStarts.Add(tok.Last().Span.End.Index);
+                }
+            }
+            if (tokens.Count == 0) {
+                lines.Add(string.Empty);
+                tokens.Add(tokenizer.GetRemainingTokens().ToArray());
+            } else {
+                tokens[tokens.Count - 1] = tokens.Last().Concat(tokenizer.GetRemainingTokens()).ToArray();
+            }
 
             return new Tokenization(
+                lines.ToArray(),
                 tokens.ToArray(),
                 lineStarts.ToArray(),
-                errors.ToArray(),
                 languageVersion,
-                options
+                encoding ?? (getEncoding != null ? getEncoding() : null) ?? Encoding.UTF8
             );
         }
 
         private Tokenization(
-            TokenWithSpan[][] tokens,
+            string[] lines,
+            Token[][] tokens,
             int[] lineStarts,
-            ErrorResult[] errors,
             PythonLanguageVersion languageVersion,
-            TokenizerOptions options
+            Encoding encoding
         ) {
+            _lines = lines;
             _tokens = tokens;
             _lineStarts = lineStarts;
-            _errors = errors;
             _languageVersion = languageVersion;
-            _options = options;
+            _encoding = encoding;
+        }
 
-            _lines = new TokenInfo[_tokens.Length][];
-            for (int i = 0; i < _tokens.Length; ++i) {
-                var line = _tokens[i];
-                var newLine = new TokenInfo[line.Length];
-                _lines[i] = newLine;
-                for (int j = 0; j < line.Length; ++j) {
-                    newLine[j] = new TokenInfo(line[j].Token, line[j].Span);
-                }
+        public Encoding Encoding => _encoding;
+
+        public string GetTokenText(SourceSpan span) {
+            if (span.End.Index == int.MaxValue) {
+                return string.Empty;
             }
+
+            var firstLine = span.Start.Line - 1;
+            var lastLine = span.End.Line - 1;
+            int start = span.Start.Column - 1;
+            int end = span.End.Column - 1;
+            string line;
+
+            if (firstLine == lastLine) {
+                if (end <= start) {
+                    return string.Empty;
+                }
+
+                line = _lines[firstLine];
+                if (start < 0 || start >= line.Length) {
+                    throw new IndexOutOfRangeException();
+                }
+
+                int length = end - start;
+                if (end > line.Length) {
+                    length = line.Length - start;
+                }
+                return line.Substring(start, length);
+            }
+
+            var sb = new StringBuilder();
+
+            for (int lineNo = firstLine; lineNo < lastLine; ++lineNo) {
+                line = _lines[lineNo];
+                if (start < 0 || start >= line.Length) {
+                    throw new IndexOutOfRangeException();
+                }
+
+                sb.Append(line.Substring(start));
+                start = 0;
+            }
+
+            line = _lines[lastLine];
+            if (end > line.Length) {
+                sb.Append(line);
+            } else {
+                sb.Append(line.Substring(0, end));
+            }
+
+            return sb.ToString();
         }
 
-        /// <summary>
-        /// Removes raw token information from this tokenization. Once the token
-        /// images are no longer needed, calling this will reduce memory usage.
-        /// </summary>
-        internal void ClearRawTokens() {
-            _tokens = null;
+        public string GetTokenText(Token token) {
+            if (token.Is(TokenKind.EndOfFile)) {
+                return string.Empty;
+            }
+
+            return GetTokenText(token.Span);
         }
 
-        internal IEnumerable<TokenWithSpan> RawTokens {
+        public IEnumerable<Token> AllTokens {
             get {
                 if (_tokens == null) {
-                    return Enumerable.Empty<TokenWithSpan>();
+                    return Enumerable.Empty<Token>();
                 }
 
                 return _tokens.SelectMany(Identity);
             }
         }
 
-        private static TokenWithSpan[] Identity(TokenWithSpan[] obj) {
+        private static Token[] Identity(Token[] obj) {
             return obj;
         }
 
-        private static TokenInfo[] Identity(TokenInfo[] obj) {
-            return obj;
-        } 
-
-        public IEnumerable<TokenInfo> AllTokens {
-            get {
-                return _lines.SelectMany(Identity);
-            }
-        }
-
-        public IEnumerable<IReadOnlyList<TokenInfo>> AllLines {
-            get {
-                return _lines.Select(Identity);
-            }
-        }
-
-        public IReadOnlyList<TokenInfo> GetLine(int lineNo) {
+        public IReadOnlyList<Token> GetLine(int lineNo) {
             if (lineNo < 0 || lineNo >= _lines.Length) {
                 return null;
             }
-            return _lines[lineNo];
+            return _tokens[lineNo];
         }
 
         public int GetLineStartIndex(int lineNo) {
@@ -171,16 +202,12 @@ namespace Microsoft.PythonTools.Parsing {
             return match;
         }
 
-        public IReadOnlyList<TokenInfo> GetLineByIndex(int index) {
+        public IReadOnlyList<Token> GetLineByIndex(int index) {
             return GetLine(GetLineNumberByIndex(index));
         }
 
         public PythonLanguageVersion LanguageVersion {
             get { return _languageVersion; }
-        }
-
-        public bool Verbatim {
-            get { return _options.HasFlag(TokenizerOptions.Verbatim); }
         }
     }
 }

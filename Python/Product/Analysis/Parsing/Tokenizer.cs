@@ -1,4 +1,4 @@
-// Python Tools for Visual Studio
+﻿// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -14,2512 +14,828 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-//#define DUMP_TOKENS
-
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.Contracts;
-using System.IO;
+using System.Globalization;
 using System.Linq;
-using System.Numerics;
 using System.Text;
+using System.Threading.Tasks;
 
-namespace Microsoft.PythonTools.Parsing {
+namespace Microsoft.PythonTools.Analysis.Parsing {
+    sealed class Tokenizer {
+        PythonLanguageVersion _version;
+        int _lineNumber;
+        int _lineStart;
+        Stack<TokenKind> _nesting;
 
-    /// <summary>
-    /// IronPython tokenizer
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Naming", "CA1704:IdentifiersShouldBeSpelledCorrectly", MessageId = "Tokenizer")]
-    public sealed partial class Tokenizer {
-        private readonly PythonLanguageVersion _langVersion;
-        private State _state;
-        private bool _disableLineFeedLineSeparator = false;
-        private SourceCodeKind _kind = SourceCodeKind.AutoDetect;
-        private ErrorSink _errors;
-        private readonly Severity _indentationInconsistencySeverity;
-        private bool _printFunction, _unicodeLiterals, _withStatement;
-        private List<int> _newLineLocations;
-        private SourceLocation _initialLocation;
-        private TextReader _reader;
-        private char[] _buffer;
-        private bool _multiEolns;
-        private int _position, _end, _tokenEnd, _start, _tokenStartIndex, _tokenEndIndex;
-        private bool _bufferResized;
-        private readonly TokenizerOptions _options;
-        private readonly List<KeyValuePair<IndexSpan, string>> _comments;
-
-        private const int EOF = -1;
-        private const int MaxIndent = 80;
-        private const int DefaultBufferCapacity = 1024;
-
-        private Dictionary<object, NameToken> _names;
-        private static object _currentName = new object();
-
-        private FromFutureImportStage _fromFutureImportStage;
-
-        private Queue<TokenWithSpan> _tokenBuffer;
-
-        // precalcuated strings for space indentation strings so we usually don't allocate.
-        private static readonly string[] SpaceIndentation, TabIndentation;
-
-        public Tokenizer(
-            PythonLanguageVersion version,
-            ErrorSink errorSink,
-            TokenizerOptions options,
-            Severity indentationInconsistency
-        ) {
-            _errors = errorSink ?? ErrorSink.Null;
-            _comments = new List<KeyValuePair<IndexSpan, string>>();
-            _state = new State(options);
-            _printFunction = false;
-            _unicodeLiterals = false;
-            _names = new Dictionary<object, NameToken>(128, new TokenEqualityComparer(this));
-            _langVersion = version;
-            _options = options;
-            _indentationInconsistencySeverity = indentationInconsistency;
+        public Tokenizer(PythonLanguageVersion version) {
+            _version = version;
+            _lineNumber = 0;
+            _lineStart = 0;
+            _nesting = new Stack<TokenKind>();
         }
 
-        static Tokenizer() {
-            SpaceIndentation = new String[80];
-            for (int i = 0; i < 80; i++) {
-                SpaceIndentation[i] = new string(' ', i + 1);
-            }
-            TabIndentation = new String[10];
-            for (int i = 0; i < 10; i++) {
-                TabIndentation[i] = new string('\t', i + 1);
-            }
+        public string SerializeState() {
+            return string.Format(
+                "v={0};ln={1};ls={2};nest={3}",
+                (int)_version,
+                _lineNumber,
+                _lineStart,
+                Serialize(_nesting)
+            );
         }
 
-        public bool Verbatim {
-            get {
-                return (_options & TokenizerOptions.Verbatim) != 0;
-            }
+        private static string Serialize(SourceLocation loc) {
+            return string.Format("{0}+{1}+{2}", loc.Index, loc.Line, loc.Column);
         }
 
-        public PythonLanguageVersion LanguageVersion {
-            get {
-                return _langVersion;
-            }
-        }
-
-        /// <summary>
-        /// Get all tokens over a block of the stream.
-        /// </summary>
-        /// <remarks>
-        /// <para>
-        /// The scanner should return full tokens. If startLocation + length lands in the middle of a token, the full token
-        /// should be returned.
-        /// </para>
-        /// </remarks>
-        /// <param name="characterCount">Tokens are read until at least given amount of characters is read or the stream ends.</param>
-        /// <returns>A enumeration of tokens.</returns>
-        public List<TokenInfo> ReadTokens(int characterCount) {
-            List<TokenInfo> tokens = new List<TokenInfo>();
-
-            int start = CurrentIndex;
-
-            while (CurrentIndex - start < characterCount) {
-                TokenInfo token = ReadToken();
-                if (token.Category == TokenCategory.EndOfStream) {
-                    break;
-                }
-                tokens.Add(token);
+        private static string Serialize(Stack<TokenKind> stack) {
+            if (stack.Count == 0) {
+                return "";
             }
 
-            return tokens;
-        }
-
-        public object CurrentState {
-            get {
-                return _state;
+            var sb = new StringBuilder();
+            foreach (var k in stack.Reverse()) {
+                sb.AppendFormat("{0}+", (uint)k);
             }
+            sb.Length -= 1;
+            return sb.ToString();
         }
 
-        internal ErrorSink ErrorSink {
-            get { return _errors; }
-            set {
-                Contract.Assert(value != null);
-                _errors = value;
-            }
-        }
-
-        internal Severity IndentationInconsistencySeverity {
-            get { return _indentationInconsistencySeverity; }
-        }
-
-        public bool IsEndOfFile {
-            get {
-                return Peek() == EOF;
-            }
-        }
-
-        private IndexSpan TokenSpan {
-            get {
-                return IndexSpan.FromPoints(_tokenStartIndex, _tokenEndIndex);
-            }
-        }
-
-        public void Initialize(TextReader sourceUnit) {
-            Contract.Assert(sourceUnit != null);
-
-            Initialize(null, sourceUnit, SourceLocation.MinValue, DefaultBufferCapacity);
-        }
-
-        public void Initialize(object state, TextReader reader, SourceLocation initialLocation) {
-            Initialize(state, reader, initialLocation, DefaultBufferCapacity);
-        }
-
-        public void Initialize(object state, TextReader reader, SourceLocation initialLocation, int bufferCapacity) {
-            Contract.Assert(reader != null);
-
-            if (state != null) {
-                if (!(state is State)) throw new ArgumentException("bad state provided");
-                _state = new State((State)state, Verbatim);
-            } else {
-                _state = new State(_options);
-                if (IndentationInconsistencySeverity != Severity.Ignore) {
-                    _state.IndentFormat = new string[MaxIndent];
-                }
-            }
-
-            Debug.Assert(_reader == null, "Must uninitialize tokenizer before reinitializing");
-            _reader = reader;
-
-            if (_buffer == null || _buffer.Length < bufferCapacity) {
-                _buffer = new char[bufferCapacity];
-            }
-
-            _newLineLocations = new List<int> { 0 };
-            _tokenEnd = -1;
-            _multiEolns = !_disableLineFeedLineSeparator;
-            _initialLocation = initialLocation;
-
-            _tokenEndIndex = -1;
-            _tokenStartIndex = 0;
-
-            _start = _end = 0;
-            _position = 0;
-        }
-
-        public void Uninitialize() {
-            if (_reader != null) {
-                _reader.Dispose();
-                _reader = null;
-            }
-            _start = _end = 0;
-            _position = 0;
-        }
-
-        public TokenInfo ReadToken() {
-            if (_buffer == null) {
-                throw new InvalidOperationException("Uninitialized");
-            }
-
-            var t = GetNextToken();
-            return new TokenInfo(t.Token, t.Span);
-        }
-
-        internal void ReadAllTokens(out List<TokenWithSpan[]> tokenLines, out List<int> lineStarts) {
-            tokenLines = new List<TokenWithSpan[]>();
-            lineStarts = new List<int> { 0 };
-
-            var tokens = new List<TokenWithSpan>();
-            TokenWithSpan t;
-            while ((t = GetNextToken()).Token != null) {
-                tokens.Add(t);
-                if (t.Token.Kind == TokenKind.EndOfFile || t.Token.Kind == TokenKind.NewLine) {
-                    tokenLines.Add(tokens.ToArray());
-                    tokens.Clear();
-
-                    lineStarts.Add(TokenSpan.End);
-
-                    if (t.Token.Kind == TokenKind.EndOfFile) {
+        public void RestoreState(string state) {
+            foreach (var line in state.Split(';')) {
+                var key = line.Substring(0, line.IndexOf('='));
+                var value = line.Substring(line.IndexOf('=') + 1);
+                switch (key) {
+                    case "v":
+                        _version = (PythonLanguageVersion)int.Parse(value);
                         break;
-                    }
+                    case "ln":
+                        _lineNumber = int.Parse(value);
+                        break;
+                    case "ls":
+                        _lineStart = int.Parse(value);
+                        break;
+                    case "nest":
+                        _nesting = RestoreTokenKindStack(value);
+                        break;
+                    default:
+                        throw new FormatException("Unrecognized key " + key);
                 }
             }
         }
 
-        private Token TransformStatementToken(Token token) {
-            if (GroupingLevel > 0 &&
-                (_options & TokenizerOptions.GroupingRecovery) != 0 &&
-                _state.GroupingRecovery != null &&
-                _state.GroupingRecovery.TokenStart == _tokenStartIndex) {
-
-                _state.ParenLevel = _state.BraceLevel = _state.BracketLevel = 0;
-
-                // we can't possibly be in a grouping for real if we saw this token, bail...
-                int prevStart = _tokenStartIndex;
-                _position = _start;
-                SetIndent(_state.GroupingRecovery.Spaces, _state.GroupingRecovery.Whitespace, _state.GroupingRecovery.NoAllocWhiteSpace);
-                _tokenStartIndex = _state.GroupingRecovery.NewlineStart;
-                _tokenEndIndex = _state.GroupingRecovery.NewlineStart + _state.GroupingRecovery.NewLineKind.GetSize();
-                _start = _position - (prevStart - _tokenStartIndex);
-                Debug.Assert(_start >= 0);
-
-                if (Verbatim) {
-                    // fixup our white space, remove the newline + any indentation from the current whitespace, add the whitespace minus the
-                    // newline to the next whitespace
-                    int nextWhiteSpaceStart = _state.GroupingRecovery.VerbatimWhiteSpaceLength + _state.GroupingRecovery.NewLineKind.GetSize();
-                    _state.NextWhiteSpace.Insert(0, _state.CurWhiteSpace.ToString(nextWhiteSpaceStart, _state.CurWhiteSpace.Length - nextWhiteSpaceStart));
-                    _state.CurWhiteSpace.Remove(_state.GroupingRecovery.VerbatimWhiteSpaceLength, _state.CurWhiteSpace.Length - nextWhiteSpaceStart + _state.GroupingRecovery.NewLineKind.GetSize());
-                }
-
-                var nlKind = _state.GroupingRecovery.NewLineKind;
-                _state.GroupingRecovery = null;
-                return NewLineKindToToken(nlKind);
+        private static SourceLocation RestoreSourceLocation(string state) {
+            var bits = state.Split('+');
+            if (bits.Length != 3) {
+                throw new FormatException("Cannot read SourceLocation from " + state);
             }
-
-            MarkTokenEnd();
-            return token;
+            return new SourceLocation(int.Parse(bits[0]), int.Parse(bits[1]), int.Parse(bits[2]));
         }
 
-        internal bool TryGetTokenString(int len, out string tokenString) {
-            if (len != TokenLength) {
-                tokenString = null;
-                return false;
+        private static Stack<TokenKind> RestoreTokenKindStack(string state) {
+            var stack = new Stack<TokenKind>();
+            foreach (var bit in state.Split('+')) {
+                stack.Push((TokenKind)uint.Parse(bit));
             }
-            tokenString = GetTokenString();
-            return true;
+            return stack;
         }
 
-        internal bool PrintFunction {
-            get {
-                return _printFunction;
-            }
-        }
-
-        internal bool WithStatement {
-            get {
-                return _withStatement;
-            }
-        }
-
-        internal bool UnicodeLiterals {
-            get {
-                return _unicodeLiterals;
-            }
-        }
-
-        /// <summary>
-        /// Return the white space proceeding the last fetched token. Returns an empty string if
-        /// the tokenizer was not created in verbatim mode.
-        /// </summary>
-        private string PreceedingWhiteSpace {
-            get {
-                if (!Verbatim) {
-                    return "";
-                }
-                return _state.CurWhiteSpace.ToString();
-            }
-        }
-
-        public TokenWithSpan GetNextToken() {
-            if (_tokenBuffer != null) {
-                if (_tokenBuffer.Count > 0) {
-                    return _tokenBuffer.Dequeue();
-                }
-                _tokenBuffer = null;
+        public IEnumerable<Token> GetTokens(string line) {
+            _lineNumber += 1;
+            if (string.IsNullOrEmpty(line)) {
+                return Enumerable.Empty<Token>();
             }
 
-            var result = GetNextTokenNoBuffer();
-            if (result.Token.Kind == TokenKind.Comment) {
-                result = FindDedent(result);
-            }
+            var result = GetTokensWorker(line, _lineStart, _lineNumber);
+            _lineStart += line?.Length ?? 0;
             return result;
         }
 
-        private TokenWithSpan GetNextTokenNoBuffer() {
-            var token = Next();
+        private IEnumerable<Token> GetTokensWorker(string line, int lineStart, int lineNumber) {
+            var start = new SourceLocation(lineStart, lineNumber, 1);
 
-            var span = IndexSpan.FromPoints(_tokenStartIndex, _tokenEndIndex);
-            var whitespace = Verbatim ? _state.CurWhiteSpace.ToString() : string.Empty;
+            int i = 0;
 
-            DumpToken(token);
+            var leadingWsKind = TokenKind.SignificantWhitespace;
+            int leadingWsLength = 0;
 
-            return new TokenWithSpan(token, span, whitespace);
-        }
-
-        private Token Next() {
-            if (Verbatim) {
-                _state.CurWhiteSpace.Clear();
-                if (_state.NextWhiteSpace.Length != 0) {
-                    // flip to the next white space if we have some...
-                    var tmp = _state.CurWhiteSpace;
-                    _state.CurWhiteSpace = _state.NextWhiteSpace;
-                    _state.NextWhiteSpace = tmp;
-                }
-            }
-
-            if (_state.PendingDedents != 0) {
-                if (_state.PendingDedents == -1) {
-                    _state.PendingDedents = 0;
-                    return Tokens.IndentToken;
+            if (_nesting.Any()) {
+                var inGroup = _nesting.Peek();
+                if (inGroup.GetCategory() == TokenCategory.StringLiteral) {
+                    leadingWsKind = TokenKind.Unknown;
                 } else {
-                    _state.PendingDedents--;
-                    return Tokens.DedentToken;
+                    leadingWsKind = TokenKind.Whitespace;
                 }
             }
 
-            bool at_beginning = AtBeginning;
+            if (leadingWsKind != TokenKind.Unknown) {
+                while (i < line.Length) {
+                    char c = line[i];
+                    if (c == ' ' || c == '\t') {
+                        i += 1;
+                    } else {
+                        break;
+                    }
+                }
+                leadingWsLength = i;
 
-            if (_state.IncompleteString != null && Peek() != EOF) {
-                IncompleteString prev = _state.IncompleteString;
-                _state.IncompleteString = null;
-                return ContinueString(prev.IsSingleTickQuote ? '\'' : '"', prev.IsRaw, prev.IsUnicode, false, prev.IsTripleQuoted, 0);
+                if (i < line.Length) {
+                    char c = line[i];
+                    if (c == '\r' || c == '\n' || c == '#') {
+                        leadingWsKind = TokenKind.Whitespace;
+                    }
+                } else {
+                    i = 0;
+                    leadingWsKind = TokenKind.Unknown;
+                }
             }
 
-            DiscardToken();
+            if (_nesting.Any() && _nesting.Peek() == TokenKind.ExplicitLineJoin) {
+                _nesting.Pop();
+            }
 
-            int ch = NextChar();
+            bool firstTokenOnLine = true;
 
-            while (true) {
-                switch (ch) {
-                    case EOF:
-                        return ReadEof();
-                    case '\f':
-                        // Ignore form feeds
-                        if (Verbatim) {
-                            _state.CurWhiteSpace.Append((char)ch);
-                        }
-                        DiscardToken();
-                        ch = NextChar();
+            while (i < line.Length) {
+                int len = 0;
+                var inGroup = TokenKind.Unknown;
+
+                if (_nesting.Count > 0) {
+                    inGroup = _nesting.Peek();
+                }
+
+                TokenKind kind = TokenKind.Unknown;
+
+                switch (inGroup) {
+                    case TokenKind.RightSingleQuote:
+                    case TokenKind.RightDoubleQuote:
+                    case TokenKind.RightSingleTripleQuote:
+                    case TokenKind.RightDoubleTripleQuote:
+                        kind = GetStringLiteralToken(line, i, inGroup, out len);
                         break;
-                    case ' ':
-                    case '\t':
-                        ch = SkipWhiteSpace(ch, at_beginning);
-                        break;
+                }
 
-                    case '#':
-                        return ReadSingleLineComment(out ch);
+                if (kind == TokenKind.Unknown) {
+                    kind = GetNextToken(line, i, out len);
+                }
 
-                    case '\\':
-                        ch = Peek();
-                        if (ch == '\r' || ch == '\n' || ch == EOF) {
-                            _state.LastLineJoin = true;
-                            ch = NextChar();
-                        } else {
-                            ch = '\\';
-                        }
-                        goto default;
+                if (inGroup != TokenKind.Unknown) {
+                    if (kind == TokenKind.NewLine) {
+                        kind = TokenKind.Whitespace;
+                    }
+                }
 
-                    case '\"':
-                    case '\'':
-                        _state.LastNewLine = false;
-                        return ReadString((char)ch, false, false, false);
-
-                    case 'u':
-                    case 'U':
-                        _state.LastNewLine = false;
-                        // The u prefix was reintroduced to Python 3.3 in PEP 414
-                        if (_langVersion.Is2x() || _langVersion >= PythonLanguageVersion.V33) {
-                            return ReadNameOrUnicodeString();
-                        }
-                        return ReadName();
-                    case 'r':
-                    case 'R':
-                        _state.LastNewLine = false;
-                        return ReadNameOrRawString();
-                    case 'b':
-                    case 'B':
-                        _state.LastNewLine = false;
-                        if (_langVersion >= PythonLanguageVersion.V26) {
-                            return ReadNameOrBytes();
-                        }
-                        return ReadName();
-                    case '_':
-                        _state.LastNewLine = false;
-                        return ReadName();
-
-                    case '.':
-                        _state.LastNewLine = false;
-                        ch = Peek();
-                        if (ch >= '0' && ch <= '9') {
-                            return ReadFraction();
-                        } else if (ch == '.' && _langVersion.Is3x()) {
-                            NextChar();
-                            if (Peek() == '.') {
-                                NextChar();
-                                MarkTokenEnd();
-                                return Tokens.Ellipsis;
-                            } else {
-                                BufferBack();
-                            }
-                        }
-
-                        MarkTokenEnd();
-
-                        return Tokens.DotToken;
-
-                    case '0':
-                    case '1':
-                    case '2':
-                    case '3':
-                    case '4':
-                    case '5':
-                    case '6':
-                    case '7':
-                    case '8':
-                    case '9':
-                        _state.LastNewLine = false;
-                        return ReadNumber(ch);
-
-                    default:
-                        NewLineKind nlKind;
-                        if ((nlKind = ReadEolnOpt(ch)) > 0) {
-                            _newLineLocations.Add(CurrentIndex);
-                            // token marked by the callee:
-                            if (ReadIndentationAfterNewLine(nlKind)) {
-                                return NewLineKindToToken(nlKind, _state.LastNewLine, _state.LastLineJoin);
-                            }
-
-                            // we're in a grouping, white space is ignored
-                            DiscardToken();
-                            ch = NextChar();
+                if (firstTokenOnLine) {
+                    switch (kind) {
+                        case TokenKind.MatMultiply:
+                            kind = TokenKind.At;
                             break;
-                        }
+                    }
 
-                        _state.LastNewLine = false;
-                        Token res = NextOperator(ch);
-                        if (res != null) {
-                            if (res is StatementSymbolToken) {
-                                return TransformStatementToken(res);
-                            }
-                            MarkTokenEnd();
-                            return res;
-                        }
+                    if (_nesting.Any() && kind.GetUsage() == TokenUsage.BeginStatement) {
+                        // Grouping has gone bad, so reset
+                        _nesting.Clear();
 
-                        if (IsNameStart(ch)) return ReadName();
+                        // The last whitespace token contained the newline, so
+                        // yield a 0-length newline token for the parser.
+                        yield return new Token(TokenKind.NewLine, start, 0);
 
-                        MarkTokenEnd();
-                        return BadChar(ch);
+                        // Make the leading whitespace significant
+                        leadingWsKind = TokenKind.SignificantWhitespace;
+                    }
+
+                    if (leadingWsKind == TokenKind.SignificantWhitespace) {
+                        yield return new Token(leadingWsKind, start, leadingWsLength);
+                    } else if (leadingWsKind == TokenKind.Whitespace && leadingWsLength > 0) {
+                        yield return new Token(leadingWsKind, start, leadingWsLength);
+                    }
+                    leadingWsKind = TokenKind.Unknown;
+
+                    firstTokenOnLine = false;
+                }
+
+                var token = new Token(kind, start + i, len);
+                yield return token;
+                i += len;
+
+                if (inGroup == kind) {
+                    _nesting.Pop();
+                }
+
+                var endGroup = kind.GetGroupEnding();
+                if (endGroup != TokenKind.Unknown) {
+                    _nesting.Push(endGroup);
+                }
+
+                if (kind == TokenKind.ExplicitLineJoin) {
+                    _nesting.Push(kind);
+                }
+            }
+
+            // In case we never yielded the leading whitespace
+            if (leadingWsKind == TokenKind.SignificantWhitespace) {
+                yield return new Token(leadingWsKind, start, leadingWsLength);
+            } else if (leadingWsKind == TokenKind.Whitespace && leadingWsLength > 0) {
+                yield return new Token(leadingWsKind, start, leadingWsLength);
+            }
+            leadingWsKind = TokenKind.Unknown;
+
+            if (_nesting.Any() &&
+                (_nesting.Peek() == TokenKind.LeftSingleQuote || _nesting.Peek() == TokenKind.LeftDoubleQuote)) {
+                var lineWithoutNewline = line.TrimEnd('\r', '\n');
+                Debug.Assert(line.Length - lineWithoutNewline.Length <= 2);
+                var trimmedLine = line.TrimEnd('\r', '\n');
+                if (!line.EndsWith("\\") || line.EndsWith("\\\\")) {
+                    yield return new Token(_nesting.Pop(), start + lineWithoutNewline.Length, 0);
                 }
             }
         }
 
-        private TokenWithSpan FindDedent(TokenWithSpan token) {
-            if (_tokenBuffer == null) {
-                _tokenBuffer = new Queue<TokenWithSpan>();
+        private TokenKind GetStringLiteralToken(string line, int start, TokenKind inGroup, out int length) {
+            length = 0;
+
+            string quote;
+            switch (inGroup) {
+                case TokenKind.RightSingleQuote:
+                    quote = "'";
+                    break;
+                case TokenKind.RightDoubleQuote:
+                    quote = "\"";
+                    break;
+                case TokenKind.RightSingleTripleQuote:
+                    quote = "'''";
+                    break;
+                case TokenKind.RightDoubleTripleQuote:
+                    quote = "\"\"\"";
+                    break;
+                default:
+                    return TokenKind.Unknown;
             }
 
-            var buffer = new List<TokenWithSpan> { token };
-            List<TokenWithSpan> indents = null;
-            List<TokenWithSpan> dedents = null;
-            List<TokenWithSpan> before = null;
-            string indentWhitespace = null;
-
-            var initialIndent = SourceLocation.FromIndex(_newLineLocations, token.Span.Start).Column;
-
-            TokenWithSpan tws;
-            var lastK = token.Token.Kind;
-            while ((tws = GetNextTokenNoBuffer()).Token != null) {
-                if (indents == null && dedents == null) {
-                    var k = tws.Token.Kind;
-                    if (k == TokenKind.Dedent) {
-                        // Start collecting all the dedents
-                        dedents = new List<TokenWithSpan>();
-                    } else if (k == TokenKind.Indent) {
-                        // Start collecting all the indents
-                        indents = new List<TokenWithSpan>();
-                    } else if (k == TokenKind.Comment) {
-                        if (lastK == TokenKind.NLToken || lastK == TokenKind.NewLine) {
-                            var newIndent = SourceLocation.FromIndex(_newLineLocations, tws.Span.Start).Column;
-
-                            // Insert indents/dedents before this token
-                            if (newIndent != initialIndent && before == null) {
-                                before = buffer;
-                                buffer = new List<TokenWithSpan>();
-                            }
-                        }
-                        buffer.Add(tws);
-                    } else if (k != TokenKind.NLToken) {
-                        // Not a real indent/dedent
-                        buffer.Add(tws);
-                        break;
-                    } else {
-                        buffer.Add(tws);
-                    }
-                    lastK = k;
+            int end = line.IndexOf(quote, start);
+            while (end > start && line[end - 1] == '\\') {
+                int slashCount = 1;
+                for (int i = end - 2; i >= start && line[i] == '\\'; --i) {
+                    slashCount += 1;
                 }
-
-                if (indents != null) {
-                    if (tws.Token.Kind != TokenKind.Indent) {
-                        // No more indents
-                        buffer.Add(new TokenWithSpan(tws.Token, tws.Span, indentWhitespace));
-                        break;
-                    }
-
-                    if (indentWhitespace == null) {
-                        indentWhitespace = tws.LeadingWhitespace;
-                    } else {
-                        indentWhitespace += tws.LeadingWhitespace ?? "";
-                    }
-
-                    indents.Add(new TokenWithSpan(tws.Token, tws.Span, null));
+                if ((slashCount % 2) == 0) {
+                    break;
                 }
-
-                if (dedents != null) {
-                    if (tws.Token.Kind != TokenKind.Dedent) {
-                        // No more dedents
-                        buffer.Add(tws);
-                        break;
-                    }
-
-                    dedents.Add(tws);
-                }
+                end = line.IndexOf(quote, end + 1);
             }
-
-            if (before != null) {
-                foreach (var t in before) {
-                    _tokenBuffer.Enqueue(t);
-                }
-            }
-            if (dedents != null) {
-                Debug.Assert(indents == null);
-                foreach (var t in dedents) {
-                    _tokenBuffer.Enqueue(t);
-                }
-            }
-            if (indents != null) {
-                Debug.Assert(dedents == null);
-                foreach (var t in indents) {
-                    _tokenBuffer.Enqueue(t);
-                }
-            }
-            foreach (var t in buffer) {
-                _tokenBuffer.Enqueue(t);
-            }
-            Debug.Assert(_tokenBuffer.Count > 0);
-            return _tokenBuffer.Count > 0 ? _tokenBuffer.Dequeue() : TokenWithSpan.Empty;
-        }
-
-        private Token NewLineKindToToken(NewLineKind nlKind, bool lastNewLine = false, bool lastLineJoin = false) {
-            if (lastLineJoin) {
-                _state.LastLineJoin = false;
-                switch (nlKind) {
-                    case NewLineKind.CarriageReturn: return Tokens.JoinedNewLineTokenCR;
-                    case NewLineKind.CarriageReturnLineFeed: return Tokens.JoinedNewLineTokenCRLF;
-                    case NewLineKind.LineFeed: return Tokens.JoinedNewLineToken;
-                }
-            } else if (lastNewLine) {
-                switch (nlKind) {
-                    case NewLineKind.CarriageReturn: return Tokens.NLTokenCR;
-                    case NewLineKind.CarriageReturnLineFeed: return Tokens.NLTokenCRLF;
-                    case NewLineKind.LineFeed: return Tokens.NLToken;
-                }
+            if (end == start) {
+                length = quote.Length;
+                return inGroup;
+            } else if (end < 0) {
+                length = line.Length - start;
             } else {
-                _state.LastNewLine = true;
-                switch (nlKind) {
-                    case NewLineKind.CarriageReturn: return Tokens.NewLineTokenCR;
-                    case NewLineKind.CarriageReturnLineFeed: return Tokens.NewLineTokenCRLF;
-                    case NewLineKind.LineFeed: return Tokens.NewLineToken;
-                }
+                length = end - start;
             }
-            throw new InvalidOperationException();
+            return TokenKind.LiteralString;
         }
 
-        private int SkipWhiteSpace(int ch, bool atBeginning) {
-            do {
-                if (Verbatim) {
-                    _state.CurWhiteSpace.Append((char)ch);
-                }
-                ch = NextChar();
-            } while (ch == ' ' || ch == '\t');
-
-            BufferBack();
-
-            if (atBeginning && ch != '#' && ch != '\f' && ch != EOF && !IsEoln(ch)) {
-                MarkTokenEnd();
-                ReportSyntaxError(BufferTokenSpan, "invalid syntax", ErrorCodes.SyntaxError);
-            }
-
-            DiscardToken();
-            SeekRelative(+1);
-            return ch;
-        }
-
-        private Token ReadSingleLineComment(out int ch) {
-            // do single-line comment:
-            ch = ReadLine();
-            MarkTokenEnd();
-
-            var comment = GetTokenString();
-
-            if (comment == Parser.ResetStateMarker) {
-                _state = new State(_options);
-                DiscardToken();
-                SeekRelative(+1);
-                return null;
-            }
-
-            string newline = "";
-            if (GroupingLevel > 0) {
-                // Consume the newline
-                ch = NextChar();
-                var nl = ReadEolnOpt(ch);
-                if (nl == NewLineKind.None) {
-                    SeekRelative(-1);
-                } else {
-                    newline = nl.GetString();
-                    ch = Peek();
-                }
-            }
-
-            if (_comments != null) {
-                _comments.Add(new KeyValuePair<IndexSpan, string>(TokenSpan, comment));
-            }
-
-            return new CommentToken(comment, newline);
-        }
-
-        private Token ReadNameOrUnicodeString() {
-            if (NextChar('\"')) return ReadString('\"', false, true, false);
-            if (NextChar('\'')) return ReadString('\'', false, true, false);
-            if (NextChar('r') || NextChar('R')) {
-                if (NextChar('\"')) return ReadString('\"', true, true, false);
-                if (NextChar('\'')) return ReadString('\'', true, true, false);
-                BufferBack();
-            }
-            return ReadName();
-        }
-
-        private Token ReadNameOrBytes() {
-            if (NextChar('\"')) return ReadString('\"', false, false, true);
-            if (NextChar('\'')) return ReadString('\'', false, false, true);
-            if (NextChar('r') || NextChar('R')) {
-                if (NextChar('\"')) return ReadString('\"', true, false, true);
-                if (NextChar('\'')) return ReadString('\'', true, false, true);
-                BufferBack();
-            }
-            return ReadName();
-        }
-
-        private Token ReadNameOrRawString() {
-            bool isBytes = false;
-            if (this._langVersion >= PythonLanguageVersion.V33) {
-                isBytes = NextChar('b') || NextChar('B');
-            }
-            if (NextChar('\"')) return ReadString('\"', true, false, isBytes);
-            if (NextChar('\'')) return ReadString('\'', true, false, isBytes);
-            return ReadName();
-        }
-
-        private Token ReadEof() {
-            MarkTokenEnd();
-
-            if (/*!_dontImplyDedent && */_state.IndentLevel > 0 && GroupingLevel == 0) {
-                // before we imply dedents we need to make sure the last thing we returned was
-                // a new line.
-                if (!_state.LastNewLine) {
-                    _state.LastNewLine = true;
-                    return Tokens.ImpliedNewLineToken;
-                }
-
-                // and then go ahead and imply the dedents.
-                SetIndent(0, null, null, _position);
-                _state.PendingDedents--;
-                return Tokens.DedentToken;
-            }
-
-            if (_state.LastLineJoin) {
-                return Tokens.JoinedEndOfFileToken;
-            }
-
-            return Tokens.EndOfFileToken;
-        }
-
-        private static string AddSlashes(string str) {
-            StringBuilder result = new StringBuilder(str.Length);
-            for (int i = 0; i < str.Length; i++) {
-                switch (str[i]) {
-                    case '\a': result.Append("\\a"); break;
-                    case '\b': result.Append("\\b"); break;
-                    case '\f': result.Append("\\f"); break;
-                    case '\n': result.Append("\\n"); break;
-                    case '\r': result.Append("\\r"); break;
-                    case '\t': result.Append("\\t"); break;
-                    case '\v': result.Append("\\v"); break;
-                    default: result.Append(str[i]); break;
-                }
-            }
-
-            return result.ToString();
-        }
-
-        private static ErrorToken BadChar(int ch) {
-            Debug.Assert(new string((char)ch, 1)[0] == ch);
-            return new ErrorToken(AddSlashes(((char)ch).ToString()), new string((char)ch, 1));
-        }
-
-        private static bool IsNameStart(int ch) {
-            return Char.IsLetter((char)ch) || ch == '_';
-        }
-
-        private static bool IsNamePart(int ch) {
-            return Char.IsLetterOrDigit((char)ch) || ch == '_';
-        }
-
-        private Token ReadString(char quote, bool isRaw, bool isUni, bool isBytes) {
-            int sadd = 0;
-            bool isTriple = false;
-
-            if (NextChar(quote)) {
-                if (NextChar(quote)) {
-                    isTriple = true; sadd += 3;
-                } else {
-                    BufferBack();
-                    sadd++;
-                }
-            } else {
-                sadd++;
-            }
-
-            if (isRaw) sadd++;
-            if (isUni) sadd++;
-            if (isBytes) sadd++;
-
-            return ContinueString(quote, isRaw, isUni, isBytes, isTriple, sadd);
-        }
-
-        private Token ContinueString(char quote, bool isRaw, bool isUnicode, bool isBytes, bool isTriple, int startAdd) {
-            // PERF: Might be nice to have this not need to get the whole token (which requires a buffer >= in size to the
-            // length of the string) and instead build up the string via pieces.  Currently on files w/ large doc strings we
-            // are forced to grow our buffer.
-
-            int end_add = 0;
-            NewLineKind nlKind;
-
-            for (; ; ) {
-                int ch = NextChar();
-
-                if (ch == EOF) {
-                    BufferBack();
-
-                    if (isTriple) {
-                        // CPython reports the multi-line string error as if it is a single line
-                        // ending at the last char in the file.
-
-                        MarkTokenEnd();
-
-                        ReportSyntaxError(new IndexSpan(_tokenEndIndex, 0), "EOF while scanning triple-quoted string", ErrorCodes.SyntaxError | ErrorCodes.IncompleteToken);
-                    } else {
-                        MarkTokenEnd();
-                    }
-
-                    UnexpectedEndOfString(isTriple, isTriple);
-                    string incompleteContents = GetTokenString();
-
-                    _state.IncompleteString = new IncompleteString(quote == '\'', isRaw, isUnicode, isTriple);
-                    return new IncompleteStringErrorToken("<eof> while reading string", incompleteContents);
-                } else if (ch == quote) {
-
-                    if (isTriple) {
-                        if (NextChar(quote) && NextChar(quote)) {
-                            end_add += 3;
-                            break;
-                        }
-                    } else {
-                        end_add++;
-                        break;
-                    }
-
-                } else if (ch == '\\') {
-                    ch = NextChar();
-
-                    if (ch == EOF) {
-                        BufferBack();
-
-                        MarkTokenEnd();
-                        UnexpectedEndOfString(isTriple, isTriple);
-
-                        string incompleteContents = GetTokenString();
-
-                        _state.IncompleteString = new IncompleteString(quote == '\'', isRaw, isUnicode, isTriple);
-
-                        return new IncompleteStringErrorToken("<eof> while reading string", incompleteContents);
-                    } else if ((nlKind = ReadEolnOpt(ch)) > 0) {
-                        _newLineLocations.Add(CurrentIndex);
-
-                        // skip \<eoln> unless followed by EOF:
-                        if (Peek() == EOF) {
-                            MarkTokenEnd();
-
-                            // incomplete string in the form "abc\
-
-                            string incompleteContents = GetTokenString();
-
-                            _state.IncompleteString = new IncompleteString(quote == '\'', isRaw, isUnicode, isTriple);
-                            UnexpectedEndOfString(isTriple, true);
-                            return new IncompleteStringErrorToken("<eof> while reading string", incompleteContents);
-                        }
-
-                    } else if (ch != quote && ch != '\\') {
-                        BufferBack();
-                    }
-
-                } else if ((nlKind = ReadEolnOpt(ch)) > 0) {
-                    _newLineLocations.Add(CurrentIndex);
-                    if (!isTriple) {
-                        // backup over the eoln:
-
-                        MarkTokenEnd();
-                        UnexpectedEndOfString(isTriple, false);
-
-                        string incompleteContents = GetTokenString();
-
-                        return new IncompleteStringErrorToken((quote == '"') ? "NEWLINE in double-quoted string" : "NEWLINE in single-quoted string", incompleteContents);
-                    }
-                }
-            }
-
-            MarkTokenEnd();
-
-            return MakeStringToken(quote, isRaw, isUnicode, isBytes, isTriple, _start + startAdd, TokenLength - startAdd - end_add);
-        }
-
-        private Token MakeStringToken(char quote, bool isRaw, bool isUnicode, bool isBytes, bool isTriple, int start, int length) {
-            bool makeUnicode;
-            if (isUnicode) {
-                makeUnicode = true;
-            } else if (isBytes) {
-                makeUnicode = false;
-            } else {
-                makeUnicode = _langVersion.Is3x() || UnicodeLiterals;
-            }
-
-            if (makeUnicode) {
-                string contents;
-                try {
-                    contents = LiteralParser.ParseString(_buffer, start, length, isRaw, true, !_disableLineFeedLineSeparator);
-                } catch (DecoderFallbackException e) {
-                    _errors.Add(e.Message, TokenSpan, ErrorCodes.SyntaxError, Severity.Error);
-                    contents = "";
-                }
-
-                if (Verbatim) {
-                    return new VerbatimUnicodeStringToken(contents, GetTokenString());
-                }
-                return new UnicodeStringToken(contents);
-            } else {
-                var data = LiteralParser.ParseBytes(_buffer, start, length, isRaw, !_disableLineFeedLineSeparator);
-                if (data.Count == 0) {
-                    if (Verbatim) {
-                        return new VerbatimConstantValueToken(new AsciiString(new byte[0], ""), GetTokenString());
-                    }
-                    return new ConstantValueToken(new AsciiString(new byte[0], ""));
-                }
-
-                byte[] bytes = new byte[data.Count];
-                for (int i = 0; i < bytes.Length; i++) {
-                    bytes[i] = (byte)data[i];
-                }
-
-                if (Verbatim) {
-                    return new VerbatimConstantValueToken(new AsciiString(bytes, new String(data.ToArray())), GetTokenString());
-                }
-                return new ConstantValueToken(new AsciiString(bytes, new String(data.ToArray())));
-            }
-        }
-
-        private void UnexpectedEndOfString(bool isTriple, bool isIncomplete) {
-            string message = isTriple ? "EOF while scanning triple-quoted string" : "EOL while scanning single-quoted string";
-            int error = isIncomplete ? ErrorCodes.SyntaxError | ErrorCodes.IncompleteToken : ErrorCodes.SyntaxError;
-
-            ReportSyntaxError(BufferTokenSpan, message, error);
-        }
-
-        private Token ReadNumber(int start) {
-            int b = 10;
-            if (start == '0') {
-                if (NextChar('x') || NextChar('X')) {
-                    return ReadHexNumber();
-                } else if (_langVersion >= PythonLanguageVersion.V26) {
-                    if ((NextChar('b') || NextChar('B'))) {
-                        return ReadBinaryNumber();
-                    } else if (NextChar('o') || NextChar('O')) {
-                        return ReadOctalNumber();
-                    }
-                }
-
-                b = 8;
-            }
-
-            while (true) {
-                int ch = NextChar();
-
-                switch (ch) {
-                    case '.':
-                        return ReadFraction();
-
-                    case 'e':
-                    case 'E':
-                        return ReadExponent();
-
-                    case 'j':
-                    case 'J':
-                        MarkTokenEnd();
-
-                        // TODO: parse in place
-                        if (Verbatim) {
-                            string tokenStr = GetTokenString();
-                            return new VerbatimConstantValueToken(LiteralParser.ParseImaginary(tokenStr), tokenStr);
-                        }
-                        return new ConstantValueToken(LiteralParser.ParseImaginary(GetTokenString()));
-
-                    case 'l':
-                    case 'L': {
-                            MarkTokenEnd();
-
-                            if (_langVersion.Is3x()) {
-                                ReportSyntaxError(new IndexSpan(_tokenEndIndex - 1, 1), "invalid token", ErrorCodes.SyntaxError);
-                            }
-                            string tokenStr = GetTokenString();
-                            try {
-                                // TODO: parse in place
-                                if (Verbatim) {
-                                    return new VerbatimConstantValueToken(LiteralParser.ParseBigInteger(tokenStr, b), tokenStr);
-                                }
-
-                                return new ConstantValueToken(LiteralParser.ParseBigInteger(tokenStr, b));
-                            } catch (ArgumentException e) {
-                                return new ErrorToken(e.Message, tokenStr);
-                            }
-                        }
-                    case '0':
-                    case '1':
-                    case '2':
-                    case '3':
-                    case '4':
-                    case '5':
-                    case '6':
-                    case '7':
-                    case '8':
-                    case '9':
-                        break;
-
-                    default:
-                        BufferBack();
-                        MarkTokenEnd();
-
-                        string image = GetTokenString();
-                        object val = ParseInteger(GetTokenString(), b);
-                        if (b == 8 && _langVersion.Is3x() && (!(val is int) || !((int)val == 0))) {
-                            ReportSyntaxError(BufferTokenSpan, "invalid token", ErrorCodes.SyntaxError);
-                        }
-
-                        if (Verbatim) {
-                            return new VerbatimConstantValueToken(val, image);
-                        }
-                        // TODO: parse in place
-                        return new ConstantValueToken(val);
-                }
-            }
-        }
-
-        private Token ReadBinaryNumber() {
-            int bits = 0;
-            int iVal = 0;
-            bool useBigInt = false;
-            BigInteger bigInt = BigInteger.Zero;
-            while (true) {
-                int ch = NextChar();
-                switch (ch) {
-                    case '0':
-                        if (iVal != 0) {
-                            // ignore leading 0's...
-                            goto case '1';
-                        }
-                        break;
-                    case '1':
-                        bits++;
-                        if (bits == 32) {
-                            useBigInt = true;
-                            bigInt = (BigInteger)iVal;
-                        }
-
-                        if (bits >= 32) {
-                            bigInt = (bigInt << 1) | (ch - '0');
-                        } else {
-                            iVal = iVal << 1 | (ch - '0');
-                        }
-                        break;
-                    case 'l':
-                    case 'L':
-                        MarkTokenEnd();
-
-                        if (_langVersion.Is3x()) {
-                            ReportSyntaxError(new IndexSpan(_tokenEndIndex - 1, 1), "invalid token", ErrorCodes.SyntaxError);
-                        }
-
-                        if (Verbatim) {
-                            return new VerbatimConstantValueToken(useBigInt ? bigInt : (BigInteger)iVal, GetTokenString());
-                        }
-                        return new ConstantValueToken(useBigInt ? bigInt : (BigInteger)iVal);
-                    default:
-                        BufferBack();
-                        MarkTokenEnd();
-
-                        if (Verbatim) {
-                            return new VerbatimConstantValueToken(useBigInt ? (object)bigInt : (object)iVal, GetTokenString());
-                        }
-                        return new ConstantValueToken(useBigInt ? (object)bigInt : (object)iVal);
-                }
-            }
-        }
-
-        private Token ReadOctalNumber() {
-            while (true) {
-                int ch = NextChar();
-
-                switch (ch) {
-                    case '0':
-                    case '1':
-                    case '2':
-                    case '3':
-                    case '4':
-                    case '5':
-                    case '6':
-                    case '7':
-                        break;
-
-                    case 'l':
-                    case 'L':
-                        MarkTokenEnd();
-
-                        if (_langVersion.Is3x()) {
-                            ReportSyntaxError(new IndexSpan(_tokenEndIndex - 1, 1), "invalid token", ErrorCodes.SyntaxError);
-                        }
-
-                        // TODO: parse in place
-                        if (Verbatim) {
-                            return new VerbatimConstantValueToken(LiteralParser.ParseBigInteger(GetTokenSubstring(2, TokenLength - 2), 8), GetTokenString());
-                        }
-                        return new ConstantValueToken(LiteralParser.ParseBigInteger(GetTokenSubstring(2, TokenLength - 2), 8));
-
-                    default:
-                        BufferBack();
-                        MarkTokenEnd();
-
-                        // TODO: parse in place
-                        if (Verbatim) {
-                            return new VerbatimConstantValueToken(LiteralParser.ParseBigInteger(GetTokenSubstring(2, TokenLength - 2), 8), GetTokenString());
-                        }
-                        return new ConstantValueToken(ParseInteger(GetTokenSubstring(2), 8));
-                }
-            }
-        }
-
-        private Token ReadHexNumber() {
-            while (true) {
-                int ch = NextChar();
-
-                switch (ch) {
-                    case '0':
-                    case '1':
-                    case '2':
-                    case '3':
-                    case '4':
-                    case '5':
-                    case '6':
-                    case '7':
-                    case '8':
-                    case '9':
-                    case 'a':
-                    case 'b':
-                    case 'c':
-                    case 'd':
-                    case 'e':
-                    case 'f':
-                    case 'A':
-                    case 'B':
-                    case 'C':
-                    case 'D':
-                    case 'E':
-                    case 'F':
-                        break;
-
-                    case 'l':
-                    case 'L':
-                        MarkTokenEnd();
-
-                        if (_langVersion.Is3x()) {
-                            ReportSyntaxError(new IndexSpan(_tokenEndIndex - 1, 1), "invalid token", ErrorCodes.SyntaxError);
-                        }
-
-                        // TODO: parse in place
-                        if (Verbatim) {
-                            return new VerbatimConstantValueToken(LiteralParser.ParseBigInteger(GetTokenSubstring(2, TokenLength - 3), 16), GetTokenString());
-                        }
-                        return new ConstantValueToken(LiteralParser.ParseBigInteger(GetTokenSubstring(2, TokenLength - 3), 16));
-
-                    default:
-                        BufferBack();
-                        MarkTokenEnd();
-
-                        // TODO: parse in place
-                        if (Verbatim) {
-                            return new VerbatimConstantValueToken(
-                                ParseInteger(GetTokenSubstring(2), 16),
-                                GetTokenString()
-                            );
-                        }
-                        return new ConstantValueToken(ParseInteger(GetTokenSubstring(2), 16));
-                }
-            }
-        }
-
-        private Token ReadFraction() {
-            while (true) {
-                int ch = NextChar();
-
-                switch (ch) {
-                    case '0':
-                    case '1':
-                    case '2':
-                    case '3':
-                    case '4':
-                    case '5':
-                    case '6':
-                    case '7':
-                    case '8':
-                    case '9':
-                        break;
-
-                    case 'e':
-                    case 'E':
-                        return ReadExponent(true);
-
-                    case 'j':
-                    case 'J':
-                        MarkTokenEnd();
-
-                        // TODO: parse in place
-                        if (Verbatim) {
-                            string tokenStr = GetTokenString();
-                            return new VerbatimConstantValueToken(LiteralParser.ParseImaginary(tokenStr), tokenStr);
-                        }
-                        return new ConstantValueToken(LiteralParser.ParseImaginary(GetTokenString()));
-
-                    default:
-                        BufferBack();
-                        MarkTokenEnd();
-
-                        // TODO: parse in place
-                        if (Verbatim) {
-                            string tokenStr = GetTokenString();
-                            return new VerbatimConstantValueToken(ParseFloat(tokenStr), tokenStr);
-                        }
-                        return new ConstantValueToken(ParseFloat(GetTokenString()));
-                }
-            }
-        }
-
-        private Token ReadExponent(bool leftIsFloat = false) {
-            string tokenStr;
-            int ch = NextChar();
-
-            if (ch == '-' || ch == '+') {
-                ch = NextChar();
-            }
-
-            for (var iter = 0; ;iter++ ) {
-                switch (ch) {
-                    case '0':
-                    case '1':
-                    case '2':
-                    case '3':
-                    case '4':
-                    case '5':
-                    case '6':
-                    case '7':
-                    case '8':
-                    case '9':
-                        ch = NextChar();
-                        break;
-
-                    case 'j':
-                    case 'J':
-                        MarkTokenEnd();
-
-                        // TODO: parse in place
-                        tokenStr = GetTokenString();
-                        if (Verbatim) {
-                            return new VerbatimConstantValueToken(ParseComplex(tokenStr), tokenStr);
-                        }
-                        return new ConstantValueToken(ParseComplex(tokenStr));
-                            
-                    default:
-                        if (iter <= 0) {
-                            // CPython Issue 21642 allows entries such as 1else which should be
-                            // parsed as '1 else' and not '1e lse'.  Back the buffer to before the e.
-                            BufferBack(-2);
-                            MarkTokenEnd();
-
-                            // since we are ignoring the e this could be either a float or int
-                            // depending on the lhs of the e
-                            tokenStr = GetTokenString();
-                            object parsed = leftIsFloat ? ParseFloat(tokenStr) : ParseInteger(tokenStr, 10);
-                            // TODO: parse in place
-                            if (Verbatim) {
-                                return new VerbatimConstantValueToken(parsed, tokenStr);
-                            }
-                            return new ConstantValueToken(parsed);
-                        } else {
-                            // we have a valid exponent but it is against a variable and are on the e.
-                            // For example 1e23else.
-                            BufferBack();
-                            MarkTokenEnd();
-
-                            // TODO: parse in place
-                            tokenStr = GetTokenString();
-                            if (Verbatim) {
-                                return new VerbatimConstantValueToken(ParseFloat(tokenStr), tokenStr);
-                            }
-                            return new ConstantValueToken(ParseFloat(tokenStr));
-                        }
-                }
-            }
-        }
-
-        private Token ReadName() {
-            #region Generated Python Keyword Lookup
-
-            // *** BEGIN GENERATED CODE ***
-            // generated by function: keyword_lookup_generator from: generate_ops.py
-
-            var fromFutureImportStage = _fromFutureImportStage;
-            _fromFutureImportStage = FromFutureImportStage.NotStarted;
-
-            int ch;
-            BufferBack();
-            ch = NextChar();
-            if (ch == 'i') {
-                ch = NextChar();
-                if (ch == 'n') {
-                    if (!IsNamePart(Peek())) {
-                        MarkTokenEnd();
-                        return Tokens.KeywordInToken;
-                    }
-                } else if (ch == 'm') {
-                    if (NextChar() == 'p' && NextChar() == 'o' && NextChar() == 'r' && NextChar() == 't' && !IsNamePart(Peek())) {
-                        MarkTokenEnd();
-                        if (fromFutureImportStage == FromFutureImportStage.Future) {
-                            _fromFutureImportStage = FromFutureImportStage.Import;
-                        } else {
-                            _fromFutureImportStage = FromFutureImportStage.NotStarted;
-                        }
-                        return Tokens.KeywordImportToken;
-                    }
-                } else if (ch == 's') {
-                    if (!IsNamePart(Peek())) {
-                        MarkTokenEnd();
-                        return Tokens.KeywordIsToken;
-                    }
-                } else if (ch == 'f') {
-                    if (!IsNamePart(Peek())) {
-                        MarkTokenEnd();
-                        return Tokens.KeywordIfToken;
-                    }
-                }
-            } else if (ch == 'w') {
-                ch = NextChar();
-                if (ch == 'i') {
-                    if ((_langVersion >= PythonLanguageVersion.V26 || _withStatement) && NextChar() == 't' && NextChar() == 'h' && !IsNamePart(Peek())) {
-                        // with is a keyword in 2.6 and up
-                        return TransformStatementToken(Tokens.KeywordWithToken);
-                    }
-                } else if (ch == 'h') {
-                    if (NextChar() == 'i' && NextChar() == 'l' && NextChar() == 'e' && !IsNamePart(Peek())) {
-                        return TransformStatementToken(Tokens.KeywordWhileToken);
-                    }
-                }
-            } else if (ch == 't') {
-                if (NextChar() == 'r' && NextChar() == 'y' && !IsNamePart(Peek())) {
-                    return TransformStatementToken(Tokens.KeywordTryToken);
-                }
-            } else if (ch == 'r') {
-                ch = NextChar();
-                if (ch == 'e') {
-                    if (NextChar() == 't' && NextChar() == 'u' && NextChar() == 'r' && NextChar() == 'n' && !IsNamePart(Peek())) {
-                        return TransformStatementToken(Tokens.KeywordReturnToken);
-                    }
-                } else if (ch == 'a') {
-                    if (NextChar() == 'i' && NextChar() == 's' && NextChar() == 'e' && !IsNamePart(Peek())) {
-                        return TransformStatementToken(Tokens.KeywordRaiseToken);
-                    }
-                }
-            } else if (ch == 'p') {
-                ch = NextChar();
-                if (ch == 'a') {
-                    if (NextChar() == 's' && NextChar() == 's' && !IsNamePart(Peek())) {
-                        return TransformStatementToken(Tokens.KeywordPassToken);
-                    }
-                } else if (ch == 'r') {
-                    if (NextChar() == 'i' && NextChar() == 'n' && NextChar() == 't' && !IsNamePart(Peek())) {
-                        if (!_printFunction && !_langVersion.Is3x()) {
-                            return TransformStatementToken(Tokens.KeywordPrintToken);
-                        }
-                    }
-                }
-            } else if (ch == 'g') {
-                if (NextChar() == 'l' && NextChar() == 'o' && NextChar() == 'b' && NextChar() == 'a' && NextChar() == 'l' && !IsNamePart(Peek())) {
-                    return TransformStatementToken(Tokens.KeywordGlobalToken);
-                }
-            } else if (ch == 'f') {
-                ch = NextChar();
-                if (ch == 'r') {
-                    if (NextChar() == 'o' && NextChar() == 'm' && !IsNamePart(Peek())) {
-                        MarkTokenEnd();
-                        if (fromFutureImportStage == FromFutureImportStage.NotStarted) {
-                            _fromFutureImportStage = FromFutureImportStage.From;
-                        } else {
-                            _fromFutureImportStage = FromFutureImportStage.NotStarted;
-                        }
-                        return Tokens.KeywordFromToken;
-                    }
-                } else if (ch == 'i') {
-                    if (NextChar() == 'n' && NextChar() == 'a' && NextChar() == 'l' && NextChar() == 'l' && NextChar() == 'y' && !IsNamePart(Peek())) {
-                        return TransformStatementToken(Tokens.KeywordFinallyToken);
-                    }
-                } else if (ch == 'o') {
-                    if (NextChar() == 'r' && !IsNamePart(Peek())) {
-                        MarkTokenEnd();
-                        return Tokens.KeywordForToken;
-                    }
-                }
-            } else if (ch == 'e') {
-                ch = NextChar();
-                if (ch == 'x') {
-                    ch = NextChar();
-                    if (ch == 'e') {
-                        if (NextChar() == 'c' && !IsNamePart(Peek())) {
-                            if (_langVersion.Is2x()) {
-                                return TransformStatementToken(Tokens.KeywordExecToken);
-                            }
-                        }
-                    } else if (ch == 'c') {
-                        if (NextChar() == 'e' && NextChar() == 'p' && NextChar() == 't' && !IsNamePart(Peek())) {
-                            return TransformStatementToken(Tokens.KeywordExceptToken);
-                        }
-                    }
-                } else if (ch == 'l') {
-                    ch = NextChar();
-                    if (ch == 's') {
-                        if (NextChar() == 'e' && !IsNamePart(Peek())) {
-                            MarkTokenEnd();
-                            return Tokens.KeywordElseToken;
-                        }
-                    } else if (ch == 'i') {
-                        if (NextChar() == 'f' && !IsNamePart(Peek())) {
-                            return TransformStatementToken(Tokens.KeywordElseIfToken);
-                        }
-                    }
-                }
-            } else if (ch == 'd') {
-                ch = NextChar();
-                if (ch == 'e') {
-                    ch = NextChar();
-                    if (ch == 'l') {
-                        if (!IsNamePart(Peek())) {
-                            return TransformStatementToken(Tokens.KeywordDelToken);
-                        }
-                    } else if (ch == 'f') {
-                        if (!IsNamePart(Peek())) {
-                            return TransformStatementToken(Tokens.KeywordDefToken);
-                        }
-                    }
-                }
-            } else if (ch == 'c') {
-                ch = NextChar();
-                if (ch == 'l') {
-                    if (NextChar() == 'a' && NextChar() == 's' && NextChar() == 's' && !IsNamePart(Peek())) {
-                        return TransformStatementToken(Tokens.KeywordClassToken);
-                    }
-                } else if (ch == 'o') {
-                    if (NextChar() == 'n' && NextChar() == 't' && NextChar() == 'i' && NextChar() == 'n' && NextChar() == 'u' && NextChar() == 'e' && !IsNamePart(Peek())) {
-                        return TransformStatementToken(Tokens.KeywordContinueToken);
-                    }
-                }
-            } else if (ch == 'b') {
-                if (NextChar() == 'r' && NextChar() == 'e' && NextChar() == 'a' && NextChar() == 'k' && !IsNamePart(Peek())) {
-                    return TransformStatementToken(Tokens.KeywordBreakToken);
-                }
-            } else if (ch == 'a') {
-                ch = NextChar();
-                if (ch == 'n') {
-                    if (NextChar() == 'd' && !IsNamePart(Peek())) {
-                        MarkTokenEnd();
-                        return Tokens.KeywordAndToken;
-                    }
-                } else if (ch == 's') {
-                    if ((_langVersion >= PythonLanguageVersion.V26 || _withStatement) && !IsNamePart(Peek())) {
-                        // as is a keyword in 2.6 and up or when from __future__ import with_statement is used
-                        MarkTokenEnd();
-                        return Tokens.KeywordAsToken;
-                    }
-                    ch = NextChar();
-                    if (ch == 's') {
-                        if (NextChar() == 'e' && NextChar() == 'r' && NextChar() == 't' && !IsNamePart(Peek())) {
-                            return TransformStatementToken(Tokens.KeywordAssertToken);
-                        }
-                    } else if (ch == 'y') {
-                        if (_langVersion >= PythonLanguageVersion.V35 && NextChar() == 'n' && NextChar() == 'c' && !IsNamePart(Peek())) {
-                            MarkTokenEnd();
-                            return Tokens.KeywordAsyncToken;
-                        }
-                    }
-                } else if (ch == 'w') {
-                    if (_langVersion >= PythonLanguageVersion.V35 && NextChar() == 'a' && NextChar() == 'i' && NextChar() == 't' && !IsNamePart(Peek())) {
-                        MarkTokenEnd();
-                        return Tokens.KeywordAwaitToken;
-                    }
-                }
-            } else if (ch == 'y') {
-                if (NextChar() == 'i' && NextChar() == 'e' && NextChar() == 'l' && NextChar() == 'd' && !IsNamePart(Peek())) {
-                    MarkTokenEnd();
-                    return Tokens.KeywordYieldToken;
-                }
-            } else if (ch == 'o') {
-                if (NextChar() == 'r' && !IsNamePart(Peek())) {
-                    MarkTokenEnd();
-                    return Tokens.KeywordOrToken;
-                }
-            } else if (ch == 'n') {
-                if (NextChar() == 'o') {
-                    ch = NextChar();
-                    if (ch == 't' && !IsNamePart(Peek())) {
-                        MarkTokenEnd();
-                        return Tokens.KeywordNotToken;
-                    } else if (_langVersion.Is3x() && ch == 'n' && NextChar() == 'l' && NextChar() == 'o' && NextChar() == 'c' && NextChar() == 'a' && NextChar() == 'l' && !IsNamePart(Peek())) {
-                        return TransformStatementToken(Tokens.KeywordNonlocalToken);
-                    }
-                }
-            } else if (ch == 'N') {
-                if (NextChar() == 'o' && NextChar() == 'n' && NextChar() == 'e' && !IsNamePart(Peek())) {
-                    MarkTokenEnd();
-                    return Tokens.NoneToken;
-                }
-            } else if (ch == 'l') {
-                if (NextChar() == 'a' && NextChar() == 'm' && NextChar() == 'b' && NextChar() == 'd' && NextChar() == 'a' && !IsNamePart(Peek())) {
-                    MarkTokenEnd();
-                    return Tokens.KeywordLambdaToken;
-                }
-            } else if (_langVersion.Is3x() && ch == 'T') {
-                if (NextChar() == 'r' && NextChar() == 'u' && NextChar() == 'e' && !IsNamePart(Peek())) {
-                    MarkTokenEnd();
-                    return Tokens.KeywordTrueToken;
-                }
-            } else if (_langVersion.Is3x() && ch == 'F') {
-                if (NextChar() == 'a' && NextChar() == 'l' && NextChar() == 's' && NextChar() == 'e' && !IsNamePart(Peek())) {
-                    MarkTokenEnd();
-                    return Tokens.KeywordFalseToken;
-                }
-            }
-
-            // *** END GENERATED CODE ***
-
-            #endregion
-
-
-            BufferBack();
-            ch = NextChar();
-
-            while (IsNamePart(ch)) {
-                ch = NextChar();
-            }
-            BufferBack();
-
-            MarkTokenEnd();
-            NameToken token;
-            if (!_names.TryGetValue(_currentName, out token)) {
-                string name = GetTokenString();
-                token = _names[name] = new NameToken(name);
-            }
-
-            if (fromFutureImportStage == FromFutureImportStage.From && token.Name == "__future__") {
-                _fromFutureImportStage = FromFutureImportStage.Future;
-            } else if (fromFutureImportStage == FromFutureImportStage.Import) {
-                switch (token.Name) {
-                    case "with_statement":
-                        _withStatement = true;
-                        break;
-                    case "print_function":
-                        _printFunction = true;
-                        break;
-                    case "unicode_literals":
-                        _unicodeLiterals = true;
-                        break;
-                }
-                _fromFutureImportStage = FromFutureImportStage.Name;
-            }
-
-
-            return token;
-        }
-
-        private Token NextOperator(int ch) {
-            switch (ch) {
-                case '+':
-                    if (NextChar('=')) {
-                        return Tokens.AddEqualToken;
-                    }
-                    return Tokens.AddToken;
-                case '-':
-                    if (NextChar('=')) {
-                        return Tokens.SubtractEqualToken;
-                    } else if (_langVersion.Is3x() && NextChar('>')) {
-                        return Tokens.ArrowToken;
-                    }
-                    return Tokens.SubtractToken;
-                case '*':
-                    if (NextChar('=')) {
-                        return Tokens.MultiplyEqualToken;
-                    }
-                    if (NextChar('*')) {
-                        if (NextChar('=')) {
-                            return Tokens.PowerEqualToken;
-                        }
-                        return Tokens.PowerToken;
-                    }
-                    return Tokens.MultiplyToken;
-                case '/':
-                    if (NextChar('=')) {
-                        return Tokens.DivideEqualToken;
-                    }
-                    if (NextChar('/')) {
-                        if (NextChar('=')) {
-                            return Tokens.FloorDivideEqualToken;
-                        }
-                        return Tokens.FloorDivideToken;
-                    }
-                    return Tokens.DivideToken;
-                case '%':
-                    if (NextChar('=')) {
-                        return Tokens.ModEqualToken;
-                    }
-                    return Tokens.ModToken;
-                case '<':
-                    if (_langVersion.Is2x() && NextChar('>')) {
-                        return Tokens.LessThanGreaterThanToken;
-                    }
-                    if (NextChar('=')) {
-                        return Tokens.LessThanOrEqualToken;
-                    }
-                    if (NextChar('<')) {
-                        if (NextChar('=')) {
-                            return Tokens.LeftShiftEqualToken;
-                        }
-                        return Tokens.LeftShiftToken;
-                    }
-                    return Tokens.LessThanToken;
-                case '>':
-                    if (NextChar('>')) {
-                        if (NextChar('=')) {
-                            return Tokens.RightShiftEqualToken;
-                        }
-                        return Tokens.RightShiftToken;
-                    }
-                    if (NextChar('=')) {
-                        return Tokens.GreaterThanOrEqualToken;
-                    }
-                    return Tokens.GreaterThanToken;
-                case '&':
-                    if (NextChar('=')) {
-                        return Tokens.BitwiseAndEqualToken;
-                    }
-                    return Tokens.BitwiseAndToken;
-                case '|':
-                    if (NextChar('=')) {
-                        return Tokens.BitwiseOrEqualToken;
-                    }
-                    return Tokens.BitwiseOrToken;
-                case '^':
-                    if (NextChar('=')) {
-                        return Tokens.ExclusiveOrEqualToken;
-                    }
-                    return Tokens.ExclusiveOrToken;
-                case '=':
-                    if (NextChar('=')) {
-                        return Tokens.EqualsToken;
-                    }
-                    return Tokens.AssignToken;
-                case '!':
-                    if (NextChar('=')) {
-                        return Tokens.NotEqualsToken;
-                    }
-                    return BadChar(ch);
-                case '(':
-                    _state.ParenLevel++;
-                    return Tokens.LeftParenthesisToken;
-                case ')':
-                    if (_state.ParenLevel != 0) {
-                        _state.ParenLevel--;
-                    }
-                    return Tokens.RightParenthesisToken;
-                case '[':
-                    _state.BracketLevel++;
-                    return Tokens.LeftBracketToken;
-                case ']':
-                    if (_state.BracketLevel != 0) {
-                        _state.BracketLevel--;
-                    }
-                    return Tokens.RightBracketToken;
-                case '{':
-                    _state.BraceLevel++;
-                    return Tokens.LeftBraceToken;
-                case '}':
-                    if (_state.BraceLevel != 0) {
-                        _state.BraceLevel--;
-                    }
-                    return Tokens.RightBraceToken;
-                case ',':
-                    if (_fromFutureImportStage == FromFutureImportStage.Name) {
-                        _fromFutureImportStage = FromFutureImportStage.Import;
-                    } else {
-                        _fromFutureImportStage = FromFutureImportStage.NotStarted;
-                    }
-                    return Tokens.CommaToken;
+        private TokenKind GetNextToken(string line, int start, out int length) {
+            length = 1;
+
+            char c = line[start];
+            switch (c) {
                 case ':':
-                    return Tokens.ColonToken;
-                case '`':
-                    if (_langVersion.Is2x()) {
-                        return Tokens.BackQuoteToken;
-                    }
-                    break;
+                    return TokenKind.Colon;
                 case ';':
-                    return Tokens.SemicolonToken;
-                case '~':
-                    return Tokens.TwiddleToken;
-                case '@':
-                    if (LanguageVersion >= PythonLanguageVersion.V35 && NextChar('=')) {
-                        return Tokens.MatMultiplyEqualToken;
+                    return TokenKind.SemiColon;
+                case ',':
+                    return TokenKind.Comma;
+                case '.':
+                    // Handled below in case it begins a floating-point literal
+                    break;
+                case '(':
+                    return TokenKind.LeftParenthesis;
+                case '[':
+                    return TokenKind.LeftBracket;
+                case '{':
+                    return TokenKind.LeftBrace;
+                case ')':
+                    return TokenKind.RightParenthesis;
+                case ']':
+                    return TokenKind.RightBracket;
+                case '}':
+                    return TokenKind.RightBrace;
+                case '\'':
+                case '"':
+                    if (IsNextChar(line, start, c) && IsNextChar(line, start, c, 2)) {
+                        length = 3;
+                        return c == '\'' ? TokenKind.LeftSingleTripleQuote : TokenKind.LeftDoubleTripleQuote;
                     }
-                    return Tokens.AtToken;
+                    return c == '\'' ? TokenKind.LeftSingleQuote : TokenKind.LeftDoubleQuote;
+                case '`':
+                    if (_nesting.Any() && _nesting.Peek() == TokenKind.RightBackQuote) {
+                        return TokenKind.RightBackQuote;
+                    }
+                    return TokenKind.LeftBackQuote;
+                case '\r':
+                case '\n':
+                    length = line.Length - start;
+                    return TokenKind.NewLine;
+                default:
+                    break;
             }
 
-            return null;
-        }
+            int end = start + 1;
+            TokenKind kind = TokenKind.Error;
 
-        /// <summary>
-        /// Equality comparer that can compare strings to our current token w/o creating a new string first.
-        /// </summary>
-        class TokenEqualityComparer : IEqualityComparer<object> {
-            private readonly Tokenizer _tokenizer;
-
-            public TokenEqualityComparer(Tokenizer tokenizer) {
-                _tokenizer = tokenizer;
-            }
-
-            #region IEqualityComparer<object> Members
-
-            bool IEqualityComparer<object>.Equals(object x, object y) {
-                if (x == _currentName) {
-                    if (y == _currentName) {
-                        return true;
-                    }
-
-                    return Equals((string)y);
-                } else if (y == _currentName) {
-                    return Equals((string)x);
+            if (c == '.') {
+                if (end >= line.Length) {
+                    return TokenKind.Dot;
+                } else if (IsDecimalDigit(line[end])) {
+                    end -= 1;
+                    kind = MaybeReadFloatingPoint(line, TokenKind.LiteralDecimal, ref end);
+                    length = end - start;
+                    return kind;
+                } else if (end + 2 < line.Length && line[end] == '.' && line[end + 1] == '.') {
+                    length = 3;
+                    return TokenKind.Ellipsis;
                 } else {
-                    return (string)x == (string)y;
+                    return TokenKind.Dot;
                 }
             }
 
-            public int GetHashCode(object obj) {
-                int result = 5381;
-                if (obj == _currentName) {
-                    char[] buffer = _tokenizer._buffer;
-                    int start = _tokenizer._start, end = _tokenizer._tokenEnd;
-                    for (int i = start; i < end; i++) {
-                        int c = buffer[i];
-                        result = unchecked(((result << 5) + result) ^ c);
+            if (IsZeroDigit(c)) {
+                if (end + 1 >= line.Length) {
+                    length = end - start;
+                    return TokenKind.LiteralDecimal;
+                }
+
+                if (line[end] == 'x' || line[end] == 'X') {
+                    end += 2;
+                    ReadWhile(line, ref end, IsHexDigit);
+                    kind = TokenKind.LiteralHex;
+                } else if (line[end] == 'o' || line[end] == 'O') {
+                    end += 2;
+                    ReadWhile(line, ref end, IsOctalDigit);
+                    kind = TokenKind.LiteralOctal;
+                } else if (line[end] == 'b' || line[end] == 'B') {
+                    end += 2;
+                    ReadWhile(line, ref end, IsBinaryDigit);
+                    kind = TokenKind.LiteralBinary;
+                } else if (_version.Is2x()) {
+                    // Numbers starting with '0' in Python 2.x are either
+                    // float (if there is a decimal point or exponent) or
+                    // else octal.
+                    ReadWhile(line, ref end, IsOctalDigit);
+                    kind = MaybeReadFloatingPoint(line, TokenKind.LiteralDecimal, ref end);
+                    if (kind == TokenKind.LiteralDecimal) {
+                        kind = MaybeReadLongSuffix(line, TokenKind.LiteralOctal, ref end);
                     }
+                    length = end - start;
+                    return kind;
                 } else {
-                    string str = (string)obj;
-                    for (int i = 0; i < str.Length; i++) {
-                        int c = str[i];
-                        result = unchecked(((result << 5) + result) ^ c);
-                    }
-                }
-                return result;
-            }
-
-            private bool Equals(string value) {
-                int len = _tokenizer._tokenEnd - _tokenizer._start;
-                if (len != value.Length) {
-                    return false;
+                    // Numbers starting with '0' in Python 3.x are zero
+                    ReadWhile(line, ref end, IsZeroDigit);
+                    kind = MaybeReadFloatingPoint(line, TokenKind.LiteralDecimal, ref end);
+                    length = end - start;
+                    return kind;
                 }
 
-                var buffer = _tokenizer._buffer;
-                for (int i = 0, bufferIndex = _tokenizer._start; i < value.Length; i++, bufferIndex++) {
-                    if (value[i] != buffer[bufferIndex]) {
-                        return false;
-                    }
+                if (_version.Is2x()) {
+                    kind = MaybeReadLongSuffix(line, kind, ref end);
                 }
-
-                return true;
-            }
-
-            #endregion
-        }
-
-        public int GroupingLevel {
-            get {
-                return _state.ParenLevel + _state.BraceLevel + _state.BracketLevel;
-            }
-        }
-
-        private static void AppendSpace(ref string curWhiteSpace, ref StringBuilder constructedWhiteSpace, ref bool? isSpace) {
-            if (constructedWhiteSpace == null) {
-                if (isSpace == null) {
-                    isSpace = true;
-                    curWhiteSpace = SpaceIndentation[0];
-                } else if (isSpace.Value && curWhiteSpace.Length < SpaceIndentation.Length) {
-                    curWhiteSpace = SpaceIndentation[curWhiteSpace.Length];
-                } else {
-                    // we're mixed tabs/spaces or we have run out of space
-                    constructedWhiteSpace = new StringBuilder();
-                    constructedWhiteSpace.Append(curWhiteSpace);
-                    constructedWhiteSpace.Append(' ');
+                length = end - start;
+                if (length <= 2) {
+                    // Expect at least "0[xob]."
+                    return TokenKind.Error;
                 }
-            } else {
-                constructedWhiteSpace.Append(' ');
+                return kind;
             }
-        }
 
-        private static void AppendTab(ref string curWhiteSpace, ref StringBuilder constructedWhiteSpace, ref bool? isSpace) {
-            if (constructedWhiteSpace == null) {
-                if (isSpace == null) {
-                    isSpace = false;
-                    curWhiteSpace = TabIndentation[0];
-                } else if (!isSpace.Value && curWhiteSpace.Length < TabIndentation.Length) {
-                    curWhiteSpace = TabIndentation[curWhiteSpace.Length];
-                } else {
-                    // we're mixed tabs/spaces or we have run out of space
-                    constructedWhiteSpace = new StringBuilder();
-                    constructedWhiteSpace.Append(curWhiteSpace);
-                    constructedWhiteSpace.Append('\t');
+            if (IsDecimalDigit(c)) {
+                kind = TokenKind.LiteralDecimal;
+                ReadDecimals(line, ref end);
+                // Will change kind if necessary
+                kind = MaybeReadFloatingPoint(line, kind, ref end);
+                if (_version.Is2x()) {
+                    kind = MaybeReadLongSuffix(line, kind, ref end);
                 }
-            } else {
-                constructedWhiteSpace.Append('\t');
+                length = end - start;
+                return kind;
             }
-        }
 
-        /// <summary>
-        /// Reads the white space after a new line until we get to the next level of indentation
-        /// or a otherwise hit a token which should be returned (any other token if we're in a grouping,
-        /// or a comment token if we're in verbatim mode).
-        /// 
-        /// Returns true if we should return the new line token which kicked this all off.  Returns false
-        /// if we should continue processing the current token.
-        /// </summary>
-        /// <remarks>
-        /// This is another version of ReadNewline with nearly identical semantics. The difference is
-        /// that checks are made to see that indentation is used consistently. This logic is in a
-        /// duplicate method to avoid inflicting the overhead of the extra logic when we're not making
-        /// the checks.
-        /// </remarks>
-        private bool ReadIndentationAfterNewLine(NewLineKind startingKind) {
-            // Keep track of the indentation format for the current line
-            StringBuilder sb = null;                    // the white space we've encounted after the new line if it's mixed tabs/spaces or is an unreasonable size.
-            string noAllocWhiteSpace = String.Empty;    // the white space we've encountered after the newline assuming it's a reasonable sized run of all spaces or tabs
-            bool? isSpace = null;                       // the current mix of whitespace, null = nothing yet, true = space, false = tab
+            if (char.IsLetter(c) || c == '_') {
+                kind = ReadIdentifier(line, ref end);
+                length = end - start;
+                return kind;
+            }
 
-            int spaces = 0;
-            int indentStart = CurrentIndex;
-            while (true) {
-                int ch = NextChar();
+            if (c == '#') {
+                while (end < line.Length && line[end] != '\r' && line[end] != '\n') {
+                    end += 1;
+                }
+                length = end - start;
+                return TokenKind.Comment;
+            }
 
-                switch (ch) {
-                    case ' ':
-                        if (Verbatim) {
-                            _state.NextWhiteSpace.Append((char)ch);
-                        }
-                        spaces += 1;
-                        AppendSpace(ref noAllocWhiteSpace, ref sb, ref isSpace);
+            if (c == '\\') {
+                length = 1;
+                return TokenKind.ExplicitLineJoin;
+            }
+
+            kind = ReadOperator(line, c, ref end);
+            if (kind != TokenKind.Error) {
+                length = end - start;
+                return kind;
+            }
+
+            if (char.IsWhiteSpace(c)) {
+                while (end < line.Length && char.IsWhiteSpace(line, end)) {
+                    if (line[end] == '\r' || line[end] == '\n') {
                         break;
-                    case '\t':
-                        if (Verbatim) {
-                            _state.NextWhiteSpace.Append((char)ch);
-                        }
-                        spaces += 8 - (spaces % 8);
-                        AppendTab(ref noAllocWhiteSpace, ref sb, ref isSpace);
+                    }
+                    end += 1;
+                }
+                length = end - start;
+                return TokenKind.Whitespace;
+            }
+
+            Debug.Assert(kind == TokenKind.Error, "Unexpected " + kind.ToString());
+            return kind;
+        }
+
+        private static TokenKind ReadIdentifier(string line, ref int end) {
+            int start = end - 1;
+            int len = line.Length;
+            while (end < len && (char.IsLetterOrDigit(line, end) || line[end] == '_')) {
+                end += 1;
+            }
+            TokenKind kind;
+            if (end < len && (line[end] == '"' || line[end] == '\'')) {
+                char c = line[end];
+                if (IsNextChar(line, end, c) && IsNextChar(line, end, c, 2)) {
+                    end += 3;
+                    return c == '"' ? TokenKind.LeftDoubleTripleQuote : TokenKind.LeftSingleTripleQuote;
+                } 
+                end += 1;
+                return c == '"' ? TokenKind.LeftDoubleQuote : TokenKind.LeftSingleQuote;
+            }
+            if (Keywords.TryGetValue(line.Substring(start, end - start), out kind)) {
+                return kind;
+            }
+            return TokenKind.Name;
+        }
+
+        private static void ReadDecimals(string line, ref int end) {
+            int len = line.Length;
+            while (end < len) {
+                switch (line[end]) {
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9':
+                        end += 1;
                         break;
-                    case '\f':
-                        if (Verbatim) {
-                            _state.NextWhiteSpace.Append((char)ch);
-                        }
-                        spaces = 0;
-                        if (sb == null) {
-                            sb = new StringBuilder();
-                            sb.Append(noAllocWhiteSpace);
-                        }
-                        sb.Append('\f');
-                        break;
-                    case '#':
-                        BufferBack();
-                        MarkTokenEnd();
-                        return true;
                     default:
-                        BufferBack();
-
-                        if (GroupingLevel > 0 || _state.LastLineJoin) {
-                            int startingWhiteSpace = 0;
-                            if (Verbatim) {
-                                // we're not producing a new line after all...  All of the white space
-                                // we collected goes to the current token, including the new line token
-                                // that we're not producing.
-                                startingWhiteSpace = _state.CurWhiteSpace.Length;
-                                if (_state.LastLineJoin) {
-                                    _state.CurWhiteSpace.Append('\\');
-                                    _state.LastLineJoin = false;
-                                }
-                                _state.CurWhiteSpace.Append(startingKind.GetString());
-                                _state.CurWhiteSpace.Append(_state.NextWhiteSpace);
-                                _state.NextWhiteSpace.Clear();
-                            }
-                            if ((_options & TokenizerOptions.GroupingRecovery) != 0) {
-                                int tokenEnd = System.Math.Min(_position, _end);
-                                int tokenLength = tokenEnd - _start;
-
-                                _state.GroupingRecovery = new GroupingRecovery(
-                                    startingKind,
-                                    noAllocWhiteSpace,
-                                    spaces,
-                                    sb,
-                                    _tokenStartIndex,
-                                    startingWhiteSpace,
-                                    _tokenStartIndex + tokenLength
-                                );
-                            }
-                            return false;
-                        }
-                        _state.GroupingRecovery = null;
-                        MarkTokenEnd();
-
-                        if (_tokenEndIndex != _tokenStartIndex) {
-                            // We've captured a line of significant identation
-                            // (i.e. not pure whitespace or comment). Check that
-                            // any of this indentation that's in common with the
-                            // current indent level is constructed in exactly
-                            // the same way (i.e. has the same mix of spaces and
-                            // tabs etc.).
-                            if (IndentationInconsistencySeverity != Severity.Ignore) {
-                                CheckIndent(sb, noAllocWhiteSpace);
-                            }
-                        }
-
-                        // if there's a blank line then we don't want to mess w/ the
-                        // indentation level - Python says that blank lines are ignored.
-                        // And if we're the last blank line in a file we don't want to
-                        // increase the new indentation level.
-                        if (ch == EOF) {
-                            if (spaces < _state.Indent[_state.IndentLevel]) {
-                                if (_kind == SourceCodeKind.InteractiveCode ||
-                                    _kind == SourceCodeKind.Statements) {
-                                    SetIndent(spaces, sb, noAllocWhiteSpace, indentStart);
-                                } else {
-                                    DoDedent(spaces, _state.Indent[_state.IndentLevel]);
-                                }
-                            }
-                        } else if (ch != '\n' && ch != '\r') {
-                            SetIndent(spaces, sb, noAllocWhiteSpace, indentStart);
-                        }
-
-                        return true;
+                        return;
                 }
             }
         }
 
-        private static int PreviousIndentLength(object previousIndent) {
-            string prevStr = previousIndent as string;
-            if (prevStr != null) {
-                return prevStr.Length;
+        private static TokenKind MaybeReadFloatingPoint(string line, TokenKind kind, ref int end) {
+            if (end >= line.Length || kind != TokenKind.LiteralDecimal) {
+                return kind;
             }
 
-            return ((StringBuilder)previousIndent).Length;
+            char c = line[end];
+            if (c == '.') {
+                kind = TokenKind.LiteralFloat;
+                end += 1;
+                ReadDecimals(line, ref end);
+            }
+            kind = MaybeReadExponent(line, kind, ref end);
+            if (kind != TokenKind.Error) {
+                kind = MaybeReadImaginary(line, kind, ref end);
+            }
+            return kind;
         }
 
-        private void CheckIndent(StringBuilder sb, string noAllocWhiteSpace) {
-            if (_state.Indent[_state.IndentLevel] > 0) {
-                var previousIndent = _state.IndentFormat[_state.IndentLevel];
-                int checkLength;
-                if (sb == null) {
-                    checkLength = previousIndent.Length < noAllocWhiteSpace.Length ? previousIndent.Length : noAllocWhiteSpace.Length;
-                } else {
-                    checkLength = previousIndent.Length < sb.Length ? previousIndent.Length : sb.Length;
-                }
-                for (int i = 0; i < checkLength; i++) {
-                    bool neq;
-                    if (sb == null) {
-                        neq = noAllocWhiteSpace[i] != previousIndent[i];
-                    } else {
-                        neq = sb[i] != previousIndent[i];
-                    }
-                    if (neq) {
-                        // We've hit a difference in the way we're indenting, report it.
-                        _errors.Add("inconsistent whitespace",
-                            IndexSpan.FromPoints(_tokenStartIndex + 1, _tokenEndIndex),
-                            ErrorCodes.TabError,
-                            _indentationInconsistencySeverity
-                        );
+        private static TokenKind MaybeReadLongSuffix(string line, TokenKind kind, ref int end) {
+            if (end >= line.Length) {
+                return kind;
+            }
+
+            if (line[end] == 'l' || line[end] == 'L') {
+                switch (kind) {
+                    case TokenKind.LiteralDecimal:
+                        kind = TokenKind.LiteralDecimalLong;
                         break;
-                    }
+                    case TokenKind.LiteralHex:
+                        kind = TokenKind.LiteralHexLong;
+                        break;
+                    case TokenKind.LiteralOctal:
+                        kind = TokenKind.LiteralOctalLong;
+                        break;
+                    default:
+                        return kind;
                 }
+                end += 1;
             }
+
+            return kind;
         }
 
-        private void SetIndent(int spaces, StringBuilder chars, string noAllocWhiteSpace, int indentStart = -1) {
-            int current = _state.Indent[_state.IndentLevel];
-            if (spaces == current) {
-                return;
-            } else if (spaces > current) {
-                _state.Indent[++_state.IndentLevel] = spaces;
-                if (_state.IndentFormat != null) {
-                    if (chars != null) {
-                        _state.IndentFormat[_state.IndentLevel] = chars.ToString();
-                    } else {
-                        _state.IndentFormat[_state.IndentLevel] = noAllocWhiteSpace;
-                    }
-                }
-                _state.PendingDedents = -1;
-                return;
-            } else {
-                current = DoDedent(spaces, current);
-
-                if (spaces != current && indentStart != -1) {
-                    ReportSyntaxError(
-                        new IndexSpan(indentStart, spaces),
-                        "unindent does not match any outer indentation level", ErrorCodes.IndentationError);
-                }
-            }
-        }
-
-        private int DoDedent(int spaces, int current) {
-            while (spaces < current) {
-                _state.IndentLevel -= 1;
-                _state.PendingDedents += 1;
-                current = _state.Indent[_state.IndentLevel];
-            }
-            return current;
-        }
-
-        private object ParseInteger(string s, int radix) {
-            try {
-                return LiteralParser.ParseInteger(s, radix);
-            } catch (ArgumentException e) {
-                ReportSyntaxError(BufferTokenSpan, e.Message, ErrorCodes.SyntaxError);
-                return null;
-            }
-        }
-
-        private object ParseFloat(string s) {
-            try {
-                return LiteralParser.ParseFloat(s);
-            } catch (Exception e) {
-                ReportSyntaxError(BufferTokenSpan, e.Message, ErrorCodes.SyntaxError);
-                return 0.0;
-            }
-        }
-
-        private object ParseComplex(string s) {
-            try {
-                return LiteralParser.ParseImaginary(s);
-            } catch (Exception e) {
-                ReportSyntaxError(BufferTokenSpan, e.Message, ErrorCodes.SyntaxError);
-                return default(Complex);
-            }
-        }
-
-        private void ReportSyntaxError(IndexSpan span, string message, int errorCode) {
-            _errors.Add(message, span, errorCode, Severity.FatalError);
-        }
-
-        [Conditional("DUMP_TOKENS")]
-        private static void DumpToken(Token token) {
-            Console.WriteLine("{0} `{1}`", token.Kind, token.Image.Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t"));
-        }
-
-        internal IReadOnlyList<int> GetLineLocations() {
-            return _newLineLocations;
-        }
-
-        [Serializable]
-        class IncompleteString : IEquatable<IncompleteString> {
-            public readonly bool IsRaw, IsUnicode, IsTripleQuoted, IsSingleTickQuote;
-
-            public IncompleteString(bool isSingleTickQuote, bool isRaw, bool isUnicode, bool isTriple) {
-                IsRaw = isRaw;
-                IsUnicode = isUnicode;
-                IsTripleQuoted = isTriple;
-                IsSingleTickQuote = isSingleTickQuote;
+        private static TokenKind MaybeReadExponent(string line, TokenKind kind, ref int end) {
+            if (end >= line.Length) {
+                return kind;
             }
 
-            public override bool Equals(object obj) {
-                IncompleteString oth = obj as IncompleteString;
-                if (oth != null) {
-                    return Equals(oth);
-                }
-                return false;
-            }
-
-            public override int GetHashCode() {
-                return (IsRaw ? 0x01 : 0) |
-                    (IsUnicode ? 0x02 : 0) |
-                    (IsTripleQuoted ? 0x04 : 0) |
-                    (IsSingleTickQuote ? 0x08 : 0);
-            }
-
-            public static bool operator ==(IncompleteString left, IncompleteString right) {
-                if ((object)left == null) return (object)right == null;
-
-                return left.Equals(right);
-            }
-
-            public static bool operator !=(IncompleteString left, IncompleteString right) {
-                return !(left == right);
-            }
-
-            #region IEquatable<State> Members
-
-            public bool Equals(IncompleteString other) {
-                if (other == null) {
-                    return false;
+            char c = line[end];
+            if (c == 'e' || c == 'E') {
+                if (end + 1 >= line.Length) {
+                    end = line.Length;
+                    return TokenKind.Error;
                 }
 
-                return IsRaw == other.IsRaw &&
-                    IsUnicode == other.IsUnicode &&
-                    IsTripleQuoted == other.IsTripleQuoted &&
-                    IsSingleTickQuote == other.IsSingleTickQuote;
-            }
-
-            #endregion
-        }
-
-        [Serializable]
-        struct State : IEquatable<State> {
-            // indentation state
-            public int[] Indent;
-            public int IndentLevel;
-            public int PendingDedents;
-            public bool LastNewLine;        // true if the last token we emitted was a new line.
-            public bool LastLineJoin;
-            public IncompleteString IncompleteString;
-
-            // Indentation state used only when we're reporting on inconsistent identation format.
-            public string[] IndentFormat;
-
-            // grouping state
-            public int ParenLevel, BraceLevel, BracketLevel;
-
-            // white space tracking
-            public StringBuilder CurWhiteSpace;
-            public StringBuilder NextWhiteSpace;
-            public GroupingRecovery GroupingRecovery;
-
-            public State(State state, bool verbatim) {
-                Indent = (int[])state.Indent.Clone();
-                LastNewLine = state.LastNewLine;
-                LastLineJoin = state.LastLineJoin;
-                BracketLevel = state.BraceLevel;
-                ParenLevel = state.ParenLevel;
-                BraceLevel = state.BraceLevel;
-                PendingDedents = state.PendingDedents;
-                IndentLevel = state.IndentLevel;
-                IndentFormat = (state.IndentFormat != null) ? (string[])state.IndentFormat.Clone() : null;
-                IncompleteString = state.IncompleteString;
-                if (verbatim) {
-                    CurWhiteSpace = new StringBuilder(state.CurWhiteSpace.ToString());
-                    NextWhiteSpace = new StringBuilder(state.NextWhiteSpace.ToString());
+                char c2 = line[end + 1];
+                if (c2 == '+' || c2 == '-') {
+                    end += 2;
+                } else if (IsDecimalDigit(c2)) {
+                    end += 1;
                 } else {
-                    CurWhiteSpace = null;
-                    NextWhiteSpace = null;
-                }
-                GroupingRecovery = null;
-            }
-
-            public State(TokenizerOptions options) {
-                Indent = new int[MaxIndent]; // TODO
-                LastNewLine = false;
-                LastLineJoin = false;
-                BracketLevel = ParenLevel = BraceLevel = PendingDedents = IndentLevel = 0;
-                IndentFormat = null;
-                IncompleteString = null;
-                if ((options & TokenizerOptions.Verbatim) != 0) {
-                    CurWhiteSpace = new StringBuilder();
-                    NextWhiteSpace = new StringBuilder();
-                } else {
-                    CurWhiteSpace = null;
-                    NextWhiteSpace = null;
-                }
-                GroupingRecovery = null;
-            }
-
-            public override bool Equals(object obj) {
-                if (obj is State) {
-                    State other = (State)obj;
-                    return other == this;
-                } else {
-                    return false;
-                }
-            }
-
-            public override int GetHashCode() {
-                return base.GetHashCode();
-            }
-
-            public static bool operator ==(State left, State right) {
-                return left.BraceLevel == right.BraceLevel &&
-                       left.BracketLevel == right.BracketLevel &&
-                       left.IndentLevel == right.IndentLevel &&
-                       left.ParenLevel == right.ParenLevel &&
-                       left.PendingDedents == right.PendingDedents &&
-                       left.LastNewLine == right.LastNewLine &&
-                       left.LastLineJoin == right.LastLineJoin &&
-                       left.IncompleteString == right.IncompleteString;
-            }
-
-            public static bool operator !=(State left, State right) {
-                return !(left == right);
-            }
-
-            #region IEquatable<State> Members
-
-            public bool Equals(State other) {
-                return this.Equals(other);
-            }
-
-            #endregion
-        }
-
-        /// <summary>
-        /// Stores information to recover from a non-terminated grouping when we encounter a keyword which
-        /// is only ever present outside of a grouping (e.g. class, def, etc...)
-        /// 
-        /// We only use this when the tokenizer has been created to use group recovery because this alters
-        /// how we tokenize the language.  The parser creates the tokenizer in this mode.
-        /// </summary>
-        [Serializable]
-        class GroupingRecovery {
-            /// <summary>
-            /// the new line kind that was in the grouping
-            /// </summary>
-            public readonly NewLineKind NewLineKind;
-            /// <summary>
-            /// the whitespace after the new line, for setting indent when we recover
-            /// </summary>
-            public readonly string NoAllocWhiteSpace;
-            /// <summary>
-            /// the # of spaces after the new line, for setting the indent when we recover
-            /// </summary>
-            public readonly int Spaces;
-            /// <summary>
-            /// the allocated whitespace after the new line, for setting the indent when we recover 
-            /// </summary>
-            public readonly StringBuilder Whitespace;
-            /// <summary>
-            /// the index within the file where the newline starts (not an index into the buffer)
-            /// </summary>
-            public readonly int NewlineStart;
-            /// <summary>
-            /// The amount of whitespace we had already collected before the newline, 
-            /// so we can leave whitespace assocated w/ the newline attached to the newline
-            /// </summary>
-            public readonly int VerbatimWhiteSpaceLength;
-            /// <summary>
-            /// The starting position of the next token after the newline we hit, this GroupingRecovery is only 
-            /// valid if this is unchanged which means we haven't ready an additional tokens.
-            /// </summary>
-            public readonly int TokenStart;
-
-            public GroupingRecovery(NewLineKind newlineKind, string noAllocWhiteSpace, int spaces, StringBuilder whitespace, int newlineStart, int verbatimWhiteSpaceLength, int tokenStart) {
-                NewLineKind = newlineKind;
-                NoAllocWhiteSpace = noAllocWhiteSpace;
-                Spaces = spaces;
-                Whitespace = whitespace;
-                NewlineStart = newlineStart;
-                VerbatimWhiteSpaceLength = verbatimWhiteSpaceLength;
-                TokenStart = tokenStart;
-            }
-        }
-
-        #region Buffer Access
-
-        private string GetTokenSubstring(int offset) {
-            return GetTokenSubstring(offset, _tokenEnd - _start - offset);
-        }
-
-        private string GetTokenSubstring(int offset, int length) {
-            Debug.Assert(_tokenEnd != -1, "Token end not marked");
-            Debug.Assert(offset >= 0 && offset <= _tokenEnd - _start && length >= 0 && length <= _tokenEnd - _start - offset);
-
-            return new String(_buffer, _start + offset, length);
-        }
-
-        [Conditional("DEBUG")]
-        private void CheckInvariants() {
-            Debug.Assert(_buffer.Length >= 1);
-
-            // _start == _end when discarding token and at beginning, when == 0
-            Debug.Assert(_start >= 0 && _start <= _end);
-
-            Debug.Assert(_end >= 0 && _end <= _buffer.Length);
-
-            // position beyond _end means we are reading EOFs:
-            Debug.Assert(_position >= _start);
-            Debug.Assert(_tokenEnd >= -1 && _tokenEnd <= _end);
-        }
-
-        private int Peek() {
-            if (_position >= _end) {
-                RefillBuffer();
-
-                // eof:
-                if (_position >= _end) {
-                    return EOF;
-                }
-            }
-
-            Debug.Assert(_position < _end);
-
-            return _buffer[_position];
-        }
-
-        private int ReadLine() {
-            int ch;
-            do { ch = NextChar(); } while (ch != EOF && !IsEoln(ch));
-            BufferBack();
-            return ch;
-        }
-
-        private void MarkTokenEnd() {
-            CheckInvariants();
-
-            _tokenEnd = System.Math.Min(_position, _end);
-            int token_length = _tokenEnd - _start;
-
-            _tokenEndIndex = _tokenStartIndex + token_length;
-
-            DumpToken();
-
-            CheckInvariants();
-        }
-
-        [Conditional("DUMP_TOKENS")]
-        private void DumpToken() {
-            Console.WriteLine("--> `{0}` {1}", GetTokenString().Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t"), TokenSpan);
-        }
-
-        private void BufferBack(int count = -1) {
-            SeekRelative(count);
-        }
-
-        internal string GetTokenString() {
-            return new String(_buffer, _start, _tokenEnd - _start);
-        }
-
-        private int TokenLength {
-            get {
-                return _tokenEnd - _start;
-            }
-        }
-
-        private void SeekRelative(int disp) {
-            CheckInvariants();
-            Debug.Assert(disp >= _start - _position);
-            // no upper limit, we can seek beyond end in which case we are reading EOFs
-
-            _position += disp;
-
-            CheckInvariants();
-        }
-
-        private IndexSpan BufferTokenSpan {
-            get {
-                return new IndexSpan(_tokenStartIndex, _tokenEndIndex - _tokenStartIndex);
-            }
-        }
-
-        private bool NextChar(int ch) {
-            CheckInvariants();
-            if (Peek() == ch) {
-                _position++;
-                CheckInvariants();
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        private int NextChar() {
-            int result = Peek();
-            _position++;
-            return result;
-        }
-
-        private bool AtBeginning {
-            get {
-                return _position == 0 && !_bufferResized;
-            }
-        }
-
-        private int CurrentIndex {
-            get {
-                return _tokenStartIndex + Math.Min(_position, _end) - _start;
-            }
-        }
-
-        private void DiscardToken() {
-            CheckInvariants();
-
-            // no token marked => mark it now:
-            if (_tokenEnd == -1) MarkTokenEnd();
-
-            // the current token's end is the next token's start:
-            _start = _tokenEnd;
-            _tokenStartIndex = _tokenEndIndex;
-            _tokenEnd = -1;
-#if DEBUG
-            _tokenEndIndex = -1;
-#endif
-            CheckInvariants();
-        }
-
-
-        private NewLineKind ReadEolnOpt(int current) {
-            if (current == '\n') {
-                return NewLineKind.LineFeed;
-            }
-
-            if (current == '\r' && _multiEolns) {
-                if (Peek() == '\n') {
-                    SeekRelative(+1);
-                    return NewLineKind.CarriageReturnLineFeed;
-                }
-                return NewLineKind.CarriageReturn;
-            }
-
-            return NewLineKind.None;
-        }
-
-        private bool IsEoln(int current) {
-            if (current == '\n') return true;
-
-            if (current == '\r' && _multiEolns) {
-                if (Peek() == '\n') {
-                    return true;
+                    // 'e' belongs to following token
+                    return kind;
                 }
 
+                if (end >= line.Length) {
+                    end = line.Length;
+                    return TokenKind.Error;
+                }
+
+                kind = TokenKind.LiteralFloat;
+                ReadDecimals(line, ref end);
+            }
+            return kind;
+        }
+
+        private static TokenKind MaybeReadImaginary(string line, TokenKind kind, ref int end) {
+            if (end >= line.Length ||
+                kind != TokenKind.LiteralDecimal && kind != TokenKind.LiteralFloat
+            ) {
+                return kind;
+            }
+
+            char c = line[end];
+            if (c == 'j' || c == 'J') {
+                end += 1;
+                return TokenKind.LiteralImaginary;
+            }
+            return kind;
+        }
+
+        private static TokenKind ReadOperator(string line, char c, ref int end) {
+            if (end > line.Length) {
+                return TokenKind.Error;
+            }
+
+            char c2 = (end < line.Length) ? line[end] : '\0';
+            char c3 = (end + 1 < line.Length) ? line[end + 1] : '\0';
+            int len;
+            var kind = GetOperatorKind(c, c2, c3, out len, TokenKind.Error);
+            if (kind != TokenKind.Error) {
+                end += len - 1;
+            }
+            return kind;
+        }
+
+
+        private static bool IsNextChar(string line, int index, char c, int offset = 1) {
+            int i = index + offset;
+            return (i < line.Length) && (line[i] == c);
+        }
+
+        private static bool IsHexDigit(char c) {
+            int v = CharUnicodeInfo.GetDigitValue(c);
+            if (v >= 0 && v <= 9) {
                 return true;
             }
-
+            if (c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+                return true;
+            }
             return false;
         }
 
-        private void RefillBuffer() {
-            if (_end == _buffer.Length) {
-                int new_size = System.Math.Max(System.Math.Max((_end - _start) * 2, _buffer.Length), _position);
-                ResizeInternal(ref _buffer, new_size, _start, _end - _start);
-                _end -= _start;
-                _position -= _start;
-                _tokenEnd = -1;
-                _start = 0;
-                _bufferResized = true;
-            }
+        private static bool IsZeroDigit(char c) {
+            return CharUnicodeInfo.GetDigitValue(c) == 0;
+        }
 
-            // make the buffer full:
-            try {
-                int count = _reader.Read(_buffer, _end, _buffer.Length - _end);
-                _end += count;
-            } catch (BadSourceException bse) {
-                StreamReader streamReader = _reader as StreamReader;
-                if (streamReader != null && streamReader.CurrentEncoding != PythonAsciiEncoding.SourceEncoding) {
-                    _errors.Add(
-                        String.Format(
-                            "(unicode error) '{0}' codec can't decode byte 0x{1:x} in position {2}",
-                            PythonEncoding.NormalizeEncodingName(streamReader.CurrentEncoding.WebName),
-                            bse.BadByte,
-                            bse.Index + CurrentIndex
-                        ),
-                        new IndexSpan(CurrentIndex + bse.Index, 1),
-                        ErrorCodes.SyntaxError,
-                        Severity.FatalError
-                    );
-                } else {
-                    _errors.Add(
-                        string.Format(
-                            "Non-ASCII character '\\x{0:x}' at position {1}, but no encoding declared; " +
-                                "see http://www.python.org/peps/pep-0263.html for details",
-                            bse.BadByte,
-                            bse.Index + CurrentIndex
-                        ),
-                        new IndexSpan(CurrentIndex + bse.Index, 1),
-                        ErrorCodes.SyntaxError,
-                        Severity.FatalError
-                    );
+        private static bool IsDecimalDigit(char c) {
+            return CharUnicodeInfo.GetDigitValue(c) >= 0;
+        }
+
+        private static bool IsOctalDigit(char c) {
+            int v = CharUnicodeInfo.GetDigitValue(c);
+            return v >= 0 && v < 8;
+        }
+
+        private static bool IsBinaryDigit(char c) {
+            int v = CharUnicodeInfo.GetDigitValue(c);
+            return v >= 0 && v < 2;
+        }
+
+        private static void ReadWhile(string line, ref int end, Func<char, bool> allowed) {
+            int len = line.Length;
+            while (end < len && allowed(line[end])) {
+                end += 1;
+            }
+        }
+
+        private static void ReadWhile(string line, ref int end, string allowed) {
+            int len = line.Length;
+            while (end < len && allowed.Contains(line[end])) {
+                end += 1;
+            }
+        }
+
+        private static void ReadWhile(string line, ref int end, char allowed) {
+            int len = line.Length;
+            while (end < len && allowed == line[end]) {
+                end += 1;
+            }
+        }
+
+        public IEnumerable<Token> GetRemainingTokens() {
+            _lineNumber += 1;
+            var eof = new SourceLocation(_lineStart, _lineNumber, 1);
+
+            while (_nesting.Any()) {
+                var close = _nesting.Pop();
+                switch (close) {
+                    case TokenKind.RightSingleQuote:
+                    case TokenKind.RightDoubleQuote:
+                    case TokenKind.RightSingleTripleQuote:
+                    case TokenKind.RightDoubleTripleQuote:
+                        break;
+                    case TokenKind.RightParenthesis:
+                        break;
+                    case TokenKind.RightBracket:
+                        break;
+                    case TokenKind.RightBrace:
+                        break;
+                    case TokenKind.RightBackQuote:
+                        break;
                 }
-                throw;
             }
 
-            ClearInvalidChars();
+            yield return new Token(TokenKind.EndOfFile, eof, 0);
         }
 
-        /// <summary>
-        /// Resizes an array to a speficied new size and copies a portion of the original array into its beginning.
-        /// </summary>
-        private static void ResizeInternal(ref char[] array, int newSize, int start, int count) {
-            Debug.Assert(array != null && newSize > 0 && count >= 0 && newSize >= count && start >= 0);
+        #region Token Kind Resolution
 
-            char[] result = (newSize != array.Length) ? new char[newSize] : array;
+        private static readonly IReadOnlyList<Dictionary<char, TokenKind>> OperatorMap = CreateOperatorMap();
 
-            Buffer.BlockCopy(array, start * sizeof(char), result, 0, count * sizeof(char));
+        private static Dictionary<char, TokenKind>[] CreateOperatorMap() {
+            var topLevelMap = new Dictionary<char, TokenKind>[5];
 
-            array = result;
+            // c2 == '\0'
+            topLevelMap[0] = new Dictionary<char, TokenKind> {
+                { '+', TokenKind.Add },
+                { '-', TokenKind.Subtract },
+                { '*', TokenKind.Multiply },
+                { '@', TokenKind.MatMultiply },
+                { '/', TokenKind.Divide },
+                { '%', TokenKind.Mod },
+                { '&', TokenKind.BitwiseAnd },
+                { '|', TokenKind.BitwiseOr },
+                { '^', TokenKind.ExclusiveOr },
+                { '~', TokenKind.Twiddle },
+                { '<', TokenKind.LessThan },
+                { '>', TokenKind.GreaterThan },
+                { '=', TokenKind.Assign },
+            };
+
+            // c2 == '='
+            topLevelMap[1] =  new Dictionary<char, TokenKind> {
+                { '+', TokenKind.AddEqual },
+                { '-', TokenKind.SubtractEqual },
+                { '*', TokenKind.MultiplyEqual },
+                { '@', TokenKind.MatMultiplyEqual },
+                { '/', TokenKind.DivideEqual },
+                { '%', TokenKind.ModEqual },
+                { '&', TokenKind.BitwiseAndEqual },
+                { '|', TokenKind.BitwiseOrEqual },
+                { '^', TokenKind.ExclusiveOrEqual },
+                { '=', TokenKind.Equals },
+                { '!', TokenKind.NotEquals },
+                { '<', TokenKind.LessThanOrEqual },
+                { '>', TokenKind.GreaterThanOrEqual },
+            };
+
+            // c2 == c1
+            topLevelMap[2] = new Dictionary<char, TokenKind> {
+                { '*', TokenKind.Power },
+                { '/', TokenKind.FloorDivide },
+                { '<', TokenKind.LeftShift },
+                { '>', TokenKind.RightShift },
+            };
+
+            // c2 == c1 && c3 == '='
+            topLevelMap[3] = new Dictionary<char, TokenKind> {
+                { '*', TokenKind.PowerEqual },
+                { '/', TokenKind.FloorDivideEqual },
+                { '<', TokenKind.LeftShiftEqual },
+                { '>', TokenKind.RightShiftEqual },
+            };
+
+            // c2 == '>'
+            topLevelMap[4] = new Dictionary<char, TokenKind> {
+                { '-', TokenKind.Arrow },
+                { '<', TokenKind.LessThanGreaterThan },
+            };
+
+            return topLevelMap;
         }
 
-        [Conditional("DEBUG")]
-        private void ClearInvalidChars() {
-            for (int i = 0; i < _start; i++) _buffer[i] = '\0';
-            for (int i = _end; i < _buffer.Length; i++) _buffer[i] = '\0';
+        private static TokenKind GetOperatorKind(
+            char c1,
+            char c2,
+            char c3,
+            out int operatorLength,
+            TokenKind defaultKind = TokenKind.Error
+        ) {
+            TokenKind result;
+            var map = OperatorMap[0];
+            operatorLength = 1;
+
+            if (c2 == '=') {
+                map = OperatorMap[1];
+                operatorLength = 2;
+            } else if (c2 == c1) {
+                if (c3 == '=') {
+                    map = OperatorMap[3];
+                    operatorLength = 3;
+                } else {
+                    map = OperatorMap[2];
+                    operatorLength = 2;
+                }
+            } else if (c2 == '>') {
+                map = OperatorMap[4];
+                operatorLength = 2;
+            }
+
+            if (map.TryGetValue(c1, out result)) {
+                return result;
+            }
+            if (OperatorMap[0].TryGetValue(c1, out result)) {
+                operatorLength = 1;
+                return result;
+            }
+            return defaultKind;
         }
+
+        private static readonly Dictionary<string, TokenKind> Keywords = new Dictionary<string, TokenKind> {
+            { "and", TokenKind.KeywordAnd },
+            { "assert", TokenKind.KeywordAssert },
+            { "async", TokenKind.KeywordAsync },
+            { "await", TokenKind.KeywordAwait },
+            { "break", TokenKind.KeywordBreak },
+            { "class", TokenKind.KeywordClass },
+            { "continue", TokenKind.KeywordContinue },
+            { "def", TokenKind.KeywordDef },
+            { "del", TokenKind.KeywordDel },
+            { "elif", TokenKind.KeywordElseIf },
+            { "else", TokenKind.KeywordElse },
+            { "except", TokenKind.KeywordExcept },
+            { "exec", TokenKind.KeywordExec },
+            { "finally", TokenKind.KeywordFinally },
+            { "for", TokenKind.KeywordFor },
+            { "from", TokenKind.KeywordFrom },
+            { "global", TokenKind.KeywordGlobal },
+            { "if", TokenKind.KeywordIf },
+            { "import", TokenKind.KeywordImport },
+            { "in", TokenKind.KeywordIn },
+            { "is", TokenKind.KeywordIs },
+            { "lambda", TokenKind.KeywordLambda },
+            { "not", TokenKind.KeywordNot },
+            { "or", TokenKind.KeywordOr },
+            { "pass", TokenKind.KeywordPass },
+            { "print", TokenKind.KeywordPrint },
+            { "raise", TokenKind.KeywordRaise },
+            { "return", TokenKind.KeywordReturn },
+            { "try", TokenKind.KeywordTry },
+            { "while", TokenKind.KeywordWhile },
+            { "yield", TokenKind.KeywordYield },
+            { "as", TokenKind.KeywordAs },
+            { "with", TokenKind.KeywordWith },
+            { "True", TokenKind.KeywordTrue },
+            { "False", TokenKind.KeywordFalse },
+            { "nonlocal", TokenKind.KeywordNonlocal },
+            { "None", TokenKind.KeywordNone },
+        };
 
         #endregion
-
-        private enum FromFutureImportStage {
-            NotStarted,
-            From,
-            Future,
-            Import,
-            Name
-        }
-    }
-
-    enum NewLineKind {
-        None,
-        LineFeed,
-        CarriageReturn,
-        CarriageReturnLineFeed
-    }
-
-    static class NewLineKindExtensions {
-        public static int GetSize(this NewLineKind kind) {
-            switch (kind) {
-                case NewLineKind.LineFeed: return 1;
-                case NewLineKind.CarriageReturnLineFeed: return 2;
-                case NewLineKind.CarriageReturn: return 2;
-            }
-            return 0;
-        }
-
-        public static string GetString(this NewLineKind kind) {
-            switch (kind) {
-                case NewLineKind.CarriageReturn: return "\r";
-                case NewLineKind.CarriageReturnLineFeed: return "\r\n";
-                case NewLineKind.LineFeed: return "\n";
-            }
-            throw new InvalidOperationException();
-        }
     }
 }

@@ -15,59 +15,65 @@
 // permissions and limitations under the License.
 
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class PrintStatement : Statement {
-        private readonly Expression _dest;
-        private readonly Expression[] _expressions;
-        private readonly bool _trailingComma;
-
-        public PrintStatement(Expression destination, Expression[] expressions, bool trailingComma) {
-            _dest = destination;
-            _expressions = expressions;
-            _trailingComma = trailingComma;
-        }
+        private Expression _dest;
+        private IList<Expression> _expressions;
+        private SourceSpan _beforeLeftShift, _beforeDestination, _beforeItems;
 
         public Expression Destination {
             get { return _dest; }
+            set { ThrowIfFrozen(); _dest = value; }
         }
 
         public IList<Expression> Expressions {
             get { return _expressions; }
+            set { ThrowIfFrozen(); _expressions = value; }
         }
 
-        public bool TrailingComma {
-            get { return _trailingComma; }
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _expressions = FreezeList(_expressions);
         }
+
+        public void AddExpression(Expression expression) {
+            if (_expressions == null) {
+                _expressions = new List<Expression>();
+            }
+            _expressions.Add(expression);
+        }
+
+        public SourceSpan BeforeLeftShift {
+            get { return _beforeLeftShift; }
+            set { ThrowIfFrozen(); _beforeLeftShift = value; }
+        }
+
+        public SourceSpan BeforeDestination {
+            get { return _beforeDestination; }
+            set { ThrowIfFrozen(); _beforeDestination = value; }
+        }
+
+        public SourceSpan BeforeItems {
+            get { return _beforeItems; }
+            set { ThrowIfFrozen(); _beforeItems = value; }
+        }
+
+
+        public bool TrailingComma => Expressions?.LastOrDefault() is EmptyExpression;
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_dest != null) {
-                    _dest.Walk(walker);
-                }
-                if (_expressions != null) {
-                    foreach (Expression expression in _expressions) {
+                Destination?.Walk(walker);
+                if (Expressions != null) {
+                    foreach (Expression expression in Expressions) {
                         expression.Walk(walker);
                     }
                 }
             }
             walker.PostWalk(this);
-        }
-
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append("print");
-            if (_dest != null) {
-                res.Append(this.GetSecondWhiteSpace(ast));
-                res.Append(">>");
-                _dest.AppendCodeString(res, ast, format);
-                if (_expressions.Length > 0) {
-                    res.Append(this.GetThirdWhiteSpace(ast));
-                    res.Append(',');
-                }
-            }
-            ListExpression.AppendItems(res, ast, format, "", "", this, Expressions);
         }
     }
 }

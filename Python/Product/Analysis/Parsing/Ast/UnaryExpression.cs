@@ -14,47 +14,22 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System.Text;
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class UnaryExpression : ExpressionWithExpression {
+        private PythonOperator _op;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
-
-    public class UnaryExpression : Expression {
-        private readonly Expression _expression;
-        private readonly PythonOperator _op;
-
-        public UnaryExpression(PythonOperator op, Expression expression) {
-            _op = op;
-            _expression = expression;
-            EndIndex = expression.EndIndex;
-        }
-
-        public Expression Expression {
-            get { return _expression; }
-        }
-
-        public PythonOperator Op {
+        public PythonOperator Operator {
             get { return _op; }
-        }
-
-        public override string NodeName {
-            get {
-                return "unary operator";
-            }
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append(_op.ToCodeString());
-            _expression.AppendCodeString(res, ast, format);
+            set { ThrowIfFrozen(); _op = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }
+
+        internal override string CheckName => "operator";
     }
 }

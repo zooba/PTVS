@@ -14,50 +14,64 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Collections.Generic;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class SequenceExpression : Expression {
-        private readonly Expression[] _items;
+        private IList<SequenceItemExpression> _items;
+        private CommentExpression _firstComment;
 
-        protected SequenceExpression(Expression[] items) {
-            _items = items;
+        internal CommentExpression FirstComment {
+            get { return _firstComment; }
+            set { ThrowIfFrozen(); _firstComment = value; }
         }
 
-        public IList<Expression> Items {
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _items = FreezeList(_items);
+            _firstComment?.Freeze();
+        }
+
+        public IList<SequenceItemExpression> Items {
             get { return _items; }
+            set { ThrowIfFrozen(); _items = value; }
         }
 
-        internal override string CheckAssign() {
-            for (int i = 0; i < Items.Count; i++) {
-                Expression e = Items[i];
-                if (e.CheckAssign() != null) {
-                    // we don't return the same message here as CPython doesn't seem to either, 
-                    // for example ((yield a), 2,3) = (2,3,4) gives a different error than
-                    // a = yield 3 = yield 4.
-                    return "can't assign to " + e.NodeName;
+        public int Count => _items?.Count ?? 0;
+
+        public void AddItem(SequenceItemExpression expr) {
+            if (_items == null) {
+                _items = new List<SequenceItemExpression> { expr };
+            } else {
+                _items.Add(expr);
+            }
+        }
+
+        internal override void CheckAssign(Parser parser) {
+            for (int i = 0; i < Count; i++) {
+                var item = Items[i];
+                if (i + 1 < Count || !IsNullOrEmpty(item)) {
+                    item.CheckAssign(parser);
                 }
             }
-            return null;
-
         }
 
-        internal override string CheckDelete() {
-            for (int i = 0; i < Items.Count; i++) {
-                Expression e = Items[i];
-                if (e.CheckDelete() != null) {
-                    // we don't return the same message here as CPython doesn't seem to either, 
-                    // for example ((yield a), 2,3) = (2,3,4) gives a different error than
-                    // a = yield 3 = yield 4.
-                    return "can't delete " + e.NodeName;
+        internal override void CheckDelete(Parser parser) {
+            for (int i = 0; i < Count; i++) {
+                var item = Items[i];
+                if (i + 1 < Count || !IsNullOrEmpty(item)) {
+                    item.CheckDelete(parser);
                 }
             }
-            return null;
         }
 
-        internal override string CheckAugmentedAssign() {
-            return "illegal expression for augmented assignment";
+        internal override void CheckAugmentedAssign(Parser parser) {
+            parser.ReportError("illegal expression for augmented assignment", Span);
         }
+
+        internal override string CheckName => null;
 
         private static bool IsComplexAssignment(Expression expr) {
             return !(expr is NameExpression);

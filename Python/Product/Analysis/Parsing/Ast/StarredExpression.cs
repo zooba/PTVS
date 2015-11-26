@@ -14,20 +14,24 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class StarredExpression : Expression {
+        private readonly TokenKind _kind;
         private readonly Expression _expr;
 
-        public StarredExpression(Expression expr) {
+        public StarredExpression(TokenKind kind, Expression expr) {
+            _kind = kind;
             _expr = expr;
         }
 
+        public bool IsStar => _kind == TokenKind.Multiply;
+        public bool IsDoubleStar => _kind == TokenKind.Power;
+
         public Expression Expression {
-            get {
-                return _expr;
-            }
+            get { return _expr; }
         }
 
         public override void Walk(PythonWalker walker) {
@@ -36,18 +40,24 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             }
         }
 
-        internal override string CheckAssign() {
-            return null;
+        internal override void CheckAssign(Parser parser) {
+            if (!parser.HasStarUnpacking) {
+                parser.ReportError("invalid syntax", Span);
+            }
         }
 
-        internal override string CheckAugmentedAssign() {
-            return "invalid syntax";
+        internal override void CheckAugmentedAssign(Parser parser) {
+            parser.ReportError("illegal expression for augmented assignment", Span);
         }
 
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append('*');
-            _expr.AppendCodeString(res, ast, format);
+        internal override void CheckDelete(Parser parser) {
+            if (parser.HasGeneralUnpacking) {
+                parser.ReportError("can't use starred expression here", Span);
+            } else {
+                parser.ReportError("invalid syntax", Span);
+            }
         }
+
+        internal override string CheckName => null;
     }
 }

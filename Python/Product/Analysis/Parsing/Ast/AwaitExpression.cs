@@ -14,54 +14,20 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     // New in Pep429 for Python 3.5. Await is an expression with a return value.
     //    x = await z
     // TODO: The return value (x) is provided by calling ...
-    public class AwaitExpression : Expression {
-        private readonly Expression _expression;
-
-        public AwaitExpression(Expression expression) {
-            _expression = expression;
-        }
-
-        public Expression Expression {
-            get { return _expression; }
-        }
-
+    public class AwaitExpression : ExpressionWithExpression {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
-        internal override string CheckAugmentedAssign() {
-            return CheckAssign();
-        }
-
-        public override string NodeName {
-            get {
-                return "await expression";
-            }
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            format.ReflowComment(res, this.GetPrecedingWhiteSpace(ast));
-            res.Append("await");
-            if (!this.IsAltForm(ast)) {
-                _expression.AppendCodeString(res, ast, format);
-                var itemWhiteSpace = this.GetListWhiteSpace(ast);
-                if (itemWhiteSpace != null) {
-                    res.Append(",");
-                    res.Append(itemWhiteSpace[0]);
-                }
-            }
-        }
+        internal override string CheckName => "await expression";
     }
 }

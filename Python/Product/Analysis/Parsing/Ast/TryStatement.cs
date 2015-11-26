@@ -14,167 +14,43 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Collections.Generic;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class TryStatement : CompoundStatement {
+        private IList<CompoundStatement> _handlers;
 
-    public class TryStatement : Statement {
-        private int _headerIndex;
-        /// <summary>
-        /// The statements under the try-block.
-        /// </summary>
-        private Statement _body;
+        public TryStatement() : base(TokenKind.KeywordTry) { }
 
-        /// <summary>
-        /// Array of except (catch) blocks associated with this try. NULL if there are no except blocks.
-        /// </summary>
-        private readonly TryStatementHandler[] _handlers;
-
-        /// <summary>
-        /// The body of the optional Else block for this try. NULL if there is no Else block.
-        /// </summary>
-        private Statement _else;
-
-        /// <summary>
-        /// The body of the optional finally associated with this try. NULL if there is no finally block.
-        /// </summary>
-        private Statement _finally;
-
-        public TryStatement(Statement body, TryStatementHandler[] handlers, Statement else_, Statement finally_) {
-            _body = body;
-            _handlers = handlers;
-            _else = else_;
-            _finally = finally_;
-        }
-
-        public int HeaderIndex {
-            set { _headerIndex = value; }
-        }
-
-        public Statement Body {
-            get { return _body; }
-        }
-
-        public Statement Else {
-            get { return _else; }
-        }
-
-        public Statement Finally {
-            get { return _finally; }
-        }
-
-        public IList<TryStatementHandler> Handlers {
+        public IList<CompoundStatement> Handlers {
             get { return _handlers; }
+            set { ThrowIfFrozen(); _handlers = value; }
+        }
+
+        public void AddHandler(CompoundStatement handler) {
+            if (_handlers == null) {
+                _handlers = new List<CompoundStatement>();
+            }
+            _handlers.Add(handler);
+        }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _handlers = FreezeList(_handlers);
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_body != null) {
-                    _body.Walk(walker);
-                }
+                base.Walk(walker);
                 if (_handlers != null) {
-                    foreach (TryStatementHandler handler in _handlers) {
+                    foreach (CompoundStatement handler in _handlers) {
                         handler.Walk(walker);
                     }
                 }
-                if (_else != null) {
-                    _else.Walk(walker);
-                }
-                if (_finally != null) {
-                    _finally.Walk(walker);
-                }
             }
             walker.PostWalk(this);
-        }
-
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append("try");
-            _body.AppendCodeString(res, ast, format);
-
-            if (_handlers != null) {
-                for (int i = 0; i < _handlers.Length; i++) {
-                    _handlers[i].AppendCodeString(res, ast, format);
-                }
-            }
-
-            if (_else != null) {
-                res.Append(this.GetSecondWhiteSpace(ast));
-                res.Append("else");
-                _else.AppendCodeString(res, ast, format);
-            }
-
-            if (_finally != null) {
-                res.Append(this.GetThirdWhiteSpace(ast));
-                res.Append("finally");
-                _finally.AppendCodeString(res, ast, format);
-            }
-        }
-    }
-
-    // A handler corresponds to the except block.
-    public class TryStatementHandler : Node {
-        private int _headerIndex;
-        private readonly Expression _test, _target;
-        private readonly Statement _body;
-
-        public TryStatementHandler(Expression test, Expression target, Statement body) {
-            _test = test;
-            _target = target;
-            _body = body;
-        }
-
-        public int HeaderIndex {
-            get { return _headerIndex; }
-            set { _headerIndex = value; }
-        }
-
-        public Expression Test {
-            get { return _test; }
-        }
-
-        public Expression Target {
-            get { return _target; }
-        }
-
-        public Statement Body {
-            get { return _body; }
-        }
-
-        public override void Walk(PythonWalker walker) {
-            if (walker.Walk(this)) {
-                if (_test != null) {
-                    _test.Walk(walker);
-                }
-                if (_target != null) {
-                    _target.Walk(walker);
-                }
-                if (_body != null) {
-                    _body.Walk(walker);
-                }
-            }
-            walker.PostWalk(this);
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append("except");
-            if (_test != null) {
-                _test.AppendCodeString(res, ast, format);
-                if (_target != null) {
-                    res.Append(this.GetSecondWhiteSpace(ast));
-                    if (this.IsAltForm(ast)) {
-                        res.Append("as");
-                    } else {
-                        res.Append(",");
-                    }
-
-                    _target.AppendCodeString(res, ast, format);
-                }
-            }
-
-            _body.AppendCodeString(res, ast, format);
         }
     }
 }

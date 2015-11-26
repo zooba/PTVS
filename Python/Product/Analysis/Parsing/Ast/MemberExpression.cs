@@ -14,85 +14,33 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
-    public sealed class MemberExpression : Expression {
-        private readonly Expression _target;
-        private readonly string _name;
-        private int _nameHeader;
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public sealed class MemberExpression : ExpressionWithExpression {
+        private NameExpression _name;
 
-        public MemberExpression(Expression target, string name) {
-            _target = target;
-            _name = name;
-        }
-
-        public void SetLoc(int start, int name, int end) {
-            SetLoc(start, end);
-            _nameHeader = name;
-        }
-
-        /// <summary>
-        /// Returns the index which is the start of the name.
-        /// </summary>
-        public int NameHeader {
-            get {
-                return _nameHeader;
-            }
-        }
-
-        public Expression Target {
-            get { return _target; }
+        public NameExpression NameExpression {
+            get { return _name; }
+            set { ThrowIfFrozen(); _name = value; }
         }
 
         public string Name {
-            get { return _name; }
+            get { return NameExpression?.Name; }
         }
 
         public override string ToString() {
-            return base.ToString() + ":" + _name;
-        }
-
-        internal override string CheckAssign() {
-            return null;
-        }
-
-        internal override string CheckDelete() {
-            return null;
+            return base.ToString() + ":" + (Name ?? "(null)");
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_target != null) {
-                    _target.Walk(walker);
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            _target.AppendCodeString(res, ast, format);
-            res.Append(this.GetPrecedingWhiteSpaceDefaultEmpty(ast));
-            res.Append('.');
-            if (!this.IsIncompleteNode(ast)) {
-                res.Append(this.GetSecondWhiteSpaceDefaultNull(ast));
-                res.Append(this.GetVerbatimImage(ast) ?? _name);
-            }
-        }
-
-        public override string GetLeadingWhiteSpace(PythonAst ast) {
-            return _target.GetLeadingWhiteSpace(ast);
-        }
-
-        public override void SetLeadingWhiteSpace(PythonAst ast, string whiteSpace) {
-            _target.SetLeadingWhiteSpace(ast, whiteSpace);
-        }
-
-        /// <summary>
-        /// Returns the span of the name component of the expression
-        /// </summary>
-        public SourceSpan GetNameSpan(PythonAst parent) {
-            return new SourceSpan(parent.IndexToLocation(_nameHeader), GetEnd(parent));
-        }
+        internal override string CheckName => null;
     }
 }

@@ -14,95 +14,53 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Collections.Generic;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
-    public class AssignmentStatement : Statement {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class AssignmentStatement : StatementWithExpression {
         // _left.Length is 1 for simple assignments like "x = 1"
         // _left.Length will be 3 for "x = y = z = 1"
-        private readonly Expression[] _left;
-        private readonly Expression _right;
+        private IList<Expression> _targets;
 
-        public AssignmentStatement(Expression[] left, Expression right) {
-            _left = left;
-            _right = right;
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _targets = FreezeList(_targets);
         }
 
-        public IList<Expression> Left {
-            get { return _left; }
-        }
-
-        public Expression Right {
-            get { return _right; }
+        public IList<Expression> Targets {
+            get { return _targets; }
+            set { ThrowIfFrozen(); _targets = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                foreach (Expression e in _left) {
+                foreach (Expression e in _targets) {
                     e.Walk(walker);
                 }
-                _right.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            var lhs = this.GetListWhiteSpace(ast);
-            for (int i = 0; i < Left.Count; i++) {
-                if (lhs != null && i != 0) {
-                    format.Append(
-                        res,
-                        format.SpacesAroundAssignmentOperator,
-                        " ",
-                        "",
-                        lhs[i - 1]
-                    );
-                    res.Append("=");
+        internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
+            // TODO: Apply formatting options
+            BeforeNode.AppendCodeString(output, ast);
+            if (_targets != null) {
+                bool firstTarget = true;
+                foreach (var t in _targets) {
+                    if (!firstTarget) {
+                        output.Append(',');
+                    }
+                    firstTarget = false;
+                    t.AppendCodeString(output, ast, format);
                 }
-                Left[i].AppendCodeString(
-                    res, 
-                    ast, 
-                    format,
-                    i != 0 && format.SpacesAroundAssignmentOperator != null ?
-                        format.SpacesAroundAssignmentOperator.Value ? " " : "" :
-                        null
-                );
             }
-            if (lhs != null) {
-                format.Append(
-                    res,
-                    format.SpacesAroundAssignmentOperator, 
-                    " ", 
-                    "",
-                    lhs[lhs.Length - 1]
-                );
-            }
-            res.Append("=");
-
-            Right.AppendCodeString(
-                res, 
-                ast, 
-                format, 
-                format.SpacesAroundAssignmentOperator != null ? 
-                    format.SpacesAroundAssignmentOperator.Value ? " " : "" : 
-                    null
-            );
-        }
-
-
-        public override string GetLeadingWhiteSpace(PythonAst ast) {
-            if (_left.Length > 0 && _left[0] != null) {
-                return _left[0].GetLeadingWhiteSpace(ast);
-            }
-
-            return null;
-        }
-
-        public override void SetLeadingWhiteSpace(PythonAst ast, string whiteSpace) {
-            if (_left.Length > 0 && _left[0] != null) {
-                _left[0].SetLeadingWhiteSpace(ast, whiteSpace);
-            }
+            output.Append('=');
+            Expression?.AppendCodeString(output, ast, format);
+            Comment?.AppendCodeString(output, ast, format);
+            AfterNode.AppendCodeString(output, ast);
         }
     }
 }

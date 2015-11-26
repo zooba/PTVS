@@ -15,25 +15,53 @@
 // permissions and limitations under the License.
 
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+
+using System;
+
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class Expression : Node {
-        internal Expression() {
-        }
+        internal abstract string CheckName { get; }
 
-        internal virtual string CheckAssign() {
-            return "can't assign to " + NodeName;
-        }
-
-        internal virtual string CheckAugmentedAssign() {
-            if (CheckAssign() != null) {
-                return "illegal expression for augmented assignment";
+        internal virtual void CheckAssign(Parser parser) {
+            var name = CheckName;
+            if (!string.IsNullOrEmpty(name)) {
+                parser.ReportError("can't assign to " + name, Span);
             }
-
-            return null;
         }
 
-        internal virtual string CheckDelete() {
-            return "can't delete " + NodeName;
+        internal virtual void CheckAugmentedAssign(Parser parser) {
+            CheckAssign(parser);
+        }
+
+        internal virtual void CheckDelete(Parser parser) {
+            var name = CheckName;
+            if (!string.IsNullOrEmpty(name)) {
+                parser.ReportError("can't delete " + name, Span);
+            }
+        }
+
+        internal static bool IsNullOrEmpty(Expression expression) {
+            return expression == null || expression is EmptyExpression;
+        }
+    }
+
+    public abstract class ExpressionWithExpression : Expression {
+        private Expression _expression;
+
+        public Expression Expression {
+            get { return _expression; }
+            set { ThrowIfFrozen(); _expression = value; }
+        }
+
+        public bool IsExpressionEmpty => _expression == null || _expression is EmptyExpression;
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _expression?.Freeze();
+        }
+
+        public override void Walk(PythonWalker walker) {
+            _expression?.Walk(walker);
         }
     }
 }

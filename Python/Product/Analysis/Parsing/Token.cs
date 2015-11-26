@@ -1,4 +1,4 @@
-// Python Tools for Visual Studio
+﻿// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -15,281 +15,39 @@
 // permissions and limitations under the License.
 
 using System;
+using System.Diagnostics;
 
-namespace Microsoft.PythonTools.Parsing {
-    public struct TokenWithSpan {
-        public static readonly TokenWithSpan Empty = new TokenWithSpan();
+namespace Microsoft.PythonTools.Analysis.Parsing {
+    [DebuggerDisplay("{Kind} ({Span})")]
+    public struct Token : IEquatable<Token> {
+        public static readonly Token Empty = new Token();
 
-        public Token Token;
-        public IndexSpan Span;
-        public string LeadingWhitespace;
+        public TokenKind Kind;
+        public SourceSpan Span;
 
-        public TokenWithSpan(Token token, IndexSpan span, string leadingWhitespace) {
-            Token = token;
-            Span = span;
-            LeadingWhitespace = leadingWhitespace;
-        }
-    }
-
-    /// <summary>
-    /// Summary description for Token.
-    /// </summary>
-    [Serializable]
-    public abstract class Token {
-        private readonly TokenKind _kind;
-
-        internal Token(TokenKind kind) {
-            _kind = kind;
+        public Token(TokenKind kind, SourceLocation start, SourceLocation end) {
+            Kind = kind;
+            Span = new SourceSpan(start, end);
         }
 
-        public TokenKind Kind {
-            get { return _kind; }
+        public Token(TokenKind kind, SourceLocation start, int length) {
+            Kind = kind;
+            Span = new SourceSpan(start, new SourceLocation(start.Index + length, start.Line, start.Column + length));
         }
 
-        public virtual object Value {
-            get {
-                throw new NotSupportedException("no value for this token");
+        public override bool Equals(object obj) {
+            if (!(obj is Token)) {
+                return false;
             }
+            return Equals((Token)obj);
         }
 
-        public override string ToString() {
-            return base.ToString() + "(" + _kind + ")";
+        public bool Equals(Token other) {
+            return Kind == other.Kind && Span == other.Span;
         }
 
-        /// <summary>
-        /// Returns the exact text of the token if it's available.  The text does not
-        /// include any leading white space.
-        /// </summary>
-        public virtual String VerbatimImage {
-            get {
-                return Image;
-            }
-        }
-
-        /// <summary>
-        /// Returns a user friendly display of the token.
-        /// </summary>
-        public abstract String Image {
-            get;
-        }
-    }
-
-    internal class ErrorToken : Token {
-        private readonly String _message;
-        private readonly string _verbatim;
-
-        public ErrorToken(String message, string verbatim)
-            : base(TokenKind.Error) {
-            _message = message;
-            _verbatim = verbatim;
-        }
-
-        public String Message {
-            get { return _message; }
-        }
-
-        public override String Image {
-            get { return _message; }
-        }
-
-        public override object Value {
-            get { return _message; }
-        }
-
-        public override string VerbatimImage {
-            get {
-                return _verbatim;
-            }
-        }
-    }
-
-    internal class IncompleteStringErrorToken : ErrorToken {
-        private readonly string _value;
-
-        public IncompleteStringErrorToken(string message, string value)
-            : base(message, value) {
-            _value = value;
-        }
-
-        public override string Image {
-            get {
-                return _value;
-            }
-        }
-
-        public override object Value {
-            get {
-                return _value;
-            }
-        }
-    }
-
-    internal class ConstantValueToken : Token {
-        private readonly object _value;
-
-        public ConstantValueToken(object value)
-            : base(TokenKind.Constant) {
-            _value = value;
-        }
-
-        public object Constant {
-            get { return this._value; }
-        }
-
-        public override object Value {
-            get { return _value; }
-        }
-
-        public override String Image {
-            get {
-                return _value == null ? "None" : _value.ToString();
-            }
-        }
-    }
-
-    internal sealed class VerbatimConstantValueToken : ConstantValueToken {
-        private readonly string _verbatim;
-
-        public VerbatimConstantValueToken(object value, string verbatim)
-            : base(value) {
-            _verbatim = verbatim;
-        }
-
-        public override string VerbatimImage {
-            get {
-                return _verbatim;
-            }
-        }
-    }
-
-    class UnicodeStringToken : ConstantValueToken {
-        public UnicodeStringToken(object value)
-            : base(value) {
-        }
-    }
-
-    sealed class VerbatimUnicodeStringToken : UnicodeStringToken {
-        private readonly string _verbatim;
-        
-        public VerbatimUnicodeStringToken(object value, string verbatim)
-            : base(value) {
-                _verbatim = verbatim;
-        }
-
-        public override string VerbatimImage {
-            get {
-                return _verbatim;
-            }
-        }
-    }
-
-    internal sealed class CommentToken : VerbatimToken {
-        private readonly string _comment;
-
-        public CommentToken(string comment, string newline)
-            : base(TokenKind.Comment, comment + newline, comment) {
-            _comment = comment;
-        }
-    }
-
-    internal class NameToken : Token {
-        private readonly string _name;
-
-        public NameToken(string name)
-            : base(TokenKind.Name) {
-            _name = name;
-        }
-
-        public string Name {
-            get { return this._name; }
-        }
-
-        public override object Value {
-            get { return _name; }
-        }
-
-        public override String Image {
-            get {
-                return _name;
-            }
-        }
-    }
-
-    internal sealed class OperatorToken : Token {
-        private readonly int _precedence;
-        private readonly string _image;
-
-        public OperatorToken(TokenKind kind, string image, int precedence)
-            : base(kind) {
-            _image = image;
-            _precedence = precedence;
-        }
-
-        public int Precedence {
-            get { return _precedence; }
-        }
-
-        public override object Value {
-            get { return _image; }
-        }
-
-        public override String Image {
-            get { return _image; }
-        }
-    }
-
-    internal class SymbolToken : Token {
-        private readonly string _image;
-
-        public SymbolToken(TokenKind kind, String image)
-            : base(kind) {
-            _image = image;
-        }
-
-        public String Symbol {
-            get { return _image; }
-        }
-
-        public override object Value {
-            get { return _image; }
-        }
-
-        public override String Image {
-            get { return _image; }
-        }
-    }
-
-    internal sealed class StatementSymbolToken : SymbolToken {
-        public StatementSymbolToken(TokenKind kind, String image)
-            : base(kind, image) {
-        }
-    }
-
-    internal class VerbatimToken : SymbolToken {
-        private readonly string _verbatimImage;
-
-        public VerbatimToken(TokenKind kind, string verbatimImage, string image)
-            : base(kind, image) {
-            _verbatimImage = verbatimImage;
-        }
-
-        public override string VerbatimImage {
-            get {
-                return _verbatimImage;
-            }
-        }
-    }
-
-    internal class DentToken : SymbolToken {
-        public DentToken(TokenKind kind, String image)
-            : base(kind, image) {
-        }
-
-        public override string VerbatimImage {
-            get {
-                // indents are accounted for in whitespace
-                return "";
-            }
+        public override int GetHashCode() {
+            return Span.GetHashCode();
         }
     }
 }

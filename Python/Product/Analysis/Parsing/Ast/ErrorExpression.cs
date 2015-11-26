@@ -14,38 +14,19 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ErrorExpression : Expression {
-        private readonly Expression _preceeding;
-        private readonly string _verbatimImage;
-
-        public ErrorExpression(string verbatimImage, Expression preceeding) {
-            _preceeding = preceeding;
-            _verbatimImage = verbatimImage;
-        }
-
-        public string VerbatimImage {
-            get {
-                return _verbatimImage;
-            }
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            if (_preceeding != null) {
-                _preceeding.AppendCodeString(res, ast, format);
-            }
-            res.Append(_verbatimImage ?? "<error>");
-        }
+        public ErrorExpression() { }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_preceeding != null) {
-                    _preceeding.Walk(walker);
-                }
             }
             walker.PostWalk(this);
         }
+
+        internal override string CheckName => "invalid expression";
     }
 }

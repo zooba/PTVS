@@ -15,11 +15,12 @@
 // permissions and limitations under the License.
 
 
-namespace Microsoft.PythonTools.Parsing {
+
+namespace Microsoft.PythonTools.Analysis.Parsing {
     public class ErrorSink {
         public static readonly ErrorSink Null = new ErrorSink();
         
-        public virtual void Add(string message, IndexSpan span, int errorCode, Severity severity) {
+        public virtual void Add(string message, SourceSpan span, int errorCode, Severity severity) {
         }
     }
 }

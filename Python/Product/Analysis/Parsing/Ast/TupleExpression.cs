@@ -14,23 +14,20 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class TupleExpression : SequenceExpression {
-        private bool _expandable;
+        public TupleExpression() { }
 
-        public TupleExpression(bool expandable, params Expression[] items)
-            : base(items) {
-            _expandable = expandable;
-        }
-
-        internal override string CheckAssign() {
+        internal override void CheckAssign(Parser parser) {
             if (Items.Count == 0) {
-                return "can't assign to ()";
+                parser.ReportError("can't assign to ()", Span);
+            } else {
+                base.CheckAssign(parser);
             }
-            return base.CheckAssign();
         }
 
         public override void Walk(PythonWalker walker) {
@@ -42,58 +39,6 @@ namespace Microsoft.PythonTools.Parsing.Ast {
                 }
             }
             walker.PostWalk(this);
-        }
-
-        public bool IsExpandable {
-            get {
-                return _expandable;
-            }
-        }
-
-        /// <summary>
-        /// Marks this tuple expression as having no parenthesis for the purposes of round tripping.
-        /// </summary>
-        public void RoundTripHasNoParenthesis(PythonAst ast) {
-            ast.SetAttribute(this, NodeAttributes.IsAltFormValue, NodeAttributes.IsAltFormValue);
-        }
-
-        public override string GetLeadingWhiteSpace(PythonAst ast) {
-            if (this.IsAltForm(ast)) {
-                return Items[0].GetLeadingWhiteSpace(ast);
-            }
-            return base.GetLeadingWhiteSpace(ast);
-        }
-
-        public override void SetLeadingWhiteSpace(PythonAst ast, string whiteSpace) {
-            if (this.IsAltForm(ast)) {
-                Items[0].SetLeadingWhiteSpace(ast, whiteSpace);
-            } else {
-                base.SetLeadingWhiteSpace(ast, whiteSpace);
-            }
-        }
-
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            if (this.IsAltForm(ast)) {
-                ListExpression.AppendItems(res, ast, format, "", "", this, Items);
-            } else {
-                if (Items.Count == 0 && 
-                    format.SpaceWithinEmptyTupleExpression != null) {
-                    res.Append(this.GetPrecedingWhiteSpace(ast));
-                    res.Append('(');
-                    if (String.IsNullOrWhiteSpace(this.GetSecondWhiteSpace(ast))) {
-                        res.Append(format.SpaceWithinEmptyTupleExpression.Value ? " " : "");
-                    } else {
-                        res.Append(this.GetSecondWhiteSpace(ast));
-                    }
-                    res.Append(')');
-                } else {
-                    string delimWs =
-                     format.SpacesWithinParenthesisedTupleExpression != null ?
-                     format.SpacesWithinParenthesisedTupleExpression.Value ? " " : "" : null;
-
-                    ListExpression.AppendItems(res, ast, format, "(", this.IsMissingCloseGrouping(ast) ? "" : ")", this, Items, delimWs);
-                } 
-            }
         }
     }
 }

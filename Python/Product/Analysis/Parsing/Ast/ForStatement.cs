@@ -14,88 +14,32 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
-    public class ForStatement : Statement {
-        private int _headerIndex;
-        private readonly Expression _left;
-        private Expression _list;
-        private Statement _body;
-        private readonly Statement _else;
-        private readonly bool _isAsync;
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class ForStatement : CompoundStatement {
+        private Expression _index;
+        private CompoundStatement _else;
 
-        public ForStatement(Expression left, Expression list, Statement body, Statement else_) {
-            _left = left;
-            _list = list;
-            _body = body;
-            _else = else_;
+        public ForStatement() : base(TokenKind.KeywordFor) { }
+
+        public Expression Index {
+            get { return _index; }
+            set { ThrowIfFrozen();_index = value; }
         }
 
-        public ForStatement(Expression left, Expression list, Statement body, Statement else_, bool isAsync)
-            : this(left, list, body, else_) {
-            _isAsync = isAsync;
-        }
-
-        public int HeaderIndex {
-            set { _headerIndex = value; }
-        }
-
-        public Expression Left {
-            get { return _left; }
-        }
-
-        public Statement Body {
-            get { return _body; }
-            set { _body = value; }
-        }
-
-        public Expression List {
-            get { return _list; }
-            set { _list = value; }
-        }
-
-        public Statement Else {
+        public CompoundStatement Else {
             get { return _else; }
-        }
-
-        public bool IsAsync {
-            get { return _isAsync; }
+            set { ThrowIfFrozen(); _else = value; }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_left != null) {
-                    _left.Walk(walker);
-                }
-                if (_list != null) {
-                    _list.Walk(walker);
-                }
-                if (_body != null) {
-                    _body.Walk(walker);
-                }
-                if (_else != null) {
-                    _else.Walk(walker);
-                }
+                _index?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
-        }
-
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append("for");
-            _left.AppendCodeString(res, ast, format);
-            if (!this.IsIncompleteNode(ast)) {
-                res.Append(this.GetSecondWhiteSpace(ast));
-                res.Append("in");
-                _list.AppendCodeString(res, ast, format);
-                _body.AppendCodeString(res, ast, format);   // colon is handled by suite statements...
-                if (_else != null) {
-                    res.Append(this.GetThirdWhiteSpace(ast));
-                    res.Append("else");
-                    _else.AppendCodeString(res, ast, format);
-                }
-            }
         }
     }
 }

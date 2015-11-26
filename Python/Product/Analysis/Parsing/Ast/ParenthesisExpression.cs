@@ -14,59 +14,43 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
+using System;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
+    public class ParenthesisExpression : ExpressionWithExpression {
+        private CommentExpression _firstComment;
 
-    public class ParenthesisExpression : Expression {
-        private readonly Expression _expression;
-
-        public ParenthesisExpression(Expression expression) {
-            _expression = expression;
+        internal CommentExpression FirstComment {
+            get { return _firstComment; }
+            set { ThrowIfFrozen(); _firstComment = value; }
         }
 
-        public Expression Expression {
-            get { return _expression; }
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _firstComment?.Freeze();
         }
 
-        internal override string CheckAssign() {
-            return _expression.CheckAssign();
+        internal override void CheckAssign(Parser parser) {
+            Expression?.CheckAssign(parser);
         }
 
-        internal override string CheckDelete() {
-            return _expression.CheckDelete();
+        internal override void CheckAugmentedAssign(Parser parser) {
+            Expression?.CheckAugmentedAssign(parser);
+        }
+
+        internal override void CheckDelete(Parser parser) {
+            Expression?.CheckDelete(parser);
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                if (_expression != null) {
-                    _expression.Walk(walker);
-                }
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }
 
-        internal override void AppendCodeString(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append('(');
-            
-            _expression.AppendCodeString(
-                res, 
-                ast, 
-                format,
-                format.SpacesWithinParenthesisExpression != null ? format.SpacesWithinParenthesisExpression.Value ? " " : "" : null
-            );
-            if (!this.IsMissingCloseGrouping(ast)) {
-                format.Append(
-                    res,
-                    format.SpacesWithinParenthesisExpression,
-                    " ",
-                    "",
-                    this.GetSecondWhiteSpace(ast)
-                );
-
-                res.Append(')');
-            }
-        }
+        internal override string CheckName => null;
     }
 }

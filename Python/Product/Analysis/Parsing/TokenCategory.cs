@@ -14,15 +14,26 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-namespace Microsoft.PythonTools.Parsing {
 
-    public enum TokenCategory {
+namespace Microsoft.PythonTools.Analysis.Parsing {
+
+    public enum OldTokenCategory {
         None,
 
         /// <summary>
         /// A token marking an end of stream.
         /// </summary>
         EndOfStream,
+
+        /// <summary>
+        /// A token marking the end of a line
+        /// </summary>
+        EndOfLine,
+
+        /// <summary>
+        /// A token indicating that the following end of line should be ignored
+        /// </summary>
+        IgnoreEndOfLine,
 
         /// <summary>
         /// A space, tab, or newline.
@@ -35,44 +46,39 @@ namespace Microsoft.PythonTools.Parsing {
         Comment,
 
         /// <summary>
-        /// A single line comment.
+        /// A decimal integer literal.
         /// </summary>
-        LineComment,
+        DecimalIntegerLiteral,
 
         /// <summary>
-        /// A documentation comment.
+        /// An octal integer literal (0o[0-7]+)
         /// </summary>
-        DocComment,
+        OctalIntegerLiteral,
 
         /// <summary>
-        /// A numeric literal.
+        /// A hexadecimal integer literal (0x[0-9A-Fa-f]+)
         /// </summary>
-        NumericLiteral,
+        HexadecimalIntegerLiteral,
 
         /// <summary>
-        /// A character literal.
+        /// A binary integer literal (0b[01]+)
         /// </summary>
-        CharacterLiteral,
+        BinaryIntegerLiteral,
+
+        /// <summary>
+        /// A floating-point literal
+        /// </summary>
+        FloatingPointLiteral,
+
+        /// <summary>
+        /// An imaginary floating-point literal
+        /// </summary>
+        ImaginaryLiteral,
 
         /// <summary>
         /// A string literal.
         /// </summary>
         StringLiteral,
-
-        /// <summary>
-        /// A regular expression literal.
-        /// </summary>
-        RegularExpressionLiteral,
-
-        /// <summary>
-        /// A keyword.
-        /// </summary>
-        Keyword,
-
-        /// <summary>
-        /// A directive (e.g. #line).
-        /// </summary>
-        Directive,
 
         /// <summary>
         /// A punctuation character that has a specific meaning in a language.
@@ -82,33 +88,51 @@ namespace Microsoft.PythonTools.Parsing {
         /// <summary>
         /// A token that operates as a separator between two language elements.
         /// </summary>
-        Delimiter,
+        Comma,
 
         /// <summary>
-        /// An identifier (variable, $variable, @variable, @@variable, $variable$, function!, function?, [variable], i'variable', ...)
+        /// A token that operates as a separator between two names.
+        /// </summary>
+        Period,
+
+        /// <summary>
+        /// A token that operates as a separator between two language elements.
+        /// </summary>
+        SemiColon,
+
+        /// <summary>
+        /// A token that operates as a separator following a label.
+        /// </summary>
+        Colon,
+
+        /// <summary>
+        /// An identifier
         /// </summary>
         Identifier,
 
         /// <summary>
-        /// Braces, parenthesis, brackets.
+        /// Opening brace, parenthesis or bracket.
         /// </summary>
-        Grouping,
+        OpenGrouping,
+
+        /// <summary>
+        /// Closing brace, parenthesis or bracket.
+        /// </summary>
+        CloseGrouping,
+
+        /// <summary>
+        /// Opening single, double or triple quote.
+        /// </summary>
+        OpenQuote,
+
+        /// <summary>
+        /// Closing single, double or triple quote.
+        /// </summary>
+        CloseQuote,
 
         /// <summary>
         /// Errors.
         /// </summary>
-        Error,
-
-        /// <summary>
-        /// The start or continuation of an incomplete multi-line string literal
-        /// </summary>
-        IncompleteMultiLineStringLiteral,
-
-        /// <summary>
-        /// Special identifier that is built into the language.
-        /// </summary>
-        BuiltinIdentifier,
-
-        LanguageDefined = 0x100
+        Error
     }
 }

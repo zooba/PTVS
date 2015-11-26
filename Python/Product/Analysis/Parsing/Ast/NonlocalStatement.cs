@@ -14,39 +14,38 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System.Collections.Generic;
-using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+using System.Collections.Generic;
+
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public class NonlocalStatement : Statement {
-        private readonly NameExpression[] _names;
+        private IList<NameExpression> _names;
 
-        public NonlocalStatement(NameExpression[] names) {
-            _names = names;
+        public NonlocalStatement() { }
+
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _names = FreezeList(_names);
         }
 
         public IList<NameExpression> Names {
             get { return _names; }
+            set { ThrowIfFrozen(); _names = value; }
+        }
+
+        internal void AddName(NameExpression name) {
+            if (Names == null) {
+                Names = new List<NameExpression> { name };
+            } else {
+                Names.Add(name);
+            }
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
             }
             walker.PostWalk(this);
-        }
-
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            var namesWhiteSpace = this.GetNamesWhiteSpace(ast);
-
-            if (namesWhiteSpace != null) {
-                ListExpression.AppendItems(res, ast, format, "nonlocal", "", this, Names.Count, (i, sb) => {
-                    sb.Append(namesWhiteSpace[i]);
-                    Names[i].AppendCodeString(res, ast, format);
-                });
-            } else {
-                ListExpression.AppendItems(res, ast, format, "nonlocal", "", this, Names.Count, (i, sb) => Names[i].AppendCodeString(sb, ast, format));
-            }
         }
     }
 }

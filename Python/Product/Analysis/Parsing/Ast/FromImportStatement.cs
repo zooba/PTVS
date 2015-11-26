@@ -14,64 +14,60 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
-namespace Microsoft.PythonTools.Parsing.Ast {
+namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
     public class FromImportStatement : Statement {
         private static readonly string[] _star = new[] { "*" };
-        private readonly ModuleName _root;
-        private readonly NameExpression[] _names;
-        private readonly NameExpression[] _asNames;
-        private readonly bool _fromFuture;
-        private readonly bool _forceAbsolute;
+        private DottedName _root;
+        private IList<SequenceItemExpression> _names;
+        private SourceSpan _beforeNames;
+        private bool _hasParentheses;
 
-        private PythonVariable[] _variables;
+        private IList<PythonVariable> _variables;
 
-        public FromImportStatement(ModuleName root, NameExpression/*!*/[] names, NameExpression[] asNames, bool fromFuture, bool forceAbsolute) {
-            _root = root;
-            _names = names;
-            _asNames = asNames;
-            _fromFuture = fromFuture;
-            _forceAbsolute = forceAbsolute;
+        protected override void OnFreeze() {
+            base.OnFreeze();
+            _root?.Freeze();
+            _names = FreezeList(_names);
         }
 
         public DottedName Root {
             get { return _root; }
+            set { ThrowIfFrozen(); _root = value; }
         }
 
-        public bool IsFromFuture {
-            get { return _fromFuture; }
-        }
+        public bool IsFromFuture => _root?.IsFuture ?? false;
 
-        public bool ForceAbsolute {
-            get {
-                return _forceAbsolute;
-            }
-        }
-
-        public IList<NameExpression/*!*/> Names {
+        public IList<SequenceItemExpression> Names {
             get { return _names; }
+            set { ThrowIfFrozen(); _names = value; }
         }
 
-        public IList<NameExpression> AsNames {
-            get { return _asNames; }
+        public SourceSpan BeforeNames {
+            get { return _beforeNames; }
+            set { ThrowIfFrozen(); _beforeNames = value; }
+        }
+
+        public bool HasParentheses {
+            get { return _hasParentheses; }
+            set { ThrowIfFrozen(); _hasParentheses = value; }
         }
 
         /// <summary>
         /// Gets the variables associated with each imported name.
         /// </summary>
-        [SuppressMessage("Microsoft.Performance", "CA1819:PropertiesShouldNotReturnArrays",
-            Justification = "breaking change")]
-        public PythonVariable[] Variables {
+        public IList<PythonVariable> Variables {
             get { return _variables; }
             set { _variables = value; }
         }
 
-        public PythonReference[] GetReferences(PythonAst ast) {
+        public IReadOnlyList<PythonReference> GetReferences(PythonAst ast) {
             return GetVariableReferences(this, ast);
         }
 
@@ -79,6 +75,20 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             if (walker.Walk(this)) {
             }
             walker.PostWalk(this);
+        }
+
+        public static string GetImportName(SequenceItemExpression expr) {
+            return (
+                (expr.Expression as NameExpression) ??
+                ((expr.Expression as AsExpression)?.Expression as NameExpression)
+            )?.Name;
+        }
+
+        public static string GetAsName(SequenceItemExpression expr) {
+            return (
+                (expr.Expression as NameExpression) ??
+                (expr.Expression as AsExpression)?.Name
+            )?.Name;
         }
 
         /// <summary>
@@ -90,153 +100,94 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         /// <param name="ast">The parent AST whose attributes should be updated for the new node.</param>
         /// <param name="index">The index in Names of the import to be removed.</param>
         /// </summary>
-        public FromImportStatement RemoveImport(PythonAst ast, int index) {
-            if (index < 0 || index >= _names.Length) {
-                throw new ArgumentOutOfRangeException("index");
-            }
-            if (ast == null) {
-                throw new ArgumentNullException("ast");
-            }
+        //public FromImportStatement RemoveImport(PythonAst ast, int index) {
+        //    if (index < 0 || index >= _names.Length) {
+        //        throw new ArgumentOutOfRangeException("index");
+        //    }
+        //    if (ast == null) {
+        //        throw new ArgumentNullException("ast");
+        //    }
 
-            NameExpression[] names = new NameExpression[_names.Length - 1];
-            NameExpression[] asNames = _asNames == null ? null : new NameExpression[_asNames.Length - 1];
-            var asNameWhiteSpace = this.GetNamesWhiteSpace(ast);
-            List<string> newAsNameWhiteSpace = new List<string>();
-            int asIndex = 0;
-            for (int i = 0, write = 0; i < _names.Length; i++) {
-                bool includingCurrentName = i != index;
+        //    NameExpression[] names = new NameExpression[_names.Length - 1];
+        //    NameExpression[] asNames = _asNames == null ? null : new NameExpression[_asNames.Length - 1];
+        //    var asNameWhiteSpace = this.GetNamesWhiteSpace(ast);
+        //    List<string> newAsNameWhiteSpace = new List<string>();
+        //    int asIndex = 0;
+        //    for (int i = 0, write = 0; i < _names.Length; i++) {
+        //        bool includingCurrentName = i != index;
 
-                // track the white space, this needs to be kept in sync w/ ToCodeString and how the
-                // parser creates the white space.
+        //        // track the white space, this needs to be kept in sync w/ ToCodeString and how the
+        //        // parser creates the white space.
 
-                if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
-                    if (write > 0) {
-                        if (includingCurrentName) {
-                            newAsNameWhiteSpace.Add(asNameWhiteSpace[asIndex++]);
-                        } else {
-                            asIndex++;
-                        }
-                    } else if (i > 0) {
-                        asIndex++;
-                    }
-                }
+        //        if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
+        //            if (write > 0) {
+        //                if (includingCurrentName) {
+        //                    newAsNameWhiteSpace.Add(asNameWhiteSpace[asIndex++]);
+        //                } else {
+        //                    asIndex++;
+        //                }
+        //            } else if (i > 0) {
+        //                asIndex++;
+        //            }
+        //        }
 
-                if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
-                    if (includingCurrentName) {
-                        if (newAsNameWhiteSpace.Count == 0) {
-                            // no matter what we want the 1st entry to have the whitespace after the import keyword
-                            newAsNameWhiteSpace.Add(asNameWhiteSpace[0]);
-                            asIndex++;
-                        } else {
-                            newAsNameWhiteSpace.Add(asNameWhiteSpace[asIndex++]);
-                        }
-                    } else {
-                        asIndex++;
-                    }
-                }
+        //        if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
+        //            if (includingCurrentName) {
+        //                if (newAsNameWhiteSpace.Count == 0) {
+        //                    // no matter what we want the 1st entry to have the whitespace after the import keyword
+        //                    newAsNameWhiteSpace.Add(asNameWhiteSpace[0]);
+        //                    asIndex++;
+        //                } else {
+        //                    newAsNameWhiteSpace.Add(asNameWhiteSpace[asIndex++]);
+        //                }
+        //            } else {
+        //                asIndex++;
+        //            }
+        //        }
 
-                if (includingCurrentName) {
-                    names[write] = _names[i];
+        //        if (includingCurrentName) {
+        //            names[write] = _names[i];
 
-                    if (_asNames != null) {
-                        asNames[write] = _asNames[i];
-                    }
+        //            if (_asNames != null) {
+        //                asNames[write] = _asNames[i];
+        //            }
 
-                    write++;
-                }
+        //            write++;
+        //        }
 
-                if (AsNames != null && AsNames[i] != null) {
-                    if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
-                        if (i != index) {
-                            newAsNameWhiteSpace.Add(asNameWhiteSpace[asIndex++]);
-                        } else {
-                            asIndex++;
-                        }
-                    }
+        //        if (AsNames != null && AsNames[i] != null) {
+        //            if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
+        //                if (i != index) {
+        //                    newAsNameWhiteSpace.Add(asNameWhiteSpace[asIndex++]);
+        //                } else {
+        //                    asIndex++;
+        //                }
+        //            }
 
-                    if (_asNames[i].Name.Length != 0) {
-                        if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
-                            if (i != index) {
-                                newAsNameWhiteSpace.Add(asNameWhiteSpace[asIndex++]);
-                            } else {
-                                asIndex++;
-                            }
-                        }
-                    } else {
-                        asIndex++;
-                    }
-                }
-            }
+        //            if (_asNames[i].Name.Length != 0) {
+        //                if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
+        //                    if (i != index) {
+        //                        newAsNameWhiteSpace.Add(asNameWhiteSpace[asIndex++]);
+        //                    } else {
+        //                        asIndex++;
+        //                    }
+        //                }
+        //            } else {
+        //                asIndex++;
+        //            }
+        //        }
+        //    }
 
-            if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
-                // trailing comma
-                newAsNameWhiteSpace.Add(asNameWhiteSpace[asNameWhiteSpace.Length - 1]);
-            }
+        //    if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
+        //        // trailing comma
+        //        newAsNameWhiteSpace.Add(asNameWhiteSpace[asNameWhiteSpace.Length - 1]);
+        //    }
 
-            var res = new FromImportStatement(_root, names, asNames, IsFromFuture, ForceAbsolute);
-            ast.CopyAttributes(this, res);
-            ast.SetAttribute(res, NodeAttributes.NamesWhiteSpace, newAsNameWhiteSpace.ToArray());
+        //    var res = new FromImportStatement(_root, names, asNames, IsFromFuture, ForceAbsolute);
+        //    ast.CopyAttributes(this, res);
+        //    ast.SetAttribute(res, NodeAttributes.NamesWhiteSpace, newAsNameWhiteSpace.ToArray());
 
-            return res;
-        }
-
-        internal override void AppendCodeStringStmt(StringBuilder res, PythonAst ast, CodeFormattingOptions format) {
-            res.Append(this.GetPrecedingWhiteSpace(ast));
-            res.Append("from");
-            Root.AppendCodeString(res, ast, format);
-
-            if (!this.IsIncompleteNode(ast)) {
-                res.Append(this.GetSecondWhiteSpace(ast));
-                res.Append("import");
-                if (!this.IsAltForm(ast)) {
-                    res.Append(this.GetThirdWhiteSpace(ast));
-                    res.Append('(');
-                }
-
-                var asNameWhiteSpace = this.GetNamesWhiteSpace(ast);
-                int asIndex = 0;
-                for (int i = 0; i < _names.Length; i++) {
-                    if (i > 0) {
-                        if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
-                            res.Append(asNameWhiteSpace[asIndex++]);
-                        }
-                        res.Append(',');
-                    }
-
-                    if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
-                        res.Append(asNameWhiteSpace[asIndex++]);
-                    } else {
-                        res.Append(' ');
-                    }
-
-                    _names[i].AppendCodeString(res, ast, format);
-                    if (AsNames != null && AsNames[i] != null) {
-                        if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
-                            res.Append(asNameWhiteSpace[asIndex++]);
-                        }
-                        res.Append("as");
-                        if (_asNames[i].Name.Length != 0) {
-                            if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
-                                res.Append(asNameWhiteSpace[asIndex++]);
-                            }
-                            _asNames[i].AppendCodeString(res, ast, format);
-                        } else {
-                            asIndex++;
-                        }
-                    }
-                }
-
-                if (asNameWhiteSpace != null && asIndex < asNameWhiteSpace.Length) {
-                    // trailing comma
-                    res.Append(asNameWhiteSpace[asNameWhiteSpace.Length - 1]);
-                    res.Append(",");
-                }
-
-                if (!this.IsAltForm(ast) && !this.IsMissingCloseGrouping(ast)) {
-                    res.Append(this.GetFourthWhiteSpace(ast));
-                    res.Append(')');
-                }
-            }
-        }
+        //    return res;
+        //}
     }
 }

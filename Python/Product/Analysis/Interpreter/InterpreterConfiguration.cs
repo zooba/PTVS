@@ -20,7 +20,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using Microsoft.PythonTools.Parsing;
+using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.Win32;
 
 namespace Microsoft.PythonTools.Interpreter {

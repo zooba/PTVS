@@ -89,11 +89,6 @@
     <Compile Include="RegistryWatcher.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Analysis2\Analysis2.csproj">
-      <Name>Microsoft.PythonTools.Analysis</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
