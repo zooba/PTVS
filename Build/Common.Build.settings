@@ -60,6 +60,7 @@
     <BuildRoot Condition="'$(BuildRoot)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), build.root))</BuildRoot>
     <BuildRoot Condition="!HasTrailingSlash($(BuildRoot))">$(BuildRoot)\</BuildRoot>
     <TargetsPath>$(BuildRoot)Build</TargetsPath>
+    <PackagesPath>$(BuildRoot)BuildOutput\</PackagesPath>
 
     <PTVSPRPath Condition="'$(PTVSPRPath)' == ''">$(BuildRoot)..\PTVS-pr\</PTVSPRPath>
     <PTVSSamplesPath Condition="'$(PTVSSamplesPath)' == ''">$(BuildRoot)Python\Samples\</PTVSSamplesPath>

@@ -546,9 +546,10 @@ namespace Microsoft.PythonTools.Repl {
                 var portNum = ((IPEndPoint)conn.LocalEndPoint).Port;
                 var proc = System.Diagnostics.Process.GetProcessById(_process.Id);
 
-                var thread = CommandProcessorThread.Create(this, conn, proc);
+                //var thread = CommandProcessorThread.Create(this, conn, proc);
                 _process.ConnectRepl(portNum);
-                return thread;
+                //return thread;
+                return null;
             }
 
             // Ignore SSL errors, since user was already prompted about them and chose to ignore them when he attached to this process.
@@ -572,7 +573,7 @@ namespace Microsoft.PythonTools.Repl {
                 }
             }
 
-            return CommandProcessorThread.Create(this, stream);
+            return null; // CommandProcessorThread.Create(this, stream);
         }
 
         internal override void OnConnected() {
@@ -622,7 +623,7 @@ namespace Microsoft.PythonTools.Repl {
 
             _threadId = thread.Id;
             _frameId = frame.FrameId;
-            _thread?.SetThreadAndFrameCommand(thread.Id, _frameId, frame.Kind);
+            //_thread?.SetThreadAndFrameCommand(thread.Id, _frameId, frame.Kind);
             if (verbose) {
                 WriteOutput(string.Format("Current thread changed to {0}, frame {1}", _threadId, _frameId));
             }
@@ -630,7 +631,7 @@ namespace Microsoft.PythonTools.Repl {
 
         internal void SwitchFrame(PythonStackFrame frame) {
             _frameId = frame.FrameId;
-            _thread?.SetThreadAndFrameCommand(frame.Thread.Id, frame.FrameId, frame.Kind);
+            //_thread?.SetThreadAndFrameCommand(frame.Thread.Id, frame.FrameId, frame.Kind);
             WriteOutput(string.Format("Current frame changed to {0}", frame.FrameId));
         }
 

@@ -1,53 +1,49 @@
-﻿using System;
+﻿// Python Tools for Visual Studio
+// Copyright(c) Microsoft Corporation
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the License); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+// OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+// IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+// MERCHANTABLITY OR NON-INFRINGEMENT.
+//
+// See the Apache Version 2.0 License for specific language governing
+// permissions and limitations under the License.
+
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Net.Sockets;
-using System.IO;
-using Microsoft.VisualStudio.InteractiveWindow;
-using System.Diagnostics;
-using System.Threading;
-using Microsoft.PythonTools.Debugger;
-using Microsoft.VisualStudioTools.Project;
-using Microsoft.VisualStudioTools;
-using System.Windows;
-using System.Windows.Markup;
-using System.Windows.Media.Imaging;
-using System.Windows.Controls;
-using System.Windows.Media;
-using Microsoft.PythonTools.Analysis;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Microsoft.PythonTools.Analysis;
+using Microsoft.PythonTools.Debugger;
 using Microsoft.PythonTools.Interpreter;
+using Microsoft.VisualStudio.InteractiveWindow;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudioTools;
+using Microsoft.VisualStudioTools.Project;
+using Newtonsoft.Json;
 using SR = Microsoft.PythonTools.Project.SR;
 using Task = System.Threading.Tasks.Task;
-using System.Net;
 
 namespace Microsoft.PythonTools.Repl {
     partial class PythonInteractiveEvaluator {
-        private static readonly byte[] RunCommandBytes = MakeCommand("run ");
-        private static readonly byte[] AbortCommandBytes = MakeCommand("abrt");
-        private static readonly byte[] SetThreadAndFrameCommandBytes = MakeCommand("sett");
-        private static readonly byte[] ExitCommandBytes = MakeCommand("exit");
-        private static readonly byte[] GetSignaturesCommandBytes = MakeCommand("sigs");
-        private static readonly byte[] GetMembersCommandBytes = MakeCommand("mems");
-        private static readonly byte[] GetModulesListCommandBytes = MakeCommand("mods");
-        private static readonly byte[] SetModuleCommandBytes = MakeCommand("setm");
-        private static readonly byte[] InputLineCommandBytes = MakeCommand("inpl");
-        private static readonly byte[] ExecuteFileCommandBytes = MakeCommand("excx");
-        private static readonly byte[] DebugAttachCommandBytes = MakeCommand("dbga");
-
-        private static byte[] MakeCommand(string cmd) {
-            var b = Encoding.ASCII.GetBytes(cmd);
-            if (b.Length != 4) {
-                throw new InvalidOperationException("Expected four bytes");
-            }
-            return b;
-        }
-
-
         protected virtual CommandProcessorThread Connect() {
             ThreadHelper.ThrowIfNotOnUIThread();
 
@@ -61,25 +57,11 @@ namespace Microsoft.PythonTools.Repl {
 
             var processInfo = new ProcessStartInfo(InterpreterPath);
 
-#if DEBUG
-            bool debugMode = Environment.GetEnvironmentVariable("_PTVS_DEBUG_REPL") != null;
-            processInfo.CreateNoWindow = !debugMode;
-            processInfo.UseShellExecute = debugMode;
-            processInfo.RedirectStandardOutput = !debugMode;
-            processInfo.RedirectStandardError = !debugMode;
-            processInfo.RedirectStandardInput = !debugMode;
-#else
             processInfo.CreateNoWindow = true;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
             processInfo.RedirectStandardError = true;
             processInfo.RedirectStandardInput = true;
-#endif
-
-            var conn = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
-            conn.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-            conn.Listen(0);
-            var portNum = ((IPEndPoint)conn.LocalEndPoint).Port;
 
             if (!string.IsNullOrEmpty(WorkingDirectory)) {
                 processInfo.WorkingDirectory = WorkingDirectory;
@@ -87,48 +69,35 @@ namespace Microsoft.PythonTools.Repl {
                 processInfo.WorkingDirectory = CommonUtils.GetParent(processInfo.FileName);
             }
 
-#if DEBUG
-            if (!debugMode) {
-#endif
+            var existingEnv = processInfo.Environment;
 
-                var existingEnv = processInfo.Environment;
-
-                foreach (var kv in EnvironmentVariables) {
-                    var key = kv.Key.Trim(';');
-                    if (kv.Key.EndsWith(";")) {
-                        string other;
-                        if (existingEnv.TryGetValue(key, out other)) {
-                            processInfo.Environment[key] = kv.Value + ";" + other;
-                        } else {
-                            processInfo.Environment[key] = kv.Value;
-                        }
-                    } else if (kv.Key.StartsWith(";")) {
-                        string other;
-                        if (existingEnv.TryGetValue(key, out other)) {
-                            processInfo.Environment[key] = other + ";" + kv.Value;
-                        } else {
-                            processInfo.Environment[key] = kv.Value;
-                        }
+            foreach (var kv in EnvironmentVariables) {
+                var key = kv.Key.Trim(';');
+                if (kv.Key.EndsWith(";")) {
+                    string other;
+                    if (existingEnv.TryGetValue(key, out other)) {
+                        processInfo.Environment[key] = kv.Value + ";" + other;
                     } else {
                         processInfo.Environment[key] = kv.Value;
                     }
+                } else if (kv.Key.StartsWith(";")) {
+                    string other;
+                    if (existingEnv.TryGetValue(key, out other)) {
+                        processInfo.Environment[key] = other + ";" + kv.Value;
+                    } else {
+                        processInfo.Environment[key] = kv.Value;
+                    }
+                } else {
+                    processInfo.Environment[key] = kv.Value;
                 }
-#if DEBUG
             }
-#endif
 
             var args = new List<string>();
             if (!string.IsNullOrWhiteSpace(InterpreterArguments)) {
                 args.Add(InterpreterArguments);
             }
 
-            args.Add(ProcessOutput.QuoteSingleArgument(PythonToolsInstallPath.GetFile("visualstudio_py_repl.py")));
-            args.Add("--port");
-            args.Add(portNum.ToString());
-
-            args.Add("--execution-mode");
-            args.Add("standard");
-
+            args.Add(ProcessOutput.QuoteSingleArgument(PythonToolsInstallPath.GetFile("visualstudio_py_repl2.py")));
             processInfo.Arguments = string.Join(" ", args);
 
             Process process;
@@ -151,92 +120,148 @@ namespace Microsoft.PythonTools.Repl {
                 return null;
             }
 
-            return CommandProcessorThread.Create(this, conn, process);
+            return new CommandProcessorThread(this, process);
         }
 
 
 
         protected class CommandProcessorThread : IDisposable {
             private readonly PythonInteractiveEvaluator _eval;
-
-            // Of the following two, only one is non-null at any given time.
-            // If _listenerSocket is not null, then the thread is waiting for an incoming debugger connection.
-            // If _stream is not null, then it is attached to the debuggee.
-            // If both are null, the thread is shutting down after detaching.
-            private Socket _listenerSocket;
-            private Stream _stream;
-
-            // All access to _stream should be done while holding this lock. Don't lock this directly - use StreamLock instead.
-            private readonly object _streamLock = new object();
-
-            private TaskCompletionSource<ExecutionResult> _completion;
-            private readonly object _completionLock = new object();
-
-            private Action _deferredExecute;
-
             private readonly Process _process;
-            private AutoResetEvent _completionResultEvent = new AutoResetEvent(false);
-            private OverloadDoc[] _overloads;
-            private Dictionary<string, string> _fileToModuleName;
-            private Dictionary<string, bool> _allModules;
+            private readonly Stream _stream;
+
+            private Task _connecting;
+
+            private int _seq;
+
+            private readonly Dictionary<int, TaskCompletionSource<Response>> _completions;
+
+            //private Action _deferredExecute;
+
+            //private OverloadDoc[] _overloads;
+            //private Dictionary<string, string> _fileToModuleName;
+            //private Dictionary<string, bool> _allModules;
             private StringBuilder _preConnectionOutput;
             private string _currentScope = "__main__";
-            private MemberResults _memberResults;
+            //private MemberResults _memberResults;
 
-            private CommandProcessorThread(PythonInteractiveEvaluator evaluator, Process process) {
+            public CommandProcessorThread(PythonInteractiveEvaluator evaluator, Process process) {
                 _process = process;
                 _eval = evaluator;
                 _preConnectionOutput = new StringBuilder();
+                _completions = new Dictionary<int, TaskCompletionSource<Response>>();
+
+                _stream = _process.StandardInput.BaseStream;
+                _process.OutputDataReceived += StdOutReceived;
+                _process.ErrorDataReceived += StdErrReceived;
+                _process.Exited += ProcessExited;
+                _process.EnableRaisingEvents = true;
+
+                _process.BeginOutputReadLine();
+                _process.BeginErrorReadLine();
+
+                _connecting = ConnectAsync();
             }
 
-            public static CommandProcessorThread Create(
-                PythonInteractiveEvaluator evaluator,
-                Socket listenerSocket,
-                Process process
-            ) {
-                var thread = new CommandProcessorThread(evaluator, process);
-                thread._listenerSocket = listenerSocket;
-                thread.StartOutputThread(process.StartInfo.RedirectStandardOutput);
-                return thread;
+            public async Task EnsureConnectedAsync() {
+                var c = _connecting;
+                if (c == null) {
+                    return;
+                }
+                await c;
             }
 
-            public static CommandProcessorThread Create(
-                PythonInteractiveEvaluator evaluator,
-                Stream stream
-            ) {
-                var thread = new CommandProcessorThread(evaluator, null);
-                thread._stream = stream;
-                thread.StartOutputThread(false);
-                return thread;
+            private class Request {
+                public string type = "request";
+                public int seq;
             }
 
-            public bool IsConnected {
-                get {
-                    using (new StreamLock(this, throwIfDisconnected: false)) {
-                        return _stream != null;
+            private class InitializeRequest : Request {
+                public string command = "initialize";
+                public bool linesStartAt1 = true;
+                public bool columnsStartAt1 = true;
+                public string pathFormat = "path";
+            }
+
+            private class EvaluateRequest : Request {
+                public string command = "evaluate";
+                public Dictionary<string, object> arguments = new Dictionary<string, object>();
+
+                [JsonIgnore]
+                public string expression {
+                    get { return (string)arguments["expression"]; }
+                    set { arguments["expression"] = value; }
+                }
+                [JsonIgnore]
+                public int frameId {
+                    get { return (int)arguments["frameId"]; }
+                    set { arguments["frameId"] = value; }
+                }
+            }
+
+            private class Response {
+                public string type = "response";
+                public int seq = -1;
+                public int requestSeq = -1;
+                public bool success  = false;
+                public string command = string.Empty;
+                public string message = string.Empty;
+                public Dictionary<string, object> body = null;
+            }
+
+            private class EvaluateResponse : Response {
+                [JsonIgnore]
+                public string result => body?["result"] as string;
+
+                public static EvaluateResponse TryCreate(Response from) {
+                    if (!from.success || from.command != "evaluate" || from.body == null) {
+                        return null;
+                    }
+                    if (!from.body.ContainsKey("result")) {
+                        return null;
+                    }
+                    return new EvaluateResponse {
+                        seq = from.seq,
+                        requestSeq = from.requestSeq,
+                        success = from.success,
+                        command = from.command,
+                        message = from.message,
+                        body = from.body
+                    };
+                }
+            }
+
+            private async Task<Response> WriteRequestAsync(Request data) {
+                int seq = data.seq = Interlocked.Increment(ref _seq);
+                var tcs = new TaskCompletionSource<Response>();
+                lock (_completions) {
+                    _completions[seq] = tcs;
+                }
+
+                var str = JsonConvert.SerializeObject(data) + "\n";
+                var bytes = Encoding.UTF8.GetBytes(str);
+                try {
+                    await _stream.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
+                    await _stream.FlushAsync().ConfigureAwait(false);
+                    return await tcs.Task;
+                } finally {
+                    lock (_completions) {
+                        _completions.Remove(seq);
                     }
                 }
             }
+
+            private async Task ConnectAsync() {
+                await WriteRequestAsync(new InitializeRequest());
+            }
+
+            public bool IsConnected => _connecting?.Status == TaskStatus.RanToCompletion;
 
             public string CurrentScope => _currentScope;
 
             public bool IsProcessExpectedToExit { get; set; }
 
-            private void StartOutputThread(bool redirectOutput) {
-                var outputThread = new Thread(OutputThread);
-                outputThread.Name = "PythonReplEvaluator: " + _eval.DisplayName;
-                outputThread.Start();
-
-                if (redirectOutput) {
-                    Utilities.CheckNotNull(_process);
-                    _process.OutputDataReceived += StdOutReceived;
-                    _process.ErrorDataReceived += StdErrReceived;
-                    _process.Exited += ProcessExited;
-                    _process.EnableRaisingEvents = true;
-
-                    _process.BeginOutputReadLine();
-                    _process.BeginErrorReadLine();
-                }
+            private void StartOutputThread() {
             }
 
             private static string FixNewLines(string input) {
@@ -248,13 +273,7 @@ namespace Microsoft.PythonTools.Repl {
             }
 
             private void ProcessExited(object sender, EventArgs e) {
-                using (new StreamLock(this, throwIfDisconnected: false)) {
-                    var stream = _stream;
-                    _stream = null;
-                    if (stream != null) {
-                        stream.Dispose();
-                    }
-                }
+                _connecting = null;
 
                 var pco = Interlocked.Exchange(ref _preConnectionOutput, null);
                 if (pco != null) {
@@ -276,17 +295,31 @@ namespace Microsoft.PythonTools.Repl {
             }
 
             private void StdErrReceived(object sender, DataReceivedEventArgs e) {
-                if (e.Data != null) {
-                    if (!AppendPreConnectionOutput(e)) {
-                        _eval.WriteError(FixNewLines(e.Data));
-                    }
+                if (e.Data == null) {
+                    return;
+                }
+                if (!AppendPreConnectionOutput(e)) {
+                    _eval.WriteError(FixNewLines(e.Data));
                 }
             }
 
             private void StdOutReceived(object sender, DataReceivedEventArgs e) {
-                if (e.Data != null) {
-                    if (!AppendPreConnectionOutput(e)) {
-                        _eval.WriteOutput(FixNewLines(e.Data));
+                if (e.Data == null) {
+                    return;
+                }
+
+                //if (!AppendPreConnectionOutput(e)) {
+                //    _eval.WriteOutput(FixNewLines(e.Data));
+                //}
+                var response = JsonConvert.DeserializeObject<Response>(e.Data);
+                if (response == null) {
+                    return;
+                }
+                TaskCompletionSource<Response> tcs;
+                lock (_completions) {
+                    if (_completions.TryGetValue(response.requestSeq, out tcs)) {
+                        _completions.Remove(response.requestSeq);
+                        tcs.TrySetResult(response);
                     }
                 }
             }
@@ -302,604 +335,457 @@ namespace Microsoft.PythonTools.Repl {
                 return false;
             }
 
-            private void OutputThread() {
-                try {
-                    Socket listenerSocket = null;
-                    using (new StreamLock(this, throwIfDisconnected: false)) {
-                        if (_stream == null) {
-                            listenerSocket = _listenerSocket;
-                        }
-                    }
-                    if (listenerSocket != null) {
-                        var socket = listenerSocket.Accept();
-                        using (new StreamLock(this, throwIfDisconnected: false)) {
-                            _listenerSocket = null;
-                            _stream = new NetworkStream(socket, ownsSocket: true);
-                        }
-                    }
+            //private void HandleReadLine() {
+            //    // perform the input on a new thread so that we don't block
+            //    // additional commands (such as output) from being processed by
+            //    // us (this is called on the output thread)
+            //    var window = _eval.CurrentWindow;
+            //    ThreadPool.QueueUserWorkItem(x => {
+            //        string input = window?.ReadStandardInput()?.ReadToEnd();
+            //        input = input != null ? UnfixNewLines(input) : "\n";
+            //        try {
+            //            using (new StreamLock(this, throwIfDisconnected: true)) {
+            //                _stream.Write(InputLineCommandBytes);
+            //                SendString(input);
+            //            }
+            //        } catch (IOException) {
+            //        }
+            //    });
+            //}
 
-                    _eval.OnConnected();
+            //private void HandleDebuggerDetach() {
+            //    _eval.OnDetach();
+            //}
 
-                    using (new StreamLock(this, throwIfDisconnected: true)) {
-                        if (_deferredExecute != null) {
-                            _deferredExecute();
-                            _deferredExecute = null;
-                        }
-                    }
+            //private void HandleDisplayPng() {
+            //    Debug.Assert(Monitor.IsEntered(_streamLock));
 
-                    while (true) {
-                        Stream stream;
-                        using (new StreamLock(this, throwIfDisconnected: true)) {
-                            stream = _stream;
-                        }
+            //    int len = _stream.ReadInt32();
+            //    byte[] buffer = new byte[len];
+            //    _stream.ReadToFill(buffer);
+            //    DisplayImage(buffer);
+            //}
 
-                        // Release the lock while waiting for response, so that the main thread can issue commands etc.
-                        // If the stream goes away, we'll get an IOException from this which we will catch below.
-                        string cmd = stream.ReadAsciiString(4);
+            //private void HandleDisplayXaml() {
+            //    Debug.Assert(Monitor.IsEntered(_streamLock));
 
-                        using (new StreamLock(this, throwIfDisconnected: true)) {
-                            Trace.TraceInformation("Repl {0} received command: {1}", _eval.DisplayName, cmd);
-                            switch (cmd) {
-                                case "DONE": HandleExecutionDone(); break;
-                                case "ERRE": HandleExecutionError(); break;
-                                case "STDO": HandleOutput(); break;
-                                case "STDE": HandleError(); break;
-                                case "MERR": HandleMemberResultError(); break;
-                                case "MRES": HandleMemberResult(); break;
-                                case "SRES": HandleSigResult(); break;
-                                case "SERR": HandleSigError(); break;
-                                case "MODS": HandleModuleList(); break;
-                                case "IMGD": HandleImageDisplay(); break;
-                                case "MODC": HandleModulesChanged(); break;
-                                case "PRPC": HandlePromptChanged(); break;
-                                case "RDLN": HandleReadLine(); break;
-                                case "DETC": HandleDebuggerDetach(); break;
-                                case "DPNG": HandleDisplayPng(); break;
-                                case "DXAM": HandleDisplayXaml(); break;
-                                case "EXIT":
-                                    // REPL has exited
-                                    _stream.Write(ExitCommandBytes);
-                                    return;
-                            }
-                        }
-                    }
-                } catch (IOException) {
-                } catch (SocketException) {
-                } catch (ObjectDisposedException) {
-                } finally {
-                    using (new StreamLock(this, throwIfDisconnected: false)) {
-                        _stream = null;
-                    }
-                }
+            //    int len = _stream.ReadInt32();
+            //    byte[] buffer = new byte[len];
+            //    _stream.ReadToFill(buffer);
 
-                lock (_completionLock) {
-                    if (_completion != null) {
-                        bool success = _completion.TrySetCanceled();
-                        Debug.Assert(success);
-                        _completion = null;
-                    }
-                }
+            //    _eval.InvokeAsync(() => {
+            //        try {
+            //            var fe = XamlReader.Load(new MemoryStream(buffer)) as FrameworkElement;
+            //            if (fe != null) {
+            //                _eval.WriteFrameworkElement(fe, fe.DesiredSize);
+            //            }
+            //        } catch (Exception ex) when (!ex.IsCriticalException()) {
+            //            _eval.WriteError(ex.ToString());
+            //            return;
+            //        }
+            //    }).DoNotWait();
+            //}
+
+            //private void HandlePromptChanged() {
+            //    Debug.Assert(Monitor.IsEntered(_streamLock));
+
+            //    var prompt1 = _stream.ReadString();
+            //    var prompt2 = _stream.ReadString();
+            //    Trace.TraceInformation("New prompts: \"{0}\" \"{1}\"", prompt1, prompt2);
+
+            //    PrimaryPrompt = prompt1;
+            //    SecondaryPrompt = prompt2;
+            //}
+
+            public event EventHandler AvailableScopesChanged {
+                add { }
+                remove { }
             }
 
-            [Serializable]
-            private class DisconnectedException : IOException {
-                public DisconnectedException(string message)
-                    : base(message) {
-                }
-            }
+            //private void HandleModulesChanged() {
+            //    // modules changed
+            //    using (new StreamUnlock(this)) {
+            //        AvailableScopesChanged?.Invoke(this, EventArgs.Empty);
+            //    }
+            //}
 
-            private void ThrowIfDisconnected() {
-                if (_stream == null) {
-                    throw new DisconnectedException("The interactive window has become disconnected from the remote process. Please reset the window.");
-                }
-            }
+            //private void HandleImageDisplay() {
+            //    Debug.Assert(Monitor.IsEntered(_streamLock));
 
-            private void HandleReadLine() {
-                // perform the input on a new thread so that we don't block
-                // additional commands (such as output) from being processed by
-                // us (this is called on the output thread)
-                var window = _eval.CurrentWindow;
-                ThreadPool.QueueUserWorkItem(x => {
-                    string input = window?.ReadStandardInput()?.ReadToEnd();
-                    input = input != null ? UnfixNewLines(input) : "\n";
-                    try {
-                        using (new StreamLock(this, throwIfDisconnected: true)) {
-                            _stream.Write(InputLineCommandBytes);
-                            SendString(input);
-                        }
-                    } catch (IOException) {
-                    }
-                });
-            }
+            //    string filename = _stream.ReadString();
+            //    try {
+            //        DisplayImage(File.ReadAllBytes(filename));
+            //    } catch (IOException) {
+            //        // can't read the file
+            //        _eval.WriteError(SR.GetString(SR.ReplCannotReadFile, filename));
+            //    }
+            //}
 
-            private void HandleDebuggerDetach() {
-                _eval.OnDetach();
-            }
+            //private void DisplayImage(byte[] bytes) {
+            //    _eval.InvokeAsync(() => {
+            //        var imageSrc = new BitmapImage();
+            //        try {
+            //            imageSrc.BeginInit();
+            //            imageSrc.StreamSource = new MemoryStream(bytes);
+            //            imageSrc.EndInit();
+            //        } catch (IOException) {
+            //            return;
+            //        }
 
-            private void HandleDisplayPng() {
-                Debug.Assert(Monitor.IsEntered(_streamLock));
+            //        var img = new Image {
+            //            Source = imageSrc,
+            //            Stretch = Stretch.Uniform,
+            //            StretchDirection = StretchDirection.Both
+            //        };
+            //        var control = new Border {
+            //            Child = img,
+            //            Background = Brushes.White
+            //        };
 
-                int len = _stream.ReadInt32();
-                byte[] buffer = new byte[len];
-                _stream.ReadToFill(buffer);
-                DisplayImage(buffer);
-            }
+            //        _eval.WriteFrameworkElement(control, new Size(imageSrc.PixelWidth, imageSrc.PixelHeight));
+            //    });
+            //}
 
-            private void HandleDisplayXaml() {
-                Debug.Assert(Monitor.IsEntered(_streamLock));
+            //private void HandleModuleList() {
+            //    Debug.Assert(Monitor.IsEntered(_streamLock));
 
-                int len = _stream.ReadInt32();
-                byte[] buffer = new byte[len];
-                _stream.ReadToFill(buffer);
+            //    int moduleCount = _stream.ReadInt32();
+            //    var moduleNames = new Dictionary<string, string>();
+            //    var allModules = new Dictionary<string, bool>();
+            //    for (int i = 0; i < moduleCount; i++) {
+            //        string name = _stream.ReadString();
+            //        string filename = _stream.ReadString();
+            //        if (!String.IsNullOrWhiteSpace(filename)) {
+            //            moduleNames[filename] = name;
+            //            allModules[name] = true;
+            //        } else {
+            //            allModules[name] = false;
+            //        }
+            //    }
 
-                _eval.InvokeAsync(() => {
-                    try {
-                        var fe = XamlReader.Load(new MemoryStream(buffer)) as FrameworkElement;
-                        if (fe != null) {
-                            _eval.WriteFrameworkElement(fe, fe.DesiredSize);
-                        }
-                    } catch (Exception ex) when (!ex.IsCriticalException()) {
-                        _eval.WriteError(ex.ToString());
-                        return;
-                    }
-                }).DoNotWait();
-            }
+            //    _fileToModuleName = moduleNames;
+            //    _allModules = allModules;
+            //    _completionResultEvent.Set();
+            //}
 
-            private void HandlePromptChanged() {
-                Debug.Assert(Monitor.IsEntered(_streamLock));
+            //private void HandleSigError() {
+            //    _completionResultEvent.Set();
+            //}
 
-                var prompt1 = _stream.ReadString();
-                var prompt2 = _stream.ReadString();
-                Trace.TraceInformation("New prompts: \"{0}\" \"{1}\"", prompt1, prompt2);
+            //private void HandleSigResult() {
+            //    Debug.Assert(Monitor.IsEntered(_streamLock));
 
-                PrimaryPrompt = prompt1;
-                SecondaryPrompt = prompt2;
-            }
+            //    int overloadCount = _stream.ReadInt32();
+            //    OverloadDoc[] docs = new OverloadDoc[overloadCount];
+            //    for (int i = 0; i < overloadCount; i++) {
+            //        string doc = _stream.ReadString();
+            //        int paramCount = _stream.ReadInt32();
 
-            public event EventHandler AvailableScopesChanged;
+            //        ParameterResult[] parameters = new ParameterResult[paramCount];
+            //        for (int curParam = 0; curParam < paramCount; curParam++) {
+            //            string name = _stream.ReadString();
+            //            int equals = name.IndexOf('=');
+            //            if (equals < 0) {
+            //                parameters[curParam] = new ParameterResult(name);
+            //            } else {
+            //                parameters[curParam] = new ParameterResult(
+            //                    name.Remove(equals),
+            //                    null,
+            //                    null,
+            //                    // Even though it has a default, don't mark the
+            //                    // parameter as optional (for consistency with
+            //                    // signature help from the database)
+            //                    false,
+            //                    null,
+            //                    name.Substring(equals + 1)
+            //                );
+            //            }
+            //        }
 
-            private void HandleModulesChanged() {
-                // modules changed
-                using (new StreamUnlock(this)) {
-                    AvailableScopesChanged?.Invoke(this, EventArgs.Empty);
-                }
-            }
+            //        docs[i] = new OverloadDoc(doc, parameters);
+            //    }
+            //    _overloads = docs;
+            //    _completionResultEvent.Set();
+            //}
 
-            private void HandleImageDisplay() {
-                Debug.Assert(Monitor.IsEntered(_streamLock));
+            //private void HandleMemberResult() {
+            //    Debug.Assert(Monitor.IsEntered(_streamLock));
 
-                string filename = _stream.ReadString();
-                try {
-                    DisplayImage(File.ReadAllBytes(filename));
-                } catch (IOException) {
-                    // can't read the file
-                    _eval.WriteError(SR.GetString(SR.ReplCannotReadFile, filename));
-                }
-            }
+            //    string typeName = _stream.ReadString();
+            //    var instDict = ReadMemberDict();
+            //    var typeDict = ReadMemberDict();
+            //    _memberResults = new MemberResults(typeName, instDict, typeDict);
 
-            private void DisplayImage(byte[] bytes) {
-                _eval.InvokeAsync(() => {
-                    var imageSrc = new BitmapImage();
-                    try {
-                        imageSrc.BeginInit();
-                        imageSrc.StreamSource = new MemoryStream(bytes);
-                        imageSrc.EndInit();
-                    } catch (IOException) {
-                        return;
-                    }
+            //    _completionResultEvent.Set();
+            //}
 
-                    var img = new Image {
-                        Source = imageSrc,
-                        Stretch = Stretch.Uniform,
-                        StretchDirection = StretchDirection.Both
-                    };
-                    var control = new Border {
-                        Child = img,
-                        Background = Brushes.White
-                    };
+            //private void HandleMemberResultError() {
+            //    _memberResults = null;
+            //    _completionResultEvent.Set();
+            //}
 
-                    _eval.WriteFrameworkElement(control, new Size(imageSrc.PixelWidth, imageSrc.PixelHeight));
-                });
-            }
+            //private void HandleOutput() {
+            //    Debug.Assert(Monitor.IsEntered(_streamLock));
 
-            private void HandleModuleList() {
-                Debug.Assert(Monitor.IsEntered(_streamLock));
+            //    string data = _stream.ReadString();
+            //    if (data != null) {
+            //        Trace.TraceInformation("Data = \"{0}\"", FixNewLines(data).Replace("\r\n", "\\r\\n"));
+            //        using (new StreamUnlock(this)) {
+            //            _eval.WriteOutput(FixNewLines(data), addNewline: false);
+            //        }
+            //    }
+            //}
 
-                int moduleCount = _stream.ReadInt32();
-                var moduleNames = new Dictionary<string, string>();
-                var allModules = new Dictionary<string, bool>();
-                for (int i = 0; i < moduleCount; i++) {
-                    string name = _stream.ReadString();
-                    string filename = _stream.ReadString();
-                    if (!String.IsNullOrWhiteSpace(filename)) {
-                        moduleNames[filename] = name;
-                        allModules[name] = true;
-                    } else {
-                        allModules[name] = false;
-                    }
-                }
+            //private void HandleError() {
+            //    Debug.Assert(Monitor.IsEntered(_streamLock));
 
-                _fileToModuleName = moduleNames;
-                _allModules = allModules;
-                _completionResultEvent.Set();
-            }
+            //    string data = _stream.ReadString();
+            //    Trace.TraceInformation("Data = \"{0}\"", FixNewLines(data).Replace("\r\n", "\\r\\n"));
+            //    using (new StreamUnlock(this)) {
+            //        _eval.WriteError(FixNewLines(data), addNewline: false);
+            //    }
+            //}
 
-            private void HandleSigError() {
-                _completionResultEvent.Set();
-            }
+            //private void HandleExecutionError() {
+            //    // ERRE command
+            //    lock (_completionLock) {
+            //        if (_completion != null) {
+            //            _completion.SetResult(ExecutionResult.Failure);
+            //            _completion = null;
+            //        }
+            //    }
+            //}
 
-            private void HandleSigResult() {
-                Debug.Assert(Monitor.IsEntered(_streamLock));
+            //private void HandleExecutionDone() {
+            //    // DONE command
+            //    lock (_completionLock) {
+            //        if (_completion != null) {
+            //            _completion.SetResult(ExecutionResult.Success);
+            //            _completion = null;
+            //        }
+            //    }
+            //}
 
-                int overloadCount = _stream.ReadInt32();
-                OverloadDoc[] docs = new OverloadDoc[overloadCount];
-                for (int i = 0; i < overloadCount; i++) {
-                    string doc = _stream.ReadString();
-                    int paramCount = _stream.ReadInt32();
-
-                    ParameterResult[] parameters = new ParameterResult[paramCount];
-                    for (int curParam = 0; curParam < paramCount; curParam++) {
-                        string name = _stream.ReadString();
-                        int equals = name.IndexOf('=');
-                        if (equals < 0) {
-                            parameters[curParam] = new ParameterResult(name);
-                        } else {
-                            parameters[curParam] = new ParameterResult(
-                                name.Remove(equals),
-                                null,
-                                null,
-                                // Even though it has a default, don't mark the
-                                // parameter as optional (for consistency with
-                                // signature help from the database)
-                                false,
-                                null,
-                                name.Substring(equals + 1)
-                            );
-                        }
-                    }
-
-                    docs[i] = new OverloadDoc(doc, parameters);
-                }
-                _overloads = docs;
-                _completionResultEvent.Set();
-            }
-
-            private void HandleMemberResult() {
-                Debug.Assert(Monitor.IsEntered(_streamLock));
-
-                string typeName = _stream.ReadString();
-                var instDict = ReadMemberDict();
-                var typeDict = ReadMemberDict();
-                _memberResults = new MemberResults(typeName, instDict, typeDict);
-
-                _completionResultEvent.Set();
-            }
-
-            private void HandleMemberResultError() {
-                _memberResults = null;
-                _completionResultEvent.Set();
-            }
-
-            private void HandleOutput() {
-                Debug.Assert(Monitor.IsEntered(_streamLock));
-
-                string data = _stream.ReadString();
-                if (data != null) {
-                    Trace.TraceInformation("Data = \"{0}\"", FixNewLines(data).Replace("\r\n", "\\r\\n"));
-                    using (new StreamUnlock(this)) {
-                        _eval.WriteOutput(FixNewLines(data), addNewline: false);
-                    }
-                }
-            }
-
-            private void HandleError() {
-                Debug.Assert(Monitor.IsEntered(_streamLock));
-
-                string data = _stream.ReadString();
-                Trace.TraceInformation("Data = \"{0}\"", FixNewLines(data).Replace("\r\n", "\\r\\n"));
-                using (new StreamUnlock(this)) {
-                    _eval.WriteError(FixNewLines(data), addNewline: false);
-                }
-            }
-
-            private void HandleExecutionError() {
-                // ERRE command
-                lock (_completionLock) {
-                    if (_completion != null) {
-                        _completion.SetResult(ExecutionResult.Failure);
-                        _completion = null;
-                    }
-                }
-            }
-
-            private void HandleExecutionDone() {
-                // DONE command
-                lock (_completionLock) {
-                    if (_completion != null) {
-                        _completion.SetResult(ExecutionResult.Success);
-                        _completion = null;
-                    }
-                }
-            }
-
-            public Task<ExecutionResult> ExecuteText(string text) {
+            public async Task<string> ExecuteText(string text) {
                 if (text.StartsWith("$")) {
-                    _eval.WriteError(SR.GetString(SR.ReplUnknownCommand, text.Trim()));
-                    return ExecutionResult.Failed;
+                    return SR.GetString(SR.ReplUnknownCommand, text.Trim());
                 }
-
-                Action send = () => {
-                    if (_process != null) {
-                        Microsoft.VisualStudioTools.Project.NativeMethods.AllowSetForegroundWindow(_process.Id);
-                    }
-
-                    _stream.Write(RunCommandBytes);
-
-                    // normalize line endings to \n which is all older versions of CPython can handle.
-                    text = FixNewLines(text).TrimEnd(' ');
-                    SendString(text);
-                };
 
                 Trace.TraceInformation("Executing text: {0}", text);
-                using (new StreamLock(this, throwIfDisconnected: false)) {
-                    if (_stream == null) {
-                        // If we're still waiting for debuggee to connect to us, postpone the actual execution until we have the command stream.
-                        if (_listenerSocket != null) {
-                            Trace.TraceInformation("Deferred executing text because connection is not fully established yet.");
-                            _deferredExecute = send;
-                            _completion = new TaskCompletionSource<ExecutionResult>();
-                            return _completion.Task;
-                        } else {
-                            _eval.WriteError(SR.GetString(SR.ReplDisconnectedReset));
-                            return ExecutionResult.Failed;
-                        }
-                    }
-
-                    try {
-                        send();
-                    } catch (IOException) {
-                        _eval.WriteError(SR.GetString(SR.ReplDisconnectedReset));
-                        return ExecutionResult.Failed;
-                    }
+                if (_process != null) {
+                    Microsoft.VisualStudioTools.Project.NativeMethods.AllowSetForegroundWindow(_process.Id);
                 }
 
-                lock (_completionLock) {
-                    _completion = new TaskCompletionSource<ExecutionResult>();
-                    return _completion.Task;
+                // normalize line endings to \n which is all older versions of CPython can handle.
+                text = FixNewLines(text).TrimEnd(' ');
+
+                var response = await WriteRequestAsync(new EvaluateRequest {
+                    expression = text
+                });
+
+                EvaluateResponse er;
+                if (response.success && (er = EvaluateResponse.TryCreate(response)) != null) {
+                    return er.result;
                 }
+                return response.message;
             }
 
-            public Task<ExecutionResult> ExecuteFile(string filename, string extraArgs, string fileType) {
-                Action send = () => {
-                    if (_process != null) {
-                        Microsoft.VisualStudioTools.Project.NativeMethods.AllowSetForegroundWindow(_process.Id);
-                    }
+            //public Task<ExecutionResult> ExecuteFile(string filename, string extraArgs, string fileType) {
+            //    Action send = () => {
+            //        if (_process != null) {
+            //            Microsoft.VisualStudioTools.Project.NativeMethods.AllowSetForegroundWindow(_process.Id);
+            //        }
 
-                    _stream.Write(ExecuteFileCommandBytes);
-                    SendString(fileType ?? string.Empty);
-                    SendString(filename ?? string.Empty);
-                    SendString(extraArgs ?? string.Empty);
-                };
+            //        _stream.Write(ExecuteFileCommandBytes);
+            //        SendString(fileType ?? string.Empty);
+            //        SendString(filename ?? string.Empty);
+            //        SendString(extraArgs ?? string.Empty);
+            //    };
 
-                using (new StreamLock(this, throwIfDisconnected: false)) {
-                    if (_stream == null) {
-                        // If we're still waiting for debuggee to connect to us, postpone the actual execution until we have the command stream.
-                        if (_listenerSocket != null) {
-                            _deferredExecute = send;
-                            _completion = new TaskCompletionSource<ExecutionResult>();
-                            return _completion.Task;
-                        } else {
-                            _eval.WriteError(SR.GetString(SR.ReplDisconnectedReset));
-                            return ExecutionResult.Failed;
-                        }
-                    }
+            //    using (new StreamLock(this, throwIfDisconnected: false)) {
+            //        if (_stream == null) {
+            //            // If we're still waiting for debuggee to connect to us, postpone the actual execution until we have the command stream.
+            //            if (_listenerSocket != null) {
+            //                _deferredExecute = send;
+            //                _completion = new TaskCompletionSource<ExecutionResult>();
+            //                return _completion.Task;
+            //            } else {
+            //                _eval.WriteError(SR.GetString(SR.ReplDisconnectedReset));
+            //                return ExecutionResult.Failed;
+            //            }
+            //        }
 
-                    try {
-                        send();
-                    } catch (IOException) {
-                        _eval.WriteError(SR.GetString(SR.ReplDisconnectedReset));
-                        return ExecutionResult.Failed;
-                    }
-                }
+            //        try {
+            //            send();
+            //        } catch (IOException) {
+            //            _eval.WriteError(SR.GetString(SR.ReplDisconnectedReset));
+            //            return ExecutionResult.Failed;
+            //        }
+            //    }
 
-                lock (_completionLock) {
-                    _completion = new TaskCompletionSource<ExecutionResult>();
-                    return _completion.Task;
-                }
+            //    lock (_completionLock) {
+            //        _completion = new TaskCompletionSource<ExecutionResult>();
+            //        return _completion.Task;
+            //    }
 
-            }
+            //}
 
             public void AbortCommand() {
-                using (new StreamLock(this, throwIfDisconnected: true)) {
-                    _stream.Write(AbortCommandBytes);
-                }
+            //    using (new StreamLock(this, throwIfDisconnected: true)) {
+            //        _stream.Write(AbortCommandBytes);
+            //    }
             }
 
-            public void SetThreadAndFrameCommand(long thread, int frame, FrameKind frameKind) {
-                using (new StreamLock(this, throwIfDisconnected: true)) {
-                    _stream.Write(SetThreadAndFrameCommandBytes);
-                    _stream.WriteInt64(thread);
-                    _stream.WriteInt32(frame);
-                    _stream.WriteInt32((int)frameKind);
-                    _currentScope = "<CurrentFrame>";
-                }
-            }
+            //public void SetThreadAndFrameCommand(long thread, int frame, FrameKind frameKind) {
+            //    using (new StreamLock(this, throwIfDisconnected: true)) {
+            //        _stream.Write(SetThreadAndFrameCommandBytes);
+            //        _stream.WriteInt64(thread);
+            //        _stream.WriteInt32(frame);
+            //        _stream.WriteInt32((int)frameKind);
+            //        _currentScope = "<CurrentFrame>";
+            //    }
+            //}
 
             public OverloadDoc[] GetSignatureDocumentation(string text) {
-                using (new StreamLock(this, throwIfDisconnected: false)) {
-                    if (_stream == null) {
-                        return new OverloadDoc[0];
-                    }
-                    try {
-                        _stream.Write(GetSignaturesCommandBytes);
-                        SendString(text);
-                    } catch (IOException) {
-                        return new OverloadDoc[0];
-                    }
-                }
+            //    using (new StreamLock(this, throwIfDisconnected: false)) {
+            //        if (_stream == null) {
+            //            return new OverloadDoc[0];
+            //        }
+            //        try {
+            //            _stream.Write(GetSignaturesCommandBytes);
+            //            SendString(text);
+            //        } catch (IOException) {
+            //            return new OverloadDoc[0];
+            //        }
+            //    }
 
-                if (_completionResultEvent.WaitOne(1000)) {
-                    var res = _overloads;
-                    _overloads = null;
-                    return res;
-                }
+            //    if (_completionResultEvent.WaitOne(1000)) {
+            //        var res = _overloads;
+            //        _overloads = null;
+            //        return res;
+            //    }
                 return null;
             }
 
             public MemberResult[] GetMemberNames(string text) {
-                _completionResultEvent.Reset();
-                _memberResults = null;
+            //    _completionResultEvent.Reset();
+            //    _memberResults = null;
 
-                using (new StreamLock(this, throwIfDisconnected: false)) {
-                    if (_stream == null) {
-                        return new MemberResult[0];
-                    }
-                    try {
-                        _stream.Write(GetMembersCommandBytes);
-                        SendString(text);
-                    } catch (IOException) {
-                        return new MemberResult[0];
-                    }
-                }
+            //    using (new StreamLock(this, throwIfDisconnected: false)) {
+            //        if (_stream == null) {
+            //            return new MemberResult[0];
+            //        }
+            //        try {
+            //            _stream.Write(GetMembersCommandBytes);
+            //            SendString(text);
+            //        } catch (IOException) {
+            //            return new MemberResult[0];
+            //        }
+            //    }
 
-                if (_completionResultEvent.WaitOne(1000) && _memberResults != null) {
-                    MemberResult[] res = new MemberResult[_memberResults.TypeMembers.Count + _memberResults.InstanceMembers.Count];
-                    int i = 0;
-                    foreach (var member in _memberResults.TypeMembers) {
-                        res[i++] = CreateMemberResult(member.Key, member.Value);
-                    }
-                    foreach (var member in _memberResults.InstanceMembers) {
-                        res[i++] = CreateMemberResult(member.Key, member.Value);
-                    }
+            //    if (_completionResultEvent.WaitOne(1000) && _memberResults != null) {
+            //        MemberResult[] res = new MemberResult[_memberResults.TypeMembers.Count + _memberResults.InstanceMembers.Count];
+            //        int i = 0;
+            //        foreach (var member in _memberResults.TypeMembers) {
+            //            res[i++] = CreateMemberResult(member.Key, member.Value);
+            //        }
+            //        foreach (var member in _memberResults.InstanceMembers) {
+            //            res[i++] = CreateMemberResult(member.Key, member.Value);
+            //        }
 
-                    _memberResults = null;
-                    return res;
-                }
+            //        _memberResults = null;
+            //        return res;
+            //    }
                 return null;
             }
 
-            private static MemberResult CreateMemberResult(string name, string typeName) {
-                switch (typeName) {
-                    case "__builtin__.method-wrapper":
-                    case "__builtin__.builtin_function_or_method":
-                    case "__builtin__.method_descriptor":
-                    case "__builtin__.wrapper_descriptor":
-                    case "__builtin__.instancemethod":
-                        return new MemberResult(name, PythonMemberType.Method);
-                    case "__builtin__.getset_descriptor":
-                        return new MemberResult(name, PythonMemberType.Property);
-                    case "__builtin__.namespace#":
-                        return new MemberResult(name, PythonMemberType.Namespace);
-                    case "__builtin__.type":
-                        return new MemberResult(name, PythonMemberType.Class);
-                    case "__builtin__.function":
-                        return new MemberResult(name, PythonMemberType.Function);
-                    case "__builtin__.module":
-                        return new MemberResult(name, PythonMemberType.Module);
-                }
+            //private static MemberResult CreateMemberResult(string name, string typeName) {
+            //    switch (typeName) {
+            //        case "__builtin__.method-wrapper":
+            //        case "__builtin__.builtin_function_or_method":
+            //        case "__builtin__.method_descriptor":
+            //        case "__builtin__.wrapper_descriptor":
+            //        case "__builtin__.instancemethod":
+            //            return new MemberResult(name, PythonMemberType.Method);
+            //        case "__builtin__.getset_descriptor":
+            //            return new MemberResult(name, PythonMemberType.Property);
+            //        case "__builtin__.namespace#":
+            //            return new MemberResult(name, PythonMemberType.Namespace);
+            //        case "__builtin__.type":
+            //            return new MemberResult(name, PythonMemberType.Class);
+            //        case "__builtin__.function":
+            //            return new MemberResult(name, PythonMemberType.Function);
+            //        case "__builtin__.module":
+            //            return new MemberResult(name, PythonMemberType.Module);
+            //    }
 
-                return new MemberResult(name, PythonMemberType.Field);
-            }
+            //    return new MemberResult(name, PythonMemberType.Field);
+            //}
 
-            public async Task<string> GetScopeByFilenameAsync(string path) {
-                await GetAvailableScopesAndKindAsync();
+            //public async Task<string> GetScopeByFilenameAsync(string path) {
+            //    await GetAvailableScopesAndKindAsync();
 
-                string res;
-                if (_fileToModuleName.TryGetValue(path, out res)) {
-                    return res;
-                }
-                return null;
-            }
+            //    string res;
+            //    if (_fileToModuleName.TryGetValue(path, out res)) {
+            //        return res;
+            //    }
+            //    return null;
+            //}
 
-            public void SetScope(string scopeName) {
-                try {
-                    using (new StreamLock(this, throwIfDisconnected: true)) {
-                        if (!string.IsNullOrWhiteSpace(scopeName)) {
-                            _stream.Write(SetModuleCommandBytes);
-                            SendString(scopeName);
-                            _currentScope = scopeName;
+            //public void SetScope(string scopeName) {
+            //    try {
+            //        using (new StreamLock(this, throwIfDisconnected: true)) {
+            //            if (!string.IsNullOrWhiteSpace(scopeName)) {
+            //                _stream.Write(SetModuleCommandBytes);
+            //                SendString(scopeName);
+            //                _currentScope = scopeName;
 
-                            _eval.WriteOutput(SR.GetString(SR.ReplModuleChanged, scopeName));
-                        } else {
-                            _eval.WriteOutput(_currentScope);
-                        }
-                    }
-                } catch (DisconnectedException) {
-                    _eval.WriteError(SR.GetString(SR.ReplModuleCannotChange));
-                } catch (IOException) {
-                }
-            }
+            //                _eval.WriteOutput(SR.GetString(SR.ReplModuleChanged, scopeName));
+            //            } else {
+            //                _eval.WriteOutput(_currentScope);
+            //            }
+            //        }
+            //    } catch (DisconnectedException) {
+            //        _eval.WriteError(SR.GetString(SR.ReplModuleCannotChange));
+            //    } catch (IOException) {
+            //    }
+            //}
 
-            public Task<IEnumerable<string>> GetAvailableUserScopesAsync(int timeout = -1) {
-                return Task.Run(() => {
-                    try {
-                        AutoResetEvent evt;
-                        using (new StreamLock(this, throwIfDisconnected: true)) {
-                            _stream.Write(GetModulesListCommandBytes);
-                            evt = _completionResultEvent;
-                        }
-                        evt.WaitOne(timeout);
-                        return _fileToModuleName?.Values.AsEnumerable();
-                    } catch (IOException) {
-                    }
+            //public Task<IEnumerable<string>> GetAvailableUserScopesAsync(int timeout = -1) {
+            //    return Task.Run(() => {
+            //        try {
+            //            AutoResetEvent evt;
+            //            using (new StreamLock(this, throwIfDisconnected: true)) {
+            //                _stream.Write(GetModulesListCommandBytes);
+            //                evt = _completionResultEvent;
+            //            }
+            //            evt.WaitOne(timeout);
+            //            return _fileToModuleName?.Values.AsEnumerable();
+            //        } catch (IOException) {
+            //        }
 
-                    return null;
-                });
-            }
+            //        return null;
+            //    });
+            //}
 
-            public Task<IEnumerable<KeyValuePair<string, bool>>> GetAvailableScopesAndKindAsync(int timeout = -1) {
-                return Task.Run(() => {
-                    try {
-                        AutoResetEvent evt;
-                        using (new StreamLock(this, throwIfDisconnected: true)) {
-                            _stream.Write(GetModulesListCommandBytes);
-                            evt = _completionResultEvent;
-                        }
-                        evt.WaitOne(timeout);
-                        return _allModules.AsEnumerable();
-                    } catch (IOException) {
-                    }
+            //public Task<IEnumerable<KeyValuePair<string, bool>>> GetAvailableScopesAndKindAsync(int timeout = -1) {
+            //    return Task.Run(() => {
+            //        try {
+            //            AutoResetEvent evt;
+            //            using (new StreamLock(this, throwIfDisconnected: true)) {
+            //                _stream.Write(GetModulesListCommandBytes);
+            //                evt = _completionResultEvent;
+            //            }
+            //            evt.WaitOne(timeout);
+            //            return _allModules.AsEnumerable();
+            //        } catch (IOException) {
+            //        }
 
-                    return null;
-                });
-            }
+            //        return null;
+            //    });
+            //}
 
-            [SuppressMessage("Microsoft.Usage", "CA2213:DisposableFieldsShouldBeDisposed", MessageId = "_stream", Justification = "false positive")]
             public void Dispose() {
-                var stream = _stream;
-
-                // There is a potential race with another thread doing _stream = null, but even if that happens
-                // we do have our own reference and can dispose the object.
-
-                if (stream != null) {
-                    try {
-                        // Try and close the connection gracefully, but don't
-                        // block on it indefinitely - if we're stuck waiting for
-                        // too long, just drop it.
-                        if (Monitor.TryEnter(_streamLock, 200)) {
-                            // Set _stream to null inside the lock. We handle
-                            // ObjectDisposed but not NullReferencExceptions in
-                            // places where we access _stream inside the lock.
-                            _stream = null;
-                            try {
-                                try {
-                                    var ar = stream.BeginWrite(ExitCommandBytes, 0, ExitCommandBytes.Length, null, null);
-                                    using (ar.AsyncWaitHandle) {
-                                        ar.AsyncWaitHandle.WaitOne(200);
-                                    }
-                                    stream.EndWrite(ar);
-                                } catch (IOException) {
-                                }
-                            } finally {
-                                Monitor.Exit(_streamLock);
-                            }
-                        }
-                    } finally {
-                        stream.Dispose();
-                    }
-                }
-
-
                 if (_process != null && !_process.HasExited) {
                     try {
                         _process.Kill();
@@ -909,93 +795,38 @@ namespace Microsoft.PythonTools.Repl {
                     }
                 }
 
-                lock (_completionLock) {
-                    if (_completion != null) {
-                        bool success = _completion.TrySetResult(ExecutionResult.Failure);
-                        Debug.Assert(success);
-                        _completion = null;
-                    }
-                    if (_completionResultEvent != null) {
-                        _completionResultEvent.Dispose();
-                        _completionResultEvent = null;
+                lock (_completions) {
+                    foreach (var tcs in _completions.Values) {
+                        tcs.TrySetCanceled();
                     }
                 }
             }
 
-            private void SendString(string text) {
-                Debug.Assert(text != null, "text should not be null");
-                byte[] bytes = Encoding.UTF8.GetBytes(text);
-                _stream.WriteInt32(bytes.Length);
-                _stream.Write(bytes);
-            }
+            //private void SendString(string text) {
+            //    Debug.Assert(text != null, "text should not be null");
+            //    byte[] bytes = Encoding.UTF8.GetBytes(text);
+            //    _stream.WriteInt32(bytes.Length);
+            //    _stream.Write(bytes);
+            //}
 
-            private Dictionary<string, string> ReadMemberDict() {
-                int memCount = _stream.ReadInt32();
-                var dict = new Dictionary<string, string>(memCount);
-                for (int i = 0; i < memCount; i++) {
-                    string memName = _stream.ReadString();
-                    string typeName = _stream.ReadString();
-                    dict[memName] = typeName;
-                }
+            //private Dictionary<string, string> ReadMemberDict() {
+            //    int memCount = _stream.ReadInt32();
+            //    var dict = new Dictionary<string, string>(memCount);
+            //    for (int i = 0; i < memCount; i++) {
+            //        string memName = _stream.ReadString();
+            //        string typeName = _stream.ReadString();
+            //        dict[memName] = typeName;
+            //    }
 
-                return dict;
-            }
+            //    return dict;
+            //}
 
-            public bool IsExecuting => _completion != null && !_completion.Task.IsCompleted;
+            public bool IsExecuting => false; // _completion != null && !_completion.Task.IsCompleted;
 
             public string PrimaryPrompt { get; internal set; }
 
             public string SecondaryPrompt { get; internal set; }
 
-            /// <summary>
-            /// Helper struct for locking and tracking the current holding thread.  This allows
-            /// us to assert that our stream is always accessed while the lock is held.  The lock
-            /// needs to be held so that requests from the UI (switching scopes, getting module lists,
-            /// executing text, etc...) won't become interleaved with interactions from the repl process 
-            /// (output, execution completing, etc...).
-            /// </summary>
-            struct StreamLock : IDisposable {
-                private readonly CommandProcessorThread _evaluator;
-
-                public StreamLock(CommandProcessorThread evaluator, bool throwIfDisconnected) {
-                    Monitor.Enter(evaluator._streamLock);
-                    try {
-                        if (throwIfDisconnected) {
-                            evaluator.ThrowIfDisconnected();
-                        }
-                        _evaluator = evaluator;
-
-                    } catch {
-                        // If any exceptions are thrown in the constructor, we
-                        // must exit the lock to avoid a deadlock.
-                        Monitor.Exit(evaluator._streamLock);
-                        throw;
-                    }
-                }
-
-                public void Dispose() {
-                    Monitor.Exit(_evaluator._streamLock);
-                }
-            }
-
-            /// <summary>
-            /// Releases the stream lock and re-acquires it when finished.  This enables
-            /// calling back into the repl window which could potentially call back to do
-            /// work w/ the evaluator that we don't want to deadlock.
-            /// </summary>
-            struct StreamUnlock : IDisposable {
-                private readonly CommandProcessorThread _evaluator;
-
-                public StreamUnlock(CommandProcessorThread evaluator) {
-                    Debug.Assert(Monitor.IsEntered(evaluator._streamLock));
-                    _evaluator = evaluator;
-                    Monitor.Exit(evaluator._streamLock);
-                }
-
-                public void Dispose() {
-                    Monitor.Enter(_evaluator._streamLock);
-                }
-            }
 
             class MemberResults {
                 public readonly string TypeName;

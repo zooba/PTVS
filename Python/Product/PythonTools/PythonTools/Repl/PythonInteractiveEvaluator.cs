@@ -64,7 +64,7 @@ namespace Microsoft.PythonTools.Repl {
         private VsProjectAnalyzer _analyzer;
 
         private bool _enableMultipleScopes;
-        private IReadOnlyList<string> _availableScopes;
+        //private IReadOnlyList<string> _availableScopes;
 
         private bool _isDisposed;
 
@@ -226,15 +226,15 @@ namespace Microsoft.PythonTools.Repl {
         public event EventHandler<EventArgs> MultipleScopeSupportChanged;
 
         private async void Thread_AvailableScopesChanged(object sender, EventArgs e) {
-            _availableScopes = (await ((CommandProcessorThread)sender).GetAvailableUserScopesAsync(10000))?.ToArray();
+            //_availableScopes = (await ((CommandProcessorThread)sender).GetAvailableUserScopesAsync(10000))?.ToArray();
             AvailableScopesChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public IEnumerable<KeyValuePair<string, bool>> GetAvailableScopesAndKind() {
-            var t = _thread?.GetAvailableScopesAndKindAsync(1000);
-            if (t != null && t.Wait(1000) && t.Result != null) {
-                return t.Result;
-            }
+            //var t = _thread?.GetAvailableScopesAndKindAsync(1000);
+            //if (t != null && t.Wait(1000) && t.Result != null) {
+            //    return t.Result;
+            //}
             return Enumerable.Empty<KeyValuePair<string, bool>>();
         }
 
@@ -268,6 +268,7 @@ namespace Microsoft.PythonTools.Repl {
         protected async Task<CommandProcessorThread> EnsureConnectedAsync() {
             var thread = Volatile.Read(ref _thread);
             if (thread != null) {
+                await thread.EnsureConnectedAsync();
                 return thread;
             }
 
@@ -370,39 +371,41 @@ namespace Microsoft.PythonTools.Repl {
             }
 
             var thread = await EnsureConnectedAsync();
-            if (thread != null) {
-                return await thread.ExecuteText(text);
+            if (thread == null) {
+                WriteError(SR.GetString(SR.ReplDisconnected));
+                return ExecutionResult.Failure;
             }
 
-            WriteError(SR.GetString(SR.ReplDisconnected));
-            return ExecutionResult.Failure;
+            var result = await thread.ExecuteText(text);
+            WriteOutput(result);
+            return ExecutionResult.Success;
         }
 
         public async Task<ExecutionResult> ExecuteFileAsync(string filename, string extraArgs) {
-            var thread = await EnsureConnectedAsync();
-            if (thread != null) {
-                return await thread.ExecuteFile(filename, extraArgs, "script");
-            }
+            //var thread = await EnsureConnectedAsync();
+            //if (thread != null) {
+            //    return await thread.ExecuteFile(filename, extraArgs, "script");
+            //}
 
             WriteError(SR.GetString(SR.ReplDisconnected));
             return ExecutionResult.Failure;
         }
 
         public async Task<ExecutionResult> ExecuteModuleAsync(string name, string extraArgs) {
-            var thread = await EnsureConnectedAsync();
-            if (thread != null) {
-                return await thread.ExecuteFile(name, extraArgs, "module");
-            }
+            //var thread = await EnsureConnectedAsync();
+            //if (thread != null) {
+            //    return await thread.ExecuteFile(name, extraArgs, "module");
+            //}
 
             WriteError(SR.GetString(SR.ReplDisconnected));
             return ExecutionResult.Failure;
         }
 
         public async Task<ExecutionResult> ExecuteProcessAsync(string filename, string extraArgs) {
-            var thread = await EnsureConnectedAsync();
-            if (thread != null) {
-                return await thread.ExecuteFile(filename, extraArgs, "process");
-            }
+            //var thread = await EnsureConnectedAsync();
+            //if (thread != null) {
+            //    return await thread.ExecuteFile(filename, extraArgs, "process");
+            //}
 
             WriteError(SR.GetString(SR.ReplDisconnected));
             return ExecutionResult.Failure;
@@ -463,11 +466,11 @@ namespace Microsoft.PythonTools.Repl {
         }
 
         public IEnumerable<string> GetAvailableScopes() {
-            return _availableScopes ?? Enumerable.Empty<string>();
+            return Enumerable.Empty<string>();  //_availableScopes ?? Enumerable.Empty<string>();
         }
 
         public void SetScope(string scopeName) {
-            _thread?.SetScope(scopeName);
+            //_thread?.SetScope(scopeName);
         }
 
         public string GetPrompt() {
