@@ -35,7 +35,25 @@ namespace Microsoft.VisualStudioTools.MockVsTests {
         }
 
         public ICompletionSession CreateCompletionSession(ITextView textView, ITrackingPoint triggerPoint, bool trackCaret) {
-            throw new NotImplementedException();
+            ObservableCollection<CompletionSet> sets = new ObservableCollection<CompletionSet>();
+            var session = new MockCompletionSession(textView, sets, triggerPoint);
+
+            foreach (var provider in _completionProviders) {
+                foreach (var targetContentType in provider.Metadata.ContentTypes) {
+                    if (textView.TextBuffer.ContentType.IsOfType(targetContentType)) {
+                        var source = provider.Value.TryCreateCompletionSource(textView.TextBuffer);
+                        if (source != null) {
+                            source.AugmentCompletionSession(session, sets);
+                        }
+                    }
+                }
+            }
+
+            if (session.CompletionSets.Count > 0 && !session.IsDismissed) {
+                _stackMap.GetStackForTextView(textView).PushSession(session);
+            }
+
+            return session;
         }
 
         public void DismissAllSessions(ITextView textView) {
@@ -70,32 +88,14 @@ namespace Microsoft.VisualStudioTools.MockVsTests {
         }
 
         public ICompletionSession TriggerCompletion(ITextView textView) {
-            ObservableCollection<CompletionSet> sets = new ObservableCollection<CompletionSet>();
-            var session = new MockCompletionSession(
+            return CreateCompletionSession(
                 textView,
-                sets,
                 textView.TextBuffer.CurrentSnapshot.CreateTrackingPoint(
                     textView.Caret.Position.BufferPosition.Position,
                     PointTrackingMode.Negative
-                )
+                ),
+                true
             );
-
-            foreach (var provider in _completionProviders) {
-                foreach (var targetContentType in provider.Metadata.ContentTypes) {
-                    if (textView.TextBuffer.ContentType.IsOfType(targetContentType)) {
-                        var source = provider.Value.TryCreateCompletionSource(textView.TextBuffer);
-                        if (source != null) {
-                            source.AugmentCompletionSession(session, sets);
-                        }
-                    }
-                }
-            }
-
-            if (session.CompletionSets.Count > 0 && !session.IsDismissed) {
-                _stackMap.GetStackForTextView(textView).PushSession(session);
-            }
-
-            return session;
         }
     }
 }

@@ -152,10 +152,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\SccPackage\TestSccPackage.csproj">
-      <Project>{e75e5db1-0ea0-4247-a830-fe467c016816}</Project>
-      <Name>TestSccPackage</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Utilities\TestUtilities.csproj">
       <Project>{d092d54e-ff29-4d32-9aee-4ef704c92f67}</Project>
       <Name>TestUtilities</Name>

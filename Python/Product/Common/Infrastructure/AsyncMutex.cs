@@ -41,15 +41,15 @@ namespace Microsoft.PythonTools.Common.Infrastructure {
         public Task<IDisposable> WaitAsync(CancellationToken cancellationToken) {
             if (Interlocked.CompareExchange(ref _count, 0, 1) == 1) {
                 // We got the lock
-                return Task.FromResult<IDisposable>(new Holder(this));
+                return Task.FromResult<IDisposable>(new Holder(this, false));
             }
 
-            var tcs = new TaskCompletionSource<IDisposable>();
             lock (_waiters) {
                 if (Interlocked.CompareExchange(ref _count, 0, 1) == 1) {
                     // We got the lock 
-                    return Task.FromResult<IDisposable>(new Holder(this));
+                    return Task.FromResult<IDisposable>(new Holder(this, false));
                 }
+                var tcs = new TaskCompletionSource<IDisposable>();
                 _waiters.Add(tcs);
 
                 if (cancellationToken.CanBeCanceled) {
@@ -66,7 +66,7 @@ namespace Microsoft.PythonTools.Common.Infrastructure {
                 } catch (AggregateException ae) when (ae.InnerException is OperationCanceledException) {
                 }
             }
-            return new HolderDisposer(this);
+            return new Holder(this, true);
         }
 
         private void Release() {
@@ -74,28 +74,29 @@ namespace Microsoft.PythonTools.Common.Infrastructure {
                 Holder res = null;
                 while (_waiters.Count > 0) {
                     if (res == null) {
-                        res = new Holder(this);
+                        res = new Holder(this, false);
                     }
                     var tcs = _waiters[0];
                     _waiters.RemoveAt(0);
-                    try {
-                        tcs.SetResult(res);
+                    if (tcs.TrySetResult(res)) {
                         return;
-                    } catch (InvalidOperationException) {
-                        // task was cancelled
                     }
                 }
                 res?.Clear();
                 res?.Dispose();
-                Debug.Assert(Interlocked.CompareExchange(ref _count, 1, 0) == 0);
+                Debug.Assert(Volatile.Read(ref _count) == 0);
+                Interlocked.CompareExchange(ref _count, 1, 0);
+                Debug.Assert(Volatile.Read(ref _count) == 1);
             }
         }
 
         sealed class Holder : IDisposable {
             private AsyncMutex _mutex;
+            private readonly bool _dispose;
 
-            public Holder(AsyncMutex mutex) {
+            public Holder(AsyncMutex mutex, bool dispose) {
                 _mutex = mutex;
+                _dispose = dispose;
             }
 
             internal void Clear() {
@@ -103,32 +104,15 @@ namespace Microsoft.PythonTools.Common.Infrastructure {
             }
 
             public void Dispose() {
-                _mutex?.Release();
+                if (_dispose) {
+                    _mutex?.Dispose();
+                } else {
+                    _mutex?.Release();
+                }
                 GC.SuppressFinalize(this);
             }
 
             ~Holder() {
-                Dispose();
-            }
-        }
-
-        sealed class HolderDisposer : IDisposable {
-            private AsyncMutex _mutex;
-
-            public HolderDisposer(AsyncMutex mutex) {
-                _mutex = mutex;
-            }
-
-            internal void Clear() {
-                _mutex = null;
-            }
-
-            public void Dispose() {
-                _mutex?.Dispose();
-                GC.SuppressFinalize(this);
-            }
-
-            ~HolderDisposer() {
                 Dispose();
             }
         }

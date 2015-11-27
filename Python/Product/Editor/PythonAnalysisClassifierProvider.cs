@@ -58,6 +58,8 @@ namespace Microsoft.PythonTools.Editor {
         [BaseDefinition(PredefinedClassificationTypeNames.Identifier)]
         internal static ClassificationTypeDefinition ModuleClassificationDefinition = null; // Set via MEF
 
+        public PythonAnalysisClassifierProvider() { }
+
         public IClassifier GetClassifier(ITextBuffer buffer) {
             if (_categoryMap == null) {
                 _categoryMap = FillCategoryMap(_classificationRegistry);

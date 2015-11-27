@@ -20,6 +20,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Infrastructure;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
@@ -42,30 +43,39 @@ namespace Microsoft.PythonTools.Editor {
 
         private struct LineInfo {
             public static readonly LineInfo Empty = new LineInfo();
-            public int Line;
+            public int NextIndentation;
             public int Indentation;
-            public int IndentationIfNewlineIsNext;
-            public bool ShouldIndentAfter;
-            public bool ShouldDedentAfter;
+            public int NextIndentationIfNewline;
+            public bool UseBlockIndent;
+            public bool HasExplicitLineJoin;
         }
 
-        private static async Task<int?> CalculateIndentationAsync(
-            ITextSnapshotLine line,
+        internal static async Task<int?> CalculateIndentationAsync(
+            Tokenization tokenization,
+            int lineNumber,
             IEditorOptions options,
             CancellationToken cancellationToken
         ) {
             int tabSize = options.GetTabSize();
             int indentSize = options.GetIndentSize();
 
-            var tokenization = await line.Snapshot.TextBuffer.GetTokenizationAsync(cancellationToken);
-            var tokens = tokenization?.GetTokensEndingAtLineReversed(line.LineNumber);
-            if (tokens == null) {
-                return null;
-            }
-
+            var tokens = tokenization.GetTokensEndingAtLineReversed(lineNumber);
             var tokenStack = new Stack<Token>();
+            int lastLine = lineNumber + 1;
             foreach (var token in tokens) {
+                if (token.Is(TokenKind.Whitespace) && token.Span.End.Line != lastLine) {
+                    // Saw whitespace that used to be a newline. We want the
+                    // newline here for indentation purposes, so change it back
+                    tokenStack.Push(new Token(TokenKind.NewLine, token.Span.Start, token.Span.End));
+                    lastLine = token.Span.End.Line;
+                    continue;
+                } else if (token.Is(TokenKind.LiteralString) && token.Span.End.Line != lastLine) {
+                    // Multiline strings eat the newlines. We want a token here
+                    // before the literal is added
+                    tokenStack.Push(new Token(TokenKind.NewLine, token.Span.End, 0));
+                }
                 tokenStack.Push(token);
+                lastLine = token.Span.End.Line;
                 if (token.Is(TokenKind.SignificantWhitespace)) {
                     break;
                 }
@@ -73,55 +83,73 @@ namespace Microsoft.PythonTools.Editor {
 
             var indentStack = new Stack<LineInfo>();
             var current = LineInfo.Empty;
+            bool firstOnLine = true;
 
             foreach(var token in tokenStack) {
+                if (firstOnLine && current.UseBlockIndent) {
+                    current.Indentation = GetIndentation(tokenization.GetTokenText(token), tabSize);
+                    current.NextIndentation = current.Indentation;
+                }
+
+                firstOnLine = false;
+
                 if (token.Is(TokenKind.SignificantWhitespace)) {
                     // Significant whitespace only occurs at the highest level
                     indentStack.Clear();
                     current.Indentation = GetIndentation(tokenization.GetTokenText(token), tabSize);
-                    current.Line = token.Span.Start.Line;
-                } else if (token.Span.Start.Line != current.Line) {
-                    if (current.IndentationIfNewlineIsNext > 0) {
-                        current.Indentation = current.IndentationIfNewlineIsNext;
-                        current.IndentationIfNewlineIsNext = 0;
-                    } else if (token.Is(TokenKind.Whitespace)) {
-                        current.Indentation = GetIndentation(tokenization.GetTokenText(token), tabSize);
+                } else if (token.Is(TokenKind.NewLine)) {
+                    if (current.NextIndentationIfNewline > 0) {
+                        current.Indentation = current.NextIndentationIfNewline;
+                        current.NextIndentation = current.Indentation;
                     } else {
-                        current.Indentation = 0;
+                        current.Indentation = current.NextIndentation;
                     }
-                    if (current.ShouldIndentAfter) {
-                        current.Indentation += indentSize;
-                        current.ShouldIndentAfter = false;
-                    }
-                    if (current.ShouldDedentAfter) {
-                        current.Indentation -= indentSize;
-                        current.ShouldDedentAfter = false;
-                    }
-                } else if (token.Is(TokenUsage.BeginGroup)) {
+                    firstOnLine = true;
+                }
+
+                if (!token.IsAny(TokenKind.Whitespace, TokenKind.Comment)) {
+                    current.NextIndentationIfNewline = 0;
+                }
+
+                if (token.Is(TokenUsage.BeginGroup)) {
                     indentStack.Push(current);
-                    current.IndentationIfNewlineIsNext = token.Span.End.Column - 1;
+                    if (token.Is(TokenCategory.StringLiteral)) {
+                        current = new LineInfo {
+                            UseBlockIndent = true
+                        };
+                    } else {
+                        current = new LineInfo {
+                            NextIndentationIfNewline = current.Indentation + indentSize,
+                            NextIndentation = token.Span.End.Column - 1
+                        };
+                    }
                 } else if (token.Is(TokenUsage.EndGroup)) {
                     if (indentStack.Count > 0) {
                         current = indentStack.Pop();
                     }
-                } else {
-                    current.IndentationIfNewlineIsNext = 0;
                 }
 
-                // dedent after some statements
-                if (ShouldDedentAfterKeyword(token)) {
-                    current.ShouldDedentAfter = true;
-                }
+                if (!current.UseBlockIndent) {
+                    // dedent after some statements
+                    if (ShouldDedentAfterKeyword(token)) {
+                        current.NextIndentation = current.Indentation - indentSize;
+                    }
 
-                // indent after a colon outside of a grouping if it is followed by a newline
-                if (token.Is(TokenKind.Colon) && indentStack.Count == 0) {
-                    current.IndentationIfNewlineIsNext = current.Indentation - indentSize;
+                    if (token.Is(TokenKind.ExplicitLineJoin)) {
+                        if (!current.HasExplicitLineJoin) {
+                            current.HasExplicitLineJoin = true;
+                            current.NextIndentation = current.Indentation + indentSize;
+                        }
+                    }
+
+                    // indent after a colon outside of a grouping if it is followed by a newline
+                    if (token.Is(TokenKind.Colon) && indentStack.Count == 0) {
+                        current.NextIndentationIfNewline = current.Indentation + indentSize;
+                    }
                 }
             }
 
-            return current.Indentation +
-                (current.ShouldIndentAfter ? indentSize : 0) -
-                (current.ShouldDedentAfter ? indentSize : 0);
+            return current.Indentation;
         }
 
         private static bool ShouldDedentAfterKeyword(Token token) {
@@ -167,7 +195,12 @@ namespace Microsoft.PythonTools.Editor {
 
             ITextBuffer targetBuffer = textView.TextBuffer;
             if (!targetBuffer.ContentType.IsOfType(ContentType.Name)) {
-                var match = textView.BufferGraph.MapDownToFirstMatch(line.Start, PointTrackingMode.Positive, EditorExtensions.IsPythonContent, PositionAffinity.Successor);
+                var match = textView.BufferGraph.MapDownToFirstMatch(
+                    line.Start,
+                    PointTrackingMode.Positive,
+                    EditorExtensions.IsPythonContent,
+                    PositionAffinity.Successor
+                );
                 if (match == null) {
                     return 0;
                 }
@@ -181,11 +214,15 @@ namespace Microsoft.PythonTools.Editor {
                 return null;
             }
 
-            var desiredIndentation = CalculateIndentationAsync(
-                line,
-                options,
-                CancellationToken.None
-            ).WaitAndUnwrapExceptions();
+            var cts = new CancellationTokenSource(1000);
+            int? desiredIndentation;
+            try {
+                desiredIndentation = ThreadHelper.JoinableTaskFactory.Run(
+                    () => CalculateIndentationForLineAsync(line, options, cts.Token)
+                );
+            } catch (OperationCanceledException) {
+                desiredIndentation = null;
+            }
 
             var caretLine = textView.Caret.Position.BufferPosition.GetContainingLine();
             // VS will get the white space when the user is moving the cursor or when the user is doing an edit which
@@ -217,6 +254,36 @@ namespace Microsoft.PythonTools.Editor {
             }
 
             return desiredIndentation;
+        }
+
+        private static async Task<int?> CalculateIndentationForLineAsync(
+            ITextSnapshotLine line,
+            IEditorOptions options,
+            CancellationToken cancellationToken
+        ) {
+            var textBuffer = line.Snapshot.TextBuffer;
+            var document = textBuffer.GetDocument();
+            var context = textBuffer.GetPythonFileContext();
+            var analyzer = textBuffer.GetAnalyzer();
+
+            var itemToken = await analyzer.GetItemTokenAsync(context, document.Moniker, false, cancellationToken);
+            var tokenization = await analyzer.GetTokenizationAsync(itemToken, cancellationToken);
+
+            // Snapshot does not match, so we need to retokenize the document
+            if ((tokenization?.Cookie as ITextSnapshot) != line.Snapshot) {
+                tokenization = await Tokenization.TokenizeAsync(
+                    document,
+                    analyzer.Configuration.Version,
+                    cancellationToken
+                );
+            }
+
+            return tokenization == null ? null : await CalculateIndentationAsync(
+                tokenization,
+                line.LineNumber,
+                options,
+                CancellationToken.None
+            );
         }
     }
 }

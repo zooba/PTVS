@@ -14,8 +14,10 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using Microsoft.VisualStudio.Text.Editor;
+using System;
 using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Text.Editor;
+using Microsoft.VisualStudio.Text.Formatting;
 
 namespace TestUtilities.Mocks {
     public class MockTextCaret : ITextCaret {
@@ -28,96 +30,98 @@ namespace TestUtilities.Mocks {
         }
 
         public double Bottom {
-            get { throw new System.NotImplementedException(); }
+            get { throw new NotImplementedException(); }
         }
 
-        public Microsoft.VisualStudio.Text.Formatting.ITextViewLine ContainingTextViewLine {
-            get { throw new System.NotImplementedException(); }
+        public ITextViewLine ContainingTextViewLine {
+            get { throw new NotImplementedException(); }
         }
 
         public void EnsureVisible() {
         }
 
         public double Height {
-            get { throw new System.NotImplementedException(); }
+            get { throw new NotImplementedException(); }
         }
 
         public bool InVirtualSpace {
-            get { throw new System.NotImplementedException(); }
+            get { throw new NotImplementedException(); }
         }
 
         public bool IsHidden {
             get {
-                throw new System.NotImplementedException();
+                throw new NotImplementedException();
             }
             set {
-                throw new System.NotImplementedException();
+                throw new NotImplementedException();
             }
         }
 
         public double Left {
-            get { throw new System.NotImplementedException(); }
+            get { throw new NotImplementedException(); }
         }
 
-        public CaretPosition MoveTo(Microsoft.VisualStudio.Text.VirtualSnapshotPoint bufferPosition, Microsoft.VisualStudio.Text.PositionAffinity caretAffinity, bool captureHorizontalPosition) {
-            throw new System.NotImplementedException();
+        public CaretPosition MoveTo(VirtualSnapshotPoint bufferPosition, PositionAffinity caretAffinity, bool captureHorizontalPosition) {
+            throw new NotImplementedException();
         }
 
-        public CaretPosition MoveTo(Microsoft.VisualStudio.Text.VirtualSnapshotPoint bufferPosition, Microsoft.VisualStudio.Text.PositionAffinity caretAffinity) {
-            throw new System.NotImplementedException();
+        public CaretPosition MoveTo(VirtualSnapshotPoint bufferPosition, PositionAffinity caretAffinity) {
+            throw new NotImplementedException();
         }
 
-        public CaretPosition MoveTo(Microsoft.VisualStudio.Text.VirtualSnapshotPoint bufferPosition) {
-            throw new System.NotImplementedException();
+        public CaretPosition MoveTo(VirtualSnapshotPoint bufferPosition) {
+            throw new NotImplementedException();
         }
 
-        public CaretPosition MoveTo(Microsoft.VisualStudio.Text.SnapshotPoint bufferPosition, Microsoft.VisualStudio.Text.PositionAffinity caretAffinity, bool captureHorizontalPosition) {
-            throw new System.NotImplementedException();
+        public CaretPosition MoveTo(SnapshotPoint bufferPosition, PositionAffinity caretAffinity, bool captureHorizontalPosition) {
+            throw new NotImplementedException();
         }
 
-        public CaretPosition MoveTo(Microsoft.VisualStudio.Text.SnapshotPoint bufferPosition, Microsoft.VisualStudio.Text.PositionAffinity caretAffinity) {
-            throw new System.NotImplementedException();
+        public CaretPosition MoveTo(SnapshotPoint bufferPosition, PositionAffinity caretAffinity) {
+            throw new NotImplementedException();
         }
 
-        public CaretPosition MoveTo(Microsoft.VisualStudio.Text.SnapshotPoint bufferPosition) {
+        public CaretPosition MoveTo(SnapshotPoint bufferPosition) {
             _view.Selection.Clear();
             _position = new MockTrackingPoint((MockTextSnapshot)bufferPosition.Snapshot, bufferPosition.Position);
             return Position;
         }
 
-        public CaretPosition MoveTo(Microsoft.VisualStudio.Text.Formatting.ITextViewLine textLine) {
-            throw new System.NotImplementedException();
+        public CaretPosition MoveTo(ITextViewLine textLine) {
+            throw new NotImplementedException();
         }
 
-        public CaretPosition MoveTo(Microsoft.VisualStudio.Text.Formatting.ITextViewLine textLine, double xCoordinate, bool captureHorizontalPosition) {
-            throw new System.NotImplementedException();
+        public CaretPosition MoveTo(ITextViewLine textLine, double xCoordinate, bool captureHorizontalPosition) {
+            throw new NotImplementedException();
         }
 
-        public CaretPosition MoveTo(Microsoft.VisualStudio.Text.Formatting.ITextViewLine textLine, double xCoordinate) {
-            throw new System.NotImplementedException();
+        public CaretPosition MoveTo(ITextViewLine textLine, double xCoordinate) {
+            throw new NotImplementedException();
         }
 
         public CaretPosition MoveToNextCaretPosition() {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public CaretPosition MoveToPreferredCoordinates() {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public CaretPosition MoveToPreviousCaretPosition() {
-            throw new System.NotImplementedException();
+            throw new NotImplementedException();
         }
 
         public bool OverwriteMode {
-            get { throw new System.NotImplementedException(); }
+            get { throw new NotImplementedException(); }
         }
 
         public CaretPosition Position {
-            get { return new CaretPosition(
-                new VirtualSnapshotPoint(_position.GetPoint(_view.TextBuffer.CurrentSnapshot)), 
-                new MockMappingPoint(_position), 
-                PositionAffinity.Predecessor); 
+            get {
+                return new CaretPosition(
+                    new VirtualSnapshotPoint(_position.GetPoint(_view.TextBuffer.CurrentSnapshot)), 
+                    new MockMappingPoint(_view, _position), 
+                    PositionAffinity.Predecessor
+                ); 
             }
         }
 
@@ -125,7 +129,7 @@ namespace TestUtilities.Mocks {
             _position = new MockTrackingPoint((MockTextSnapshot)position.Snapshot, position.Position);
         }
 
-        public event System.EventHandler<CaretPositionChangedEventArgs> PositionChanged {
+        public event EventHandler<CaretPositionChangedEventArgs> PositionChanged {
             add {
             }
             remove {
@@ -133,15 +137,15 @@ namespace TestUtilities.Mocks {
         }
 
         public double Right {
-            get { throw new System.NotImplementedException(); }
+            get { throw new NotImplementedException(); }
         }
 
         public double Top {
-            get { throw new System.NotImplementedException(); }
+            get { throw new NotImplementedException(); }
         }
 
         public double Width {
-            get { throw new System.NotImplementedException(); }
+            get { throw new NotImplementedException(); }
         }
     }
 }

@@ -16,30 +16,38 @@
 
 using System;
 using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Projection;
 
 namespace TestUtilities.Mocks {
     public class MockMappingPoint : IMappingPoint {
+        private readonly ITextView _view;
         private readonly ITrackingPoint _trackingPoint;
 
-        public MockMappingPoint(ITrackingPoint trackingPoint) {
+        public MockMappingPoint(ITextView view, ITrackingPoint trackingPoint) {
+            _view = view;
             _trackingPoint = trackingPoint;
         }
 
-        public ITextBuffer AnchorBuffer {
-            get { throw new NotImplementedException(); }
-        }
+        public ITextBuffer AnchorBuffer => _trackingPoint.TextBuffer;
 
-        public IBufferGraph BufferGraph {
-            get { throw new NotImplementedException(); }
-        }
+        public IBufferGraph BufferGraph => _view.BufferGraph;
 
         public SnapshotPoint? GetInsertionPoint(Predicate<ITextBuffer> match) {
-            throw new NotImplementedException();
+            return BufferGraph.MapDownToInsertionPoint(
+                _trackingPoint.GetPoint(AnchorBuffer.CurrentSnapshot),
+                PointTrackingMode.Positive,
+                s => match(s.TextBuffer)
+            );
         }
 
         public SnapshotPoint? GetPoint(Predicate<ITextBuffer> match, PositionAffinity affinity) {
-            throw new NotImplementedException();
+            return BufferGraph.MapDownToFirstMatch(
+                _trackingPoint.GetPoint(AnchorBuffer.CurrentSnapshot),
+                PointTrackingMode.Positive,
+                s => match(s.TextBuffer),
+                affinity
+            );
         }
 
         public SnapshotPoint? GetPoint(ITextSnapshot targetSnapshot, PositionAffinity affinity) {

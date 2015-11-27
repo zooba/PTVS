@@ -30,6 +30,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Token[][] _tokens;
 
         private readonly string[] _lines;
+        private readonly string[] _states;
         private readonly int[] _lineStarts;
         private readonly PythonLanguageVersion _languageVersion;
         private readonly Encoding _encoding;
@@ -72,27 +73,25 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var tokenizer = new Tokenizer(languageVersion);
 
             var lines = new List<string>();
+            var states = new List<string>();
             var tokens = new List<Token[]>();
             var lineStarts = new List<int>() { 0 };
             string line;
             while ((line = await reader.ReadLineAsync()) != null) {
                 lines.Add(line);
+                states.Add(tokenizer.SerializeState());
                 var tok = tokenizer.GetTokens(line).ToArray();
                 tokens.Add(tok);
                 Debug.Assert(tok.Length > 0);
-                if (tok.Last().Is(TokenKind.NewLine)) {
-                    lineStarts.Add(tok.Last().Span.End.Index);
-                }
+                lineStarts.Add(tok.Last().Span.End.Index);
             }
-            if (tokens.Count == 0) {
-                lines.Add(string.Empty);
-                tokens.Add(tokenizer.GetRemainingTokens().ToArray());
-            } else {
-                tokens[tokens.Count - 1] = tokens.Last().Concat(tokenizer.GetRemainingTokens()).ToArray();
-            }
+            lines.Add(string.Empty);
+            states.Add(tokenizer.SerializeState());
+            tokens.Add(tokenizer.GetRemainingTokens().ToArray());
 
             return new Tokenization(
                 lines.ToArray(),
+                states.ToArray(),
                 tokens.ToArray(),
                 lineStarts.ToArray(),
                 languageVersion,
@@ -103,6 +102,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private Tokenization(
             string[] lines,
+            string[] states,
             Token[][] tokens,
             int[] lineStarts,
             PythonLanguageVersion languageVersion,
@@ -110,6 +110,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             object cookie
         ) {
             _lines = lines;
+            _states = states;
             _tokens = tokens;
             _lineStarts = lineStarts;
             _languageVersion = languageVersion;
@@ -252,7 +253,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         /// first token yielded is the last token on the line before line.
         /// </summary>
         public IEnumerable<Token> GetTokensEndingAtLineReversed(int line) {
-            for (line = Math.Min(line - 1, _tokens.Length); line > 0; --line) {
+            for (line = Math.Min(line - 1, _tokens.Length); line >= 0; --line) {
                 var t = _tokens[line];
                 for (int i = t.Length - 1; i >= 0; --i) {
                     yield return t[i];

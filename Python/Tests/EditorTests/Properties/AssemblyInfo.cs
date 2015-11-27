@@ -1,4 +1,4 @@
-﻿// Python Tools for Visual Studio
+// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -14,17 +14,10 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System;
-using System.ComponentModel.Composition;
-using Microsoft.VisualStudio.TextManager.Interop;
+using System.Reflection;
+using System.Runtime.InteropServices;
 
-namespace Microsoft.PythonTools.Editor {
-    [Export(typeof(IPythonEditorOptions))]
-    class PythonEditorOptions : IPythonEditorOptions {
-        public PythonEditorOptions() {
-            IndentMode = vsIndentStyle.vsIndentStyleSmart;
-        }
+[assembly: AssemblyTitle("EditorTests")]
+[assembly: AssemblyDescription("")]
 
-        public vsIndentStyle IndentMode { get; set; }
-    }
-}
+[assembly: ComVisible(false)]

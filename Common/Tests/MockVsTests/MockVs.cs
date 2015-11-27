@@ -39,6 +39,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
+using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudio.Utilities;
 using TestUtilities;
@@ -353,9 +354,11 @@ namespace Microsoft.VisualStudioTools.MockVsTests {
                 onCreate(res);
             }
 
-            var classifier = res.Classifier;
-            if (classifier != null) {
-                classifier.GetClassificationSpans(new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length));
+            if (!view.Properties.ContainsProperty(MockTextView.OmitClassifier)) {
+                var classifier = res.Classifier;
+                if (classifier != null) {
+                    classifier.GetClassificationSpans(new SnapshotSpan(buffer.CurrentSnapshot, 0, buffer.CurrentSnapshot.Length));
+                }
             }
 
             // Initialize code window
@@ -374,16 +377,30 @@ namespace Microsoft.VisualStudioTools.MockVsTests {
                 }
             }
 
-            // Initialize intellisense imports
-            var providers = Container.GetExports<IIntellisenseControllerProvider, IContentTypeMetadata>();
-            foreach (var provider in providers) {
-                foreach (var targetContentType in provider.Metadata.ContentTypes) {
-                    if (buffer.ContentType.IsOfType(targetContentType)) {
-                        provider.Value.TryCreateIntellisenseController(
-                            view,
-                            new[] { buffer }
-                        );
-                        break;
+            if (!view.Properties.ContainsProperty(MockTextView.OmitIntellisense)) {
+                // Initialize intellisense imports
+                var providers = Container.GetExports<IIntellisenseControllerProvider, IContentTypeMetadata>();
+                foreach (var provider in providers) {
+                    foreach (var targetContentType in provider.Metadata.ContentTypes) {
+                        if (buffer.ContentType.IsOfType(targetContentType)) {
+                            provider.Value.TryCreateIntellisenseController(
+                                view,
+                                new[] { buffer }
+                            );
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!view.Properties.ContainsProperty(MockTextView.OmitSmartIndent)) {
+                // Initialize smart indent imports
+                var providers = Container.GetExports<ISmartIndentProvider, IContentTypeMetadata>();
+                foreach (var provider in providers) {
+                    foreach (var targetContentType in provider.Metadata.ContentTypes) {
+                        if (buffer.ContentType.IsOfType(targetContentType)) {
+                            provider.Value.CreateSmartIndent(view);
+                        }
                     }
                 }
             }

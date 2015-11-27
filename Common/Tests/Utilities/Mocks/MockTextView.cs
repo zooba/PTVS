@@ -31,6 +31,9 @@ namespace TestUtilities.Mocks {
         private ITextViewModel _textViewModel;
 
         private static readonly ITextViewModel _notImplementedTextViewModel = new MockTextViewModel();
+        public static readonly object OmitClassifier = new object();
+        public static readonly object OmitIntellisense = new object();
+        public static readonly object OmitSmartIndent = new object();
 
         public MockTextView(ITextBuffer buffer) {
             _buffer = buffer;

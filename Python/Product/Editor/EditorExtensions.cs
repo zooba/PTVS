@@ -35,6 +35,21 @@ namespace Microsoft.PythonTools.Editor {
             return buffer.ContentType.IsOfType(ContentType.Name);
         }
 
+        internal static ISourceDocument GetDocument(this ITextBuffer buffer) {
+            ISourceDocument document;
+            return buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) ? document : null;
+        }
+
+        internal static PythonFileContext GetPythonFileContext(this ITextBuffer buffer) {
+            PythonFileContext context;
+            return buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context) ? context : null;
+        }
+
+        internal static PythonLanguageService GetAnalyzer(this ITextBuffer buffer) {
+            PythonLanguageService analyzer;
+            return buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer) ? analyzer : null;
+        }
+
         internal static async Task<Tokenization> GetTokenizationAsync(
             this ITextBuffer buffer,
             CancellationToken cancellationToken

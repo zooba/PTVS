@@ -80,6 +80,7 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
                     buffer.Properties[typeof(PythonFileContext)] = context = contexts.First();
                 }
             }
+            await context.AddDocumentsAsync(new[] { document }, cancellationToken);
 
             PythonLanguageService langService;
             if (!buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out langService)) {

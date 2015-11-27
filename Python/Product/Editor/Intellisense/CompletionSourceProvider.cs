@@ -83,9 +83,10 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
 
             private bool TriggerCompletion() {
                 //the caret must be in a non-projection location 
-                SnapshotPoint? caretPoint =
-                _textView.Caret.Position.Point.GetPoint(
-                textBuffer => (!textBuffer.ContentType.IsOfType("projection")), PositionAffinity.Predecessor);
+                SnapshotPoint? caretPoint = _textView.Caret.Position.Point.GetPoint(
+                    textBuffer => (!textBuffer.ContentType.IsOfType("projection")),
+                    PositionAffinity.Predecessor
+                );
                 if (!caretPoint.HasValue) {
                     return false;
                 }
@@ -124,7 +125,7 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
                     //check for a a selection 
                     if (_session != null && !_session.IsDismissed) {
                         //if the selection is fully selected, commit the current session 
-                        if (_session.SelectedCompletionSet.SelectionStatus.IsSelected) {
+                        if (_session.SelectedCompletionSet?.SelectionStatus.IsSelected ?? false) {
                             _session.Commit();
                             //also, don't add the character to the buffer 
                             return VSConstants.S_OK;
