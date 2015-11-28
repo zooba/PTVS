@@ -54,7 +54,8 @@
     <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="FileContextTest.cs" />
+    <Compile Include="AnalysisTests.cs" />
+    <Compile Include="FileContextTests.cs" />
     <Compile Include="ParserTests.cs" />
     <Compile Include="ParseStdLibTests.cs" />
     <Compile Include="PythonSourceStreamReaderTests.cs" />

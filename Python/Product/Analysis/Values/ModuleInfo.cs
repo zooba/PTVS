@@ -26,22 +26,16 @@ namespace Microsoft.PythonTools.Analysis.Values {
     public class ModuleInfo : AnalysisValue {
         public const string VariableName = "$module";
 
-        private string _moniker;
+        private readonly string _fullname, _name, _moniker;
 
-        public ModuleInfo() { }
+        public ModuleInfo(string fullname, string name, string moniker) : base(BuiltinTypes.Module) {
+            _fullname = fullname;
+            _name = name;
+            _moniker = moniker;
+        }
 
-        internal async Task ResolveAsync(
-            PythonLanguageService analyzer,
-            string importName,
-            string importingFromModule,
-            CancellationToken cancellationToken
-        ) {
-            var moniker = await analyzer.ResolveImportAsync(importName, importingFromModule, cancellationToken);
-            var prev = Interlocked.CompareExchange(ref _moniker, moniker, null);
-            if (prev != null) {
-                return;
-            }
-            
+        public override string ToAnnotation() {
+            return _fullname;
         }
     }
 }

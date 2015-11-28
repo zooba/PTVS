@@ -49,9 +49,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         public event EventHandler<SourceDocumentEventArgs> SourceDocumentAnalysisChanged;
 
-        public string ContextRoot {
-            get { return _contextRoot; }
-        }
+        public string ContextRoot => _contextRoot;
 
         public async Task AddDocumentsAsync(
             IReadOnlyCollection<ISourceDocument> inputFiles,

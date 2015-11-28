@@ -22,13 +22,13 @@ using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    public sealed class Variable {
+    sealed class Variable {
         private readonly AnalysisState _state;
         private readonly string _key;
         // TODO: Make this a set
         private readonly AnalysisDictionary<AnalysisValue, object> _types;
 
-        public Variable(AnalysisState state, string key) {
+        internal Variable(AnalysisState state, string key) {
             _state = state;
             _key = key;
             _types = new AnalysisDictionary<AnalysisValue, object>();

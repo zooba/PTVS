@@ -37,6 +37,22 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _contexts = new List<PythonFileContext>();
         }
 
+        public async Task<PythonFileContext> GetOrCreateContextAsync(
+            string root,
+            CancellationToken cancellationToken
+        ) {
+            using (await _contextsLock.WaitAsync(cancellationToken)) {
+                foreach (var c in _contexts) {
+                    if (c.ContextRoot == root) {
+                        return c;
+                    }
+                }
+                var context = new PythonFileContext(root, null);
+                _contexts.Add(context);
+                return context;
+            }
+        }
+
         public async Task<IReadOnlyCollection<PythonFileContext>> GetContextsForFileAsync(
             string workspaceLocation,
             string filePath,
@@ -78,7 +94,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             if (string.IsNullOrEmpty(workspaceLocation)) {
                 workspaceLocation = CommonUtils.GetParent(filePath);
             }
+
+            if (!Directory.Exists(workspaceLocation)) {
+                return null;
+            }
+
             await FindContextsAsync(workspaceLocation, null, cancellationToken);
+
             return await GetContextsForFileAsync(
                 workspaceLocation,
                 filePath,
@@ -112,7 +134,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             var contexts = new Dictionary<string, List<string>>();
             var contextMap = new Dictionary<string, List<string>>();
             var scan = new Queue<string>();
-            scan.Enqueue(workspaceLocation);
+
+            if (Directory.Exists(workspaceLocation)) {
+                scan.Enqueue(workspaceLocation);
+            }
+
             while (scan.Any()) {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -175,7 +201,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             CancellationToken cancellationToken
         ) {
             var contexts = await GetContextsAsync(workspaceLocation, progress, cancellationToken);
+            await AddContextsAsync(contexts, cancellationToken);
+        }
 
+        private async Task AddContextsAsync(
+            IEnumerable<PythonFileContext> contexts,
+            CancellationToken cancellationToken
+        ) {
             bool any = false;
             using (await _contextsLock.WaitAsync(cancellationToken)) {
                 foreach (var pfc in contexts) {

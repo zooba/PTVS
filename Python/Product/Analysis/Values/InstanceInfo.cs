@@ -20,9 +20,19 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
+using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    class InstanceInfo : AnalysisValue {
-        
+    public class InstanceInfo : AnalysisValue {
+        public InstanceInfo(AnalysisValue type) : base(type) {
+        }
+
+        public override string ToAnnotation() {
+            var ti = Type as TypeInfo;
+            if (ti != null) {
+                return ti.ToInstanceAnnotation();
+            }
+            return "object";
+        }
     }
 }

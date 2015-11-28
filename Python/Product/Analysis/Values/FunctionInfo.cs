@@ -24,6 +24,12 @@ using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     public class FunctionInfo : AnalysisValue {
-        public FunctionInfo(FunctionDefinition node) { }
+        public FunctionInfo(FunctionDefinition node) : base(BuiltinTypes.Function) { }
+
+        public override string ToAnnotation() {
+            return "Callable";
+        }
+
+
     }
 }

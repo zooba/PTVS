@@ -19,23 +19,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.PythonTools.Analysis.Analyzer;
-using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    public class ClassInfo : AnalysisValue {
-        private readonly ClassDefinition _node;
-        private readonly InstanceInfo _instance;
-
-        public ClassInfo(ClassDefinition node) : base(BuiltinTypes.Type) {
-            _node = node;
-            _instance = new InstanceInfo(this);
-        }
-
-        public InstanceInfo Instance => _instance;
-
-        public override string ToAnnotation() {
-            return _node.Name;
-        }
+    class NumberInfo : TypeInfo {
+        public NumberInfo(string name) : base(name) { }
     }
 }

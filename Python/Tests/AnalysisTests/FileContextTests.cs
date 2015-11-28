@@ -19,7 +19,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
@@ -27,12 +26,11 @@ using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Values;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.VisualStudioTools;
 using TestUtilities;
 
 namespace AnalysisTests {
     [TestClass]
-    public class FileContextTest {
+    public class FileContextTests {
         [ClassInitialize]
         public static void Initialize(TestContext context) {
             AssertListener.Initialize();
@@ -229,16 +227,16 @@ namespace AnalysisTests {
             var pfcp = new PythonFileContextProvider();
             var config = GetPythonConfig();
 
-            //using (var service = await lsp.GetServiceAsync(config, null, Cancel5s))
-            //using (var context = new PythonFileContext(@"C:\Root\", "")) {
-            //    await context.AddDocumentsAsync(new[] { doc1, doc2 }, Cancel5s);
-            //    await service.AddFileContextAsync(context, Cancel5s);
-            //
-            //    var names = await service.GetModuleMembersAsync(context, doc1.Moniker, null, Cancel5s);
-            //    AssertUtil.ContainsAtLeast(names, "x");
-            //    names = await service.GetModuleMembersAsync(context, doc2.Moniker, null, Cancel5s);
-            //    AssertUtil.ContainsAtLeast(names, "x");
-            //}
+            using (var service = await lsp.GetServiceAsync(config, null, Cancel5s))
+            using (var context = new PythonFileContext(@"C:\Root\", "")) {
+                await context.AddDocumentsAsync(new[] { doc1, doc2 }, Cancel5s);
+                await service.AddFileContextAsync(context, Cancel5s);
+            
+                var names = await service.GetModuleMembersAsync(context, doc1.Moniker, null, Cancel5s);
+                AssertUtil.ContainsAtLeast(names, "x");
+                names = await service.GetModuleMembersAsync(context, doc2.Moniker, null, Cancel5s);
+                AssertUtil.ContainsAtLeast(names, "x");
+            }
 
             var doc3 = new StringLiteralDocument("from stat import *", @"C:\Root\m3.py");
             using (var service = await lsp.GetServiceAsync(config, pfcp, Cancel5s))

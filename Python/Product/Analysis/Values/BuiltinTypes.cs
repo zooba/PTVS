@@ -14,28 +14,17 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.PythonTools.Analysis.Analyzer;
-using Microsoft.PythonTools.Analysis.Parsing.Ast;
-
 namespace Microsoft.PythonTools.Analysis.Values {
-    public class ClassInfo : AnalysisValue {
-        private readonly ClassDefinition _node;
-        private readonly InstanceInfo _instance;
+    static class BuiltinTypes {
+        public static readonly TypeInfo Type = new TypeInfo("type");
+        public static readonly TypeInfo Module = new TypeInfo("module");
+        public static readonly TypeInfo Function = new TypeInfo("function");
 
-        public ClassInfo(ClassDefinition node) : base(BuiltinTypes.Type) {
-            _node = node;
-            _instance = new InstanceInfo(this);
-        }
+        public static readonly TypeInfo NoneType = new TypeInfo("NoneType");
+        public static readonly AnalysisValue None = NoneType.Instance;
 
-        public InstanceInfo Instance => _instance;
-
-        public override string ToAnnotation() {
-            return _node.Name;
-        }
+        public static readonly TypeInfo Int = new NumberInfo("int");
+        public static readonly TypeInfo Float = new NumberInfo("float");
+        public static readonly TypeInfo Complex = new NumberInfo("complex");
     }
 }

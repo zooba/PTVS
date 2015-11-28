@@ -18,7 +18,7 @@ using System;
 using Microsoft.PythonTools.Analysis.Values;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
-    public sealed class VariableChangedEventArgs : EventArgs {
+    sealed class VariableChangedEventArgs : EventArgs {
         private readonly Variable _variable;
 
         public VariableChangedEventArgs(Variable variable) {

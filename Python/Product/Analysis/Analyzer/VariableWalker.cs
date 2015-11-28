@@ -17,6 +17,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -70,8 +71,18 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         public override bool Walk(AssignmentStatement node) {
             if (node.Targets != null) {
+                AnalysisValue type = BuiltinTypes.None;
+                var ce = node.Expression as ConstantExpression;
+                if (ce != null) {
+                    if (ce.Value is int || ce.Value is BigInteger) {
+                        type = BuiltinTypes.Int.Instance;
+                    } else if (ce.Value is double) {
+                        type = BuiltinTypes.Float.Instance;
+                    }
+                }
+
                 foreach (var n in node.Targets.OfType<NameExpression>()) {
-                    Add(n.Prefix + n.Name, null);
+                    Add(n.Prefix + n.Name, type);
                 }
             }
 

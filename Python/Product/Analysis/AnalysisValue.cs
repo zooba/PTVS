@@ -21,9 +21,22 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
+using Microsoft.PythonTools.Analysis.Values;
 
 namespace Microsoft.PythonTools.Analysis {
     public abstract class AnalysisValue {
-        
+        private readonly AnalysisValue _type;
+
+        public AnalysisValue(AnalysisValue type) {
+            _type = type;
+        }
+
+        public AnalysisValue Type => _type;
+
+        public abstract string ToAnnotation();
+
+        public virtual AnalysisValue GetAttribute(IAnalysisState state, string self, string key) {
+            return BuiltinTypes.None;
+        }
     }
 }

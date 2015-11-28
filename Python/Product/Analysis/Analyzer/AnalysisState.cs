@@ -26,7 +26,7 @@ using Microsoft.PythonTools.Analysis.Values;
 using System.Threading;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
-    public class AnalysisState : IAnalysisState {
+    class AnalysisState : IAnalysisState {
         private readonly PythonFileContext _context;
         private ISourceDocument _document;
 
