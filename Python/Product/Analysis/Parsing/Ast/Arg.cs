@@ -14,13 +14,10 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
-using System.Text;
-
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
-    public sealed class Arg : Node {
-        private Expression _name, _expression;
-        private bool _hasCommaAfterNode;
+    public sealed class Arg : ExpressionWithExpression {
+        private Expression _name;
+        private bool _hasComma;
 
         public Arg() { }
 
@@ -31,7 +28,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         protected override void OnFreeze() {
             base.OnFreeze();
             _name?.Freeze();
-            _expression?.Freeze();
         }
 
         public Expression NameExpression {
@@ -39,15 +35,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _name = value; }
         }
 
-        public Expression Expression {
-            get { return _expression; }
-            set { ThrowIfFrozen(); _expression = value; }
+        public bool HasComma {
+            get { return _hasComma; }
+            set { ThrowIfFrozen(); _hasComma = value; }
         }
 
-        public bool HasCommaAfterNode {
-            get { return _hasCommaAfterNode; }
-            set { ThrowIfFrozen(); _hasCommaAfterNode = value; }
-        }
+        internal override string CheckName => "argument";
 
         public override string ToString() {
             return base.ToString() + ":" + _name;
@@ -55,7 +48,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _expression?.Walk(walker);
+                base.Walk(walker);
             }
             walker.PostWalk(this);
         }

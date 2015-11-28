@@ -17,6 +17,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows.Media;
+using Microsoft.VisualStudio.Imaging;
+using Microsoft.VisualStudio.Imaging.Interop;
 using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Text;
 
@@ -26,9 +28,10 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
     /// A completion set using these as items needs to provide a filter that
     /// checks the Visible property.
     /// </summary>
-    public class DynamicallyVisibleCompletion : Completion {
+    public class DynamicallyVisibleCompletion : Completion3 {
         private Func<string> _lazyDescriptionSource;
-        private Func<ImageSource> _lazyIconSource;
+        private ImageMoniker _iconMoniker;
+        private Func<ImageMoniker> _lazyIconSource;
         private bool _visible, _previouslyVisible;
 
         /// <summary>
@@ -42,7 +45,7 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
         /// used both for display and insertion.
         /// </summary>
         public DynamicallyVisibleCompletion(string displayText)
-            : base(displayText) { }
+            : base(displayText, displayText, null, KnownMonikers.Field, "Unspecified") { }
 
         /// <summary>
         /// Initializes a new instance with the specified text and description.
@@ -56,10 +59,12 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
         /// <param name="iconSource">The icon.</param>
         /// <param name="iconAutomationText">The text to be used as the
         /// automation name for the icon.</param>
-        public DynamicallyVisibleCompletion(string displayText, string insertionText, string description, ImageSource iconSource, string iconAutomationText)
-            : base(displayText, insertionText, description, iconSource, iconAutomationText) { }
-        
-        
+        public DynamicallyVisibleCompletion(string displayText, string insertionText, string description, ImageMoniker iconMoniker, string iconAutomationText)
+            : base(displayText, insertionText, description, iconMoniker, iconAutomationText) {
+            _iconMoniker = iconMoniker;
+        }
+
+
         /// <summary>
         /// Initializes a new instance with the specified text, description and
         /// a lazily initialized icon.
@@ -70,14 +75,15 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
         /// the buffer if this completion is committed.</param>
         /// <param name="lazyDescriptionSource">A function returning the
         /// description.</param>
-        /// <param name="lazyIconSource">A function returning the icon. It will
+        /// <param name="lazyIconMoniker">A function returning the icon. It will
         /// be called once and the result is cached.</param>
         /// <param name="iconAutomationText">The text to be used as the
         /// automation name for the icon.</param>
-        public DynamicallyVisibleCompletion(string displayText, string insertionText, Func<string> lazyDescriptionSource, Func<ImageSource> lazyIconSource, string iconAutomationText)
-            : base(displayText, insertionText, null, null, iconAutomationText) {
+        public DynamicallyVisibleCompletion(string displayText, string insertionText, Func<string> lazyDescriptionSource, Func<ImageMoniker> lazyIconMoniker, string iconAutomationText)
+            : base(displayText, insertionText, null, KnownMonikers.Loading, iconAutomationText) {
             _lazyDescriptionSource = lazyDescriptionSource;
-            _lazyIconSource = lazyIconSource;
+            _iconMoniker = KnownMonikers.Loading;
+            _lazyIconSource = lazyIconMoniker;
         }
 
         /// <summary>
@@ -131,16 +137,13 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
         /// Gets or sets an icon that could be used to describe the completion.
         /// </summary>
         /// <value>The icon.</value>
-        public override ImageSource IconSource {
+        public override ImageMoniker IconMoniker {
             get {
-                if (base.IconSource == null && _lazyIconSource != null) {
-                    base.IconSource = _lazyIconSource();
+                if (_lazyIconSource != null) {
+                    _iconMoniker = _lazyIconSource();
                     _lazyIconSource = null;
                 }
-                return base.IconSource;
-            }
-            set {
-                base.IconSource = value;
+                return _iconMoniker;
             }
         }
     }

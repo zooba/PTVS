@@ -52,7 +52,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         internal override void CheckAssign(Parser parser) {
             for (int i = 0; i < Count; i++) {
                 var item = Items[i];
-                if (i + 1 < Count || !IsNullOrEmpty(item)) {
+                if (i + 1 < Count || !item.IsExpressionEmpty) {
                     item.CheckAssign(parser);
                 }
             }
@@ -61,7 +61,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         internal override void CheckDelete(Parser parser) {
             for (int i = 0; i < Count; i++) {
                 var item = Items[i];
-                if (i + 1 < Count || !IsNullOrEmpty(item)) {
+                if (i + 1 < Count || !item.IsExpressionEmpty) {
                     item.CheckDelete(parser);
                 }
             }

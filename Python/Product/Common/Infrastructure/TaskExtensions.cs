@@ -46,6 +46,19 @@ namespace Microsoft.PythonTools.Infrastructure {
         }
 
         /// <summary>
+        /// Waits for a task to complete. If an exception occurs, the exception
+        /// will be raised without being wrapped in a
+        /// <see cref="AggregateException"/>.
+        /// </summary>
+        public static T WaitAndUnwrapExceptions<T>(this Task<T> task, Func<T> onCancel) {
+            try {
+                return task.GetAwaiter().GetResult();
+            } catch (OperationCanceledException) {
+                return onCancel();
+            }
+        }
+
+        /// <summary>
         /// Silently handles the specified exception.
         /// </summary>
         public static Task SilenceException<T>(this Task task) where T : Exception {

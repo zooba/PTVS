@@ -18,12 +18,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Parsing {
@@ -1027,35 +1024,45 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var start = Peek.Span.Start;
             var targets = new List<SequenceItemExpression>();
 
+            var ws = ReadWhitespace();
+            var expr = HasStarUnpacking ? ParseStarName() : ParsePrimaryWithTrailers();
+            Debug.Assert(expr.BeforeNode.Length == 0, "Should not have read leading whitespace");
+            expr.BeforeNode = ws;
+
+            var ne = expr as NameExpression ?? (expr as StarredExpression)?.Expression as NameExpression;
+            if (ne != null) {
+                CurrentScope?.AddLocalDefinition(ne.Name);
+            }
+
+            if (!Peek.Is(TokenKind.Comma) && !alwaysTuple) {
+                return WithCommentAndWhitespace(expr);
+            }
+
             while (true) {
-                var ws = ReadWhitespace();
-                var expr = HasStarUnpacking ? ParseStarName() : ParsePrimaryWithTrailers();
-                Debug.Assert(expr.BeforeNode.Length == 0, "Should not have read leading whitespace");
-                expr.BeforeNode = ws;
-                expr.Freeze();
-
-                var ne = expr as NameExpression ?? (expr as StarredExpression)?.Expression as NameExpression;
-                if (ne != null) {
-                    CurrentScope?.AddLocalDefinition(ne.Name);
-                }
-
-                bool hasComma = TryRead(TokenKind.Comma);
-                if (!Expression.IsNullOrEmpty(expr) && !hasComma) {
-                    if (targets.Count == 0 && !alwaysTuple) {
-                        return expr;
-                    }
-                }
-
                 var item = WithCommentAndWhitespace(new SequenceItemExpression {
                     Expression = expr,
                     Span = expr.Span,
-                    HasComma = hasComma
+                    HasComma = TryRead(TokenKind.Comma)
                 });
+
+                if (item.IsExpressionEmpty && !item.HasComma) {
+                    break;
+                }
 
                 targets.Add(item);
 
-                if (!item.IsExpressionEmpty && !item.HasComma) {
+                if (!item.HasComma) {
                     break;
+                }
+
+                ws = ReadWhitespace();
+                expr = HasStarUnpacking ? ParseStarName() : ParsePrimaryWithTrailers();
+                Debug.Assert(expr.BeforeNode.Length == 0, "Should not have read leading whitespace");
+                expr.BeforeNode = ws;
+
+                ne = expr as NameExpression ?? (expr as StarredExpression)?.Expression as NameExpression;
+                if (ne != null) {
+                    CurrentScope?.AddLocalDefinition(ne.Name);
                 }
             }
             var tuple = WithCommentAndWhitespace(new TupleExpression {
@@ -1090,24 +1097,24 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             });
             tuple.AddItem(item);
 
-            while (item.HasComma) {
+            while (true) {
                 expr = ParseSingleExpression(
                     allowIfExpr: allowIfExpr,
                     allowSlice: allowSlice,
                     allowGenerator: allowGenerator
                 );
-                if (Expression.IsNullOrEmpty(expr)) {
-                    break;
-                }
-                item = WithCommentAndWhitespace(new SequenceItemExpression {
+                item = new SequenceItemExpression {
                     Expression = expr,
                     Span = expr.Span,
                     HasComma = TryRead(TokenKind.Comma)
-                });
-                tuple.AddItem(item);
+                };
+                if (item.IsExpressionEmpty && !item.HasComma) {
+                    break;
+                }
+                tuple.AddItem(WithCommentAndWhitespace(item));
             }
 
-            tuple.Span = new SourceSpan(start, expr.Span.End);
+            tuple.Span = new SourceSpan(start, tuple.Items[tuple.Count - 1].Span.End);
             tuple.Freeze();
             return tuple;
         }
@@ -1138,7 +1145,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 condExpr.Expression = ParseSingleExpression();
                 Read(TokenKind.KeywordElse);
                 condExpr.FalseExpression = ParseSingleExpression();
-                condExpr.Span = new SourceSpan(expr.Span.Start, Current.Span.End);
+                condExpr.Span = new SourceSpan(expr.Span.Start, condExpr.FalseExpression.Span.End);
                 expr = condExpr;
             }
 
@@ -1192,14 +1199,17 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             });
             tuple.AddItem(item);
 
-            while (item.IsExpressionEmpty || item.HasComma) {
+            while (!item.IsExpressionEmpty || item.HasComma) {
                 expr = ParseSingleAsExpression();
-                item = WithCommentAndWhitespace(new SequenceItemExpression {
+                item = new SequenceItemExpression {
                     Expression = expr,
                     Span = expr.Span,
                     HasComma = TryRead(TokenKind.Comma)
-                });
-                tuple.AddItem(item);
+                };
+                if (item.IsExpressionEmpty && !item.HasComma) {
+                    break;
+                }
+                tuple.AddItem(WithCommentAndWhitespace(item));
             }
 
             tuple.Span = new SourceSpan(start, expr.Span.End);
@@ -1337,10 +1347,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var args = new List<Arg>();
             var names = new HashSet<string>();
 
-            while (!Peek.Is(closing) && !Peek.Is(TokenKind.EndOfFile)) {
-                var a = new Arg();
-
+            while (true) {
+                Expression nameExpr = null;
                 var expr = ParseSingleExpression(allowSlice: allowSlice);
+                var start = expr.Span.Start;
 
                 if (allowNames && TryRead(TokenKind.Assign)) {
                     var name = (expr as NameExpression)?.Name;
@@ -1349,20 +1359,28 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     } else if (!names.Add(name)) {
                         ReportError("keyword argument repeated", expr.Span);
                     }
-                    a.NameExpression = expr;
-                    a.Expression = ParseSingleExpression(allowSlice: allowSlice);
-                } else {
-                    a.Expression = expr;
+                    nameExpr = expr;
+                    expr = ParseSingleExpression(allowSlice: allowSlice);
                 }
 
-                a.Span = new SourceSpan(expr.Span.Start, Current.Span.End);
-                MaybeReadComment(a);
-                a.HasCommaAfterNode = TryRead(TokenKind.Comma);
+                bool hasComma = TryRead(TokenKind.Comma);
+                if (nameExpr == null && Expression.IsNullOrEmpty(expr) && !hasComma) {
+                    break;
+                }
+
+                var a = WithCommentAndWhitespace(new Arg {
+                    Expression = expr,
+                    NameExpression = nameExpr,
+                    HasComma = hasComma
+                });
+
+
+                a.Span = new SourceSpan(start, expr.Span.End);
                 a.Freeze();
 
                 if (Expression.IsNullOrEmpty(a.Expression) &&
                     a.Comment == null &&
-                    !a.HasCommaAfterNode) {
+                    !a.HasComma) {
                     break;
                 }
 
@@ -1731,9 +1749,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     // pass
                 } else if (!HasExecStatement && Peek.Is(TokenKind.KeywordExec)) {
                     // pass
-                } else if (Peek.IsAny(TokenUsage.EndGroup, TokenUsage.EndStatement) ||
+                } else if (Peek.IsAny(TokenUsage.Assignment, TokenUsage.EndGroup, TokenUsage.EndStatement) ||
                     Peek.Is(TokenCategory.Delimiter) ||
-                    Peek.IsAny(TokenKind.Assign, TokenKind.Comment)
+                    Peek.IsAny(TokenKind.Comment)
                 ) {
                     return new EmptyExpression {
                         Span = new SourceSpan(Peek.Span.Start, Peek.Span.Start)
@@ -2153,20 +2171,21 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             var list = new ListExpression();
             while (true) {
-                var item = WithCommentAndWhitespace(new SequenceItemExpression {
+                var item = new SequenceItemExpression {
                     Expression = expr,
                     Span = expr.Span,
                     HasComma = TryRead(TokenKind.Comma)
-                });
-                list.AddItem(item);
-
-                if (TryRead(TokenKind.RightBracket)) {
-                    list.Span = new SourceSpan(start, Current.Span.End);
-                    return WithCommentAndWhitespace(list);
+                };
+                if (item.IsExpressionEmpty && !item.HasComma) {
+                    break;
                 }
-
+                list.AddItem(WithCommentAndWhitespace(item));
                 expr = ParseSingleExpression(allowGenerator: false, allowSlice: true);
             }
+
+            Read(TokenKind.RightBracket);
+            list.Span = new SourceSpan(start, Current.Span.End);
+            return WithCommentAndWhitespace(list);
         }
 
         private Expression ParseDictOrSetLiteralOrComprehension() {
@@ -2219,15 +2238,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             };
 
             while (true) {
-                var item = WithCommentAndWhitespace(new SequenceItemExpression {
+                var item = new SequenceItemExpression {
                     Expression = expr,
                     HasComma = TryRead(TokenKind.Comma)
-                });
-                dict.AddItem(item);
-
-                if (Peek.Is(TokenKind.RightBrace)) {
-                    return dict;
+                };
+                if (item.IsExpressionEmpty && !item.HasComma) {
+                    break;
                 }
+                dict.AddItem(WithCommentAndWhitespace(item));
 
                 var prevStart = expr.Span.Start;
                 expr = ParseSingleExpression(allowGenerator: false, allowSlice: true);
@@ -2236,6 +2254,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     ReportError(errorAt: expr.Span);
                 }
             }
+
+            // Don't read the closing brace or comments here
+            return dict;
         }
 
         private Expression ParseSetLiteralOrComprehension(Expression expr, CommentExpression firstComment) {
@@ -2260,24 +2281,28 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var start = expr.Span.Start;
 
             while (true) {
-                var item = WithCommentAndWhitespace(new SequenceItemExpression {
+                var item = new SequenceItemExpression {
                     Expression = expr,
                     HasComma = TryRead(TokenKind.Comma)
-                });
-                set.AddItem(item);
-
-                if (Peek.Is(TokenKind.RightBrace) || Peek.Is(TokenUsage.EndStatement)) {
-                    if (!HasSetLiterals) {
-                        ReportError(
-                            "invalid syntax, set literals require Python 2.7 or later",
-                            new SourceSpan(start, Current.Span.End)
-                        );
-                    }
-                    return set;
+                };
+                if (item.IsExpressionEmpty && !item.HasComma) {
+                    break;
                 }
-
+                set.AddItem(WithCommentAndWhitespace(item));
                 expr = ParseSingleExpression(allowGenerator: false, allowSlice: true);
             }
+
+            if (Peek.Is(TokenKind.RightBrace) || Peek.Is(TokenUsage.EndStatement)) {
+                if (!HasSetLiterals) {
+                    ReportError(
+                        "invalid syntax, set literals require Python 2.7 or later",
+                        new SourceSpan(start, Current.Span.End)
+                    );
+                }
+            }
+
+            // Don't read the closing brace or comments here
+            return set;
         }
 
         private List<ComprehensionIterator> ReadComprehension() {

@@ -47,10 +47,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Infrastructure\CancellationTokens.cs" />
     <Compile Include="Infrastructure\CommonUtils.cs" />
     <Compile Include="Infrastructure\EnumerableExtensions.cs" />
     <Compile Include="Infrastructure\ExceptionExtensions.cs" />
     <Compile Include="Infrastructure\AsyncMutex.cs" />
+    <Compile Include="Infrastructure\NativeMethods.COM.cs" />
     <Compile Include="Infrastructure\ProcessOutput.cs" />
     <Compile Include="Infrastructure\PythonToolsInstallPath.cs" />
     <Compile Include="Infrastructure\TaskExtensions.cs" />

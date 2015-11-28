@@ -62,7 +62,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         Name = 0x06 | TokenUsage.Primary | TokenCategory.Identifier,
         Ellipsis = 0x07 | TokenUsage.Primary | TokenCategory.Identifier,
         Arrow = 0x08 | TokenCategory.Operator,
-        Dot = 0x09 | TokenCategory.Identifier,
+        Dot = 0x09 | TokenCategory.None,
         ExplicitLineJoin = 0x0A | TokenUsage.None | TokenCategory.Operator,
 
         Add = 0x10 | TokenUsage.BinaryOrUnaryOperator | TokenCategory.Operator,
@@ -203,6 +203,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         public static bool IsAny(this Token token, TokenUsage use1, TokenUsage use2) {
             var u = token.Kind.GetUsage();
             return u == use1 || u == use2;
+        }
+
+        public static bool IsAny(this Token token, TokenUsage use1, TokenUsage use2, TokenUsage use3) {
+            var u = token.Kind.GetUsage();
+            return u == use1 || u == use2 || u == use3;
         }
 
         public static bool IsAny(this Token token, params TokenKind[] kinds) {

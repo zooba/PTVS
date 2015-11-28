@@ -73,29 +73,15 @@ namespace Microsoft.PythonTools.Editor {
             var buffer = snapshot.TextBuffer;
             var version = snapshot.Version;
 
-            ISourceDocument document;
-            PythonFileContext context;
-            PythonLanguageService analyzer;
-
-            if (!buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) ||
-                !buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context) ||
-                !buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer)) {
+            var tokenization = await snapshot.GetTokenizationAsync(cancellationToken);
+            if (tokenization == null) {
                 return false;
             }
-
-            var item = await analyzer.GetItemTokenAsync(context, document.Moniker, false, cancellationToken);
-            if (item == null) {
-                return false;
-            }
-
-            await analyzer.WaitForUpdateAsync(item, cancellationToken);
 
             //var start = e.Changes.Min(c => c.NewSpan.Start);
             //var end = e.Changes.Max(c => c.NewSpan.End);
             //var span = new SnapshotSpan(e.After, start, end - start);
             var span = new SnapshotSpan(snapshot, 0, snapshot.Length);
-
-            var tokenization = await analyzer.GetTokenizationAsync(item, cancellationToken);
 
             var newClassifications = new List<ClassificationSpan>();
             foreach (var token in tokenization.AllTokens) {

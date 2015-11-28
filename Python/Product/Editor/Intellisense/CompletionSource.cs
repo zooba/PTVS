@@ -1,16 +1,18 @@
-﻿/* ****************************************************************************
- *
- * Copyright (c) Microsoft Corporation. 
- *
- * This source code is subject to terms and conditions of the Apache License, Version 2.0. A 
- * copy of the license can be found in the License.html file at the root of this distribution. If 
- * you cannot locate the Apache License, Version 2.0, please send an email to 
- * vspython@microsoft.com. By using this source code in any fashion, you are agreeing to be bound 
- * by the terms of the Apache License, Version 2.0.
- *
- * You must not remove this notice, or any other, from this software.
- *
- * ***************************************************************************/
+﻿// Python Tools for Visual Studio
+// Copyright(c) Microsoft Corporation
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the License); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+// OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+// IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+// MERCHANTABLITY OR NON-INFRINGEMENT.
+//
+// See the Apache Version 2.0 License for specific language governing
+// permissions and limitations under the License.
 
 using System;
 using System.Collections.Generic;
@@ -24,54 +26,81 @@ using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
+using Microsoft.PythonTools.Common.Infrastructure;
+using Microsoft.VisualStudio.Imaging;
 
 namespace Microsoft.PythonTools.Editor.Intellisense {
-    class CompletionSource : ICompletionSource {
-        private readonly ITextBuffer _textBuffer;
-        private readonly CompletionSourceProvider _provider;
+    class CompletionContent {
+        private readonly CompletionSet _set;
 
-        public CompletionSource(CompletionSourceProvider provider, ITextBuffer textBuffer) {
-            _textBuffer = textBuffer;
-            _provider = provider;
+        public CompletionSet Set => _set;
+
+        private CompletionContent(CompletionSet set) {
+            _set = set;
         }
 
+        public static async Task<bool> CreateAsync(ITrackingPoint trigger, CancellationToken cancellationToken) {
+            var textBuffer = trigger.TextBuffer;
+            var snapshot = textBuffer.CurrentSnapshot;
+            var span = await trigger.GetApplicableSpanAsync(snapshot, true, cancellationToken);
 
-        private static SnapshotSpan GetApplicableSpan(IIntellisenseSession session, ITextSnapshot snapshot) {
-            var triggerPoint = session.GetTriggerPoint(snapshot.TextBuffer);
+            var applicableToSpan = snapshot.CreateTrackingSpan(
+                span.Start.Position,
+                span.Length,
+                SpanTrackingMode.EdgeInclusive
+            );
 
-            var point = triggerPoint.GetPoint(snapshot);
-            var lineStart = point.GetContainingLine().Start;
-
-            var text = snapshot.GetText(lineStart, point - lineStart);
-            var pos = text.LastIndexOf(' ') + 1;
-
-            return new SnapshotSpan(lineStart + pos, point);
-        }
-
-        public void AugmentCompletionSession(ICompletionSession session, IList<CompletionSet> completionSets) {
-            var textBuffer = _textBuffer;
-            PythonLanguageService langService;
-            if (!textBuffer.Properties.TryGetProperty(typeof(PythonLanguageService), out langService)) {
-                return;
+            var analyzer = textBuffer.GetAnalyzer();
+            if (analyzer == null) {
+                return false;
             }
 
-            var snapshot = textBuffer.CurrentSnapshot;
-            var span = GetApplicableSpan(session, snapshot);
-            
-            var names = langService.GetImportableModulesAsync("", "", CancellationToken.None).GetAwaiter().GetResult();
-            var completions = names.Select(n => new DynamicallyVisibleCompletion(n.Key));
+            IReadOnlyDictionary<string, string> names = null;
+            try {
+                names = await analyzer.GetImportableModulesAsync("", "", CancellationTokens.After500ms);
+            } catch (OperationCanceledException) {
+                return false;
+            }
+            if (names == null) {
+                return false;
+            }
+            var completions = names.Select(n => new DynamicallyVisibleCompletion(
+                n.Key, n.Key, n.Key, KnownMonikers.Module, "Module"
+            ));
 
-            completionSets.Add(new FuzzyCompletionSet(
+            var set = new FuzzyCompletionSet(
                 "PythonImports",
                 "Imports",
-                snapshot.CreateTrackingSpan(span, SpanTrackingMode.EdgeInclusive),
+                applicableToSpan,
                 completions,
                 new CompletionOptions(),
                 Comparer<Completion>.Create((x, y) => x.DisplayText.CompareTo(y.DisplayText))
-            ));
+            );
+
+            trigger.TextBuffer.Properties[typeof(CompletionContent)] = new CompletionContent(set);
+            return true;
+        }
+    }
+
+    class CompletionSource : ICompletionSource {
+        private readonly ITextBuffer _textBuffer;
+
+        public CompletionSource(ITextBuffer textBuffer) {
+            _textBuffer = textBuffer;
         }
 
-        public void Dispose() {
+        public void AugmentCompletionSession(ICompletionSession session, IList<CompletionSet> completionSets) {
+            CompletionContent content;
+            if (_textBuffer.Properties.TryGetProperty(typeof(CompletionContent), out content)) {
+                _textBuffer.Properties.RemoveProperty(typeof(CompletionContent));
+            }
+            if (content == null) {
+                return;
+            }
+
+            completionSets.Add(content.Set);
         }
+
+        public void Dispose() { }
     }
 }

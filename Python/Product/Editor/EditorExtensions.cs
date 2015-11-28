@@ -22,6 +22,8 @@ using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
+using Microsoft.PythonTools.Infrastructure;
+using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 
@@ -54,17 +56,63 @@ namespace Microsoft.PythonTools.Editor {
             this ITextBuffer buffer,
             CancellationToken cancellationToken
         ) {
-            ISourceDocument document;
-            PythonFileContext context;
-            PythonLanguageService analyzer;
+            ISourceDocument document = null;
+            PythonFileContext context = null;
+            PythonLanguageService analyzer = null;
 
-            if (!buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) ||
-                !buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context) ||
-                !buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer)) {
+            for (int retries = 5; retries > 0; --retries) {
+                if (buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) &&
+                    buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context) &&
+                    buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer)) {
+                    break;
+                }
+                // Probably still initializing - we'll come back to this shortly
+                await Task.Delay(100);
+            }
+            if (document == null || context == null || analyzer == null) {
                 return null;
             }
 
             return await analyzer.GetTokenizationAsync(context, document.Moniker, cancellationToken);
+        }
+
+        internal static async Task<Tokenization> GetTokenizationAsync(
+            this ITextSnapshot snapshot,
+            CancellationToken cancellationToken
+        ) {
+            var buffer = snapshot.TextBuffer;
+            ISourceDocument document = null;
+            PythonFileContext context = null;
+            PythonLanguageService analyzer = null;
+
+            for (int retries = 5; retries > 0; --retries) {
+                if (buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) &&
+                    buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context) &&
+                    buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer)) {
+                    break;
+                }
+                // Probably still initializing - we'll come back to this shortly
+                await Task.Delay(100);
+            }
+            if (document == null || context == null || analyzer == null) {
+                return null;
+            }
+
+            var tokenization = await analyzer.GetTokenizationAsync(context, document.Moniker, cancellationToken);
+            if ((tokenization.Cookie as ITextSnapshot ?? snapshot) == snapshot) {
+                return tokenization;
+            }
+            var itemToken = analyzer.GetItemTokenAsync(context, document.Moniker, true, cancellationToken);
+            try {
+                await analyzer.WaitForUpdateAsync(itemToken, CancellationTokens.After100ms);
+                tokenization = await analyzer.GetTokenizationAsync(itemToken, cancellationToken);
+                if ((tokenization?.Cookie as ITextSnapshot) == snapshot) {
+                    return tokenization;
+                }
+            } catch (OperationCanceledException) {
+            }
+
+            return await Tokenization.TokenizeAsync(document, analyzer.Configuration.Version, cancellationToken);
         }
 
         internal static async Task<PythonAst> GetAstAsync(
@@ -84,6 +132,56 @@ namespace Microsoft.PythonTools.Editor {
             return await analyzer.GetAstAsync(context, document.Moniker, cancellationToken);
         }
 
+        public static Task<SnapshotSpan> GetApplicableSpanAsync(
+            this ITrackingPoint trigger,
+            ITextSnapshot snapshot,
+            bool toEndOfToken,
+            CancellationToken cancellationToken
+        ) {
+            return trigger.GetApplicableSpanAsync(
+                snapshot,
+                toEndOfToken,
+                DefaultApplicableSpanPredicate,
+                cancellationToken
+            );
+        }
+
+        public static async Task<SnapshotSpan> GetApplicableSpanAsync(
+            this ITrackingPoint trigger,
+            ITextSnapshot snapshot,
+            bool toEndOfToken,
+            Func<Token, bool> predicate,
+            CancellationToken cancellationToken
+        ) {
+            var tokenization = await snapshot.GetTokenizationAsync(cancellationToken);
+
+            var point = trigger.GetPoint(snapshot);
+            int position = point.Position;
+
+            foreach (var token in tokenization.GetLineByIndex(position)) {
+                if (token.Span.End.Index < position || token.Span.Length == 0) {
+                    // Definitely not this token
+                    continue;
+                } else if (predicate != null && !predicate(token)) {
+                    // Not this token
+                    continue;
+                } else if (token.Span.Start.Index > position) {
+                    // No tokens anywhere
+                    break;
+                }
+
+                return new SnapshotSpan(
+                    snapshot,
+                    Span.FromBounds(token.Span.Start.Index, toEndOfToken ? token.Span.End.Index : position)
+                );
+            }
+
+            return new SnapshotSpan(snapshot, position, 0);
+        }
+
+        public static bool DefaultApplicableSpanPredicate(Token token) {
+            return token.Is(TokenCategory.Identifier);
+        }
 
         /*public static bool CommentOrUncommentBlock(this ITextView view, bool comment) {
             SnapshotPoint start, end;

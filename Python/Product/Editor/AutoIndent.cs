@@ -261,22 +261,7 @@ namespace Microsoft.PythonTools.Editor {
             IEditorOptions options,
             CancellationToken cancellationToken
         ) {
-            var textBuffer = line.Snapshot.TextBuffer;
-            var document = textBuffer.GetDocument();
-            var context = textBuffer.GetPythonFileContext();
-            var analyzer = textBuffer.GetAnalyzer();
-
-            var itemToken = await analyzer.GetItemTokenAsync(context, document.Moniker, false, cancellationToken);
-            var tokenization = await analyzer.GetTokenizationAsync(itemToken, cancellationToken);
-
-            // Snapshot does not match, so we need to retokenize the document
-            if ((tokenization?.Cookie as ITextSnapshot) != line.Snapshot) {
-                tokenization = await Tokenization.TokenizeAsync(
-                    document,
-                    analyzer.Configuration.Version,
-                    cancellationToken
-                );
-            }
+            var tokenization = await line.Snapshot.GetTokenizationAsync(cancellationToken);
 
             return tokenization == null ? null : await CalculateIndentationAsync(
                 tokenization,
