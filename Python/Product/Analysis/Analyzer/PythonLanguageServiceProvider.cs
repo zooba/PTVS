@@ -29,14 +29,21 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
     public sealed class PythonLanguageServiceProvider : IDisposable {
         private readonly PathSet<PythonLanguageService> _services;
         private readonly AsyncMutex _servicesLock = new AsyncMutex();
+        private bool _isDisposed;
 
         public PythonLanguageServiceProvider() {
             _services = new PathSet<PythonLanguageService>(null);
         }
 
         public void Dispose() {
+            if (_isDisposed) {
+                return;
+            }
+            _isDisposed = true;
+
             using (_servicesLock.WaitAndDispose(1000)) {
-                foreach (var v in _services.GetValues()) {
+                var toDispose = _services.GetValues().ToArray();
+                foreach (var v in toDispose) {
                     v.Dispose();
                 }
             }
@@ -47,6 +54,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             PythonFileContextProvider fileContextProvider,
             CancellationToken cancellationToken
         ) {
+            if (_isDisposed) {
+                return null;
+            }
+
             using (await _servicesLock.WaitAsync(cancellationToken)) {
                 PythonLanguageService service;
                 if (!_services.TryGetValue(config.InterpreterPath, out service) || !service.AddReference()) {
@@ -68,6 +79,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         internal async Task RemoveAsync(PythonLanguageService service, CancellationToken cancellationToken) {
+            if (_isDisposed) {
+                return;
+            }
+
             using (await _servicesLock.WaitAsync(cancellationToken)) {
                 _services.Remove(service.Configuration.InterpreterPath);
             }

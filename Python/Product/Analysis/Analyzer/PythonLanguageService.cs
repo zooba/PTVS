@@ -589,6 +589,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         syncContext.RunNext(thread._cancel);
                     }
                 } catch (OperationCanceledException) {
+                } catch (ObjectDisposedException) {
                 } catch (Exception ex) when (!ex.IsCriticalException()) {
                     Debug.Fail(ex.ToString());
                     thread._edi = ExceptionDispatchInfo.Capture(ex);

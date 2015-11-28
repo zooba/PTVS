@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Analyzer;
@@ -55,7 +56,12 @@ namespace AnalysisTests {
 
         [TestMethod, Priority(0)]
         public async Task AssignNumber() {
-            var state = await AnalyzeAsync("x = 0\n\nif True:\n    y = 1.0\ndef h(): z = 2");
+            var state = await AnalyzeAsync(@"x = 0
+if True:
+    y = 1.0
+
+def h():
+    z = 2", CancellationTokens.After5s);
             var x = await state.GetTypesAsync("x", CancellationTokens.After5s);
             AssertAnnotations(x, "int");
             var y = await state.GetTypesAsync("y", CancellationTokens.After5s);
@@ -66,7 +72,11 @@ namespace AnalysisTests {
 
         [TestMethod, Priority(0)]
         public async Task Functions() {
-            var state = await AnalyzeAsync("def f(): pass\n\nif True:\n    def g():\n        def h(): pass");
+            var state = await AnalyzeAsync(@"def f(): pass
+
+if True:
+    def g():
+        def h(): pass", CancellationTokens.After5s);
             var f = await state.GetTypesAsync("f", CancellationTokens.After5s);
             AssertAnnotations(f, "Callable");
             var g = await state.GetTypesAsync("g", CancellationTokens.After5s);
@@ -77,7 +87,11 @@ namespace AnalysisTests {
 
         [TestMethod, Priority(0)]
         public async Task Classes() {
-            var state = await AnalyzeAsync("class A: pass\n\nif True:\n    class B(object):\n        def h(): pass");
+            var state = await AnalyzeAsync(@"class A: pass
+
+if True:
+    class B(object):
+        def h(): pass", CancellationTokens.After5s);
             var f = await state.GetTypesAsync("A", CancellationTokens.After5s);
             AssertAnnotations(f, "A");
             var g = await state.GetTypesAsync("B", CancellationTokens.After5s);
@@ -95,35 +109,44 @@ namespace AnalysisTests {
             }
         }
 
-        private async Task<AnalysisState> AnalyzeAsync(ISourceDocument document, InterpreterConfiguration config = null) {
+        private async Task<AnalysisState> AnalyzeAsync(
+            ISourceDocument document,
+            CancellationToken cancellationToken,
+            InterpreterConfiguration config = null
+        ) {
             config = config ?? Configuration;
             var analyzer = await LanguageServiceProvider.GetServiceAsync(
                 config,
                 FileContextProvider,
-                CancellationTokens.After5s
+                cancellationToken
             );
             var context = await FileContextProvider.GetOrCreateContextAsync(
                 "Tests",
-                CancellationTokens.After5s
+                cancellationToken
             );
 
-            await context.AddDocumentsAsync(new[] { document }, CancellationTokens.After5s);
-            await analyzer.AddFileContextAsync(context, CancellationTokens.After5s);
+            await context.AddDocumentsAsync(new[] { document }, cancellationToken);
+            await analyzer.AddFileContextAsync(context, cancellationToken);
 
             return await analyzer.GetAnalysisStateAsync(
                 context,
                 document.Moniker,
                 false,
-                CancellationTokens.After5s
+                cancellationToken
             );
         }
 
         private Task<AnalysisState> AnalyzeAsync(
             string code,
+            CancellationToken cancellationToken,
             InterpreterConfiguration config = null,
             [CallerMemberName] string filename = null
         ) {
-            return AnalyzeAsync(new StringLiteralDocument(code, "Tests\\" + filename), config);
+            return AnalyzeAsync(
+                new StringLiteralDocument(code, "Tests\\" + filename + ".py"),
+                cancellationToken,
+                config
+            );
         }
     }
 
