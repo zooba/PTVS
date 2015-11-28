@@ -33,9 +33,17 @@ namespace Microsoft.PythonTools.Analysis {
 
         public AnalysisValue Type => _type;
 
-        public abstract string ToAnnotation();
+        public abstract string ToAnnotation(IAnalysisState state);
 
-        public virtual AnalysisValue GetAttribute(IAnalysisState state, string self, string key) {
+        public virtual AnalysisValue GetAttribute(VariableKey self, string attribute) {
+            return BuiltinTypes.None;
+        }
+
+        public virtual AnalysisValue Call(
+            VariableKey self,
+            IReadOnlyList<VariableKey> args,
+            IReadOnlyDictionary<string, VariableKey> keywordArgs
+        ) {
             return BuiltinTypes.None;
         }
     }

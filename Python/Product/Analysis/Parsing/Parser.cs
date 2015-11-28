@@ -27,7 +27,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
     public class Parser {
         private readonly Tokenization _tokenization;
         private readonly PythonLanguageVersion _version;
-        private FutureOptions _future;
 
         private IEnumerator<Token> _tokenEnumerator;
         private Token _current;
@@ -43,6 +42,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         public Parser(Tokenization tokenization) {
             _tokenization = tokenization;
             _version = _tokenization.LanguageVersion;
+            _features = new LanguageFeatures(_version, FutureOptions.None);
         }
 
         private void Reset() {
@@ -60,30 +60,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         #region Language Features
 
-        internal bool HasAnnotations => _version >= PythonLanguageVersion.V30;
-        internal bool HasAs => _version >= PythonLanguageVersion.V26 || _future.HasFlag(FutureOptions.WithStatement);
-        internal bool HasAsyncAwait => _version >= PythonLanguageVersion.V35;
-        internal bool HasBareStarParameter => _version.Is3x();
-        internal bool HasBytesPrefix => _version >= PythonLanguageVersion.V26;
-        internal bool HasClassDecorators => _version >= PythonLanguageVersion.V26;
-        internal bool HasConstantBooleans => _version.Is3x();
-        internal bool HasDictComprehensions => _version >= PythonLanguageVersion.V27;
-        internal bool HasExecStatement => _version.Is2x();
-        internal bool HasGeneralUnpacking => _version >= PythonLanguageVersion.V35;
-        internal bool HasGeneratorReturn => _version >= PythonLanguageVersion.V33;
-        internal bool HasNonlocal => _version.Is3x();
-        internal bool HasPrintFunction => _version.Is3x() || _future.HasFlag(FutureOptions.PrintFunction);
-        internal bool HasRawBytesPrefix => _version >= PythonLanguageVersion.V33;
-        internal bool HasReprLiterals => _version.Is2x();
-        internal bool HasSetLiterals => _version >= PythonLanguageVersion.V27;
-        internal bool HasStarUnpacking => _version.Is3x();
-        internal bool HasSublistParameters => _version.Is2x();
-        internal bool HasTrueDivision => _version.Is3x() || _future.HasFlag(FutureOptions.TrueDivision);
-        internal bool HasTupleAsComprehensionTarget => _version.Is2x();
-        internal bool HasUnicodeLiterals => _version.Is3x() || _future.HasFlag(FutureOptions.UnicodeLiterals);
-        internal bool HasUnicodePrefix => _version < PythonLanguageVersion.V30 || _version >= PythonLanguageVersion.V33;
-        internal bool HasWith => _version >= PythonLanguageVersion.V26 || _future.HasFlag(FutureOptions.WithStatement);
-        internal bool HasYieldFrom => _version >= PythonLanguageVersion.V33;
+        internal LanguageFeatures _features;
 
         internal ScopeStatement CurrentScope => _scopes.Any() ? _scopes.Peek() : null;
         internal ScopeStatement CurrentClass => _scopes.OfType<ClassDefinition>().FirstOrDefault();
@@ -99,7 +76,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             Reset();
             try {
                 _errors = errors ?? ErrorSink.Null;
-                return new PythonAst(ParseSuite(assumeMultiLine: true), _tokenization);
+                return new PythonAst(ParseSuite(assumeMultiLine: true), _tokenization, _features);
             } finally {
                 _errors = null;
             }
@@ -307,7 +284,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Statement ParseIdentifierAsStatement() {
             var kind = Peek.Kind;
             bool isAsync = false;
-            if (HasAsyncAwait && kind == TokenKind.KeywordAsync) {
+            if (_features.HasAsyncAwait && kind == TokenKind.KeywordAsync) {
                 kind = PeekAhead(3).Kind;
                 if (kind != TokenKind.KeywordFor &&
                     kind != TokenKind.KeywordDef &&
@@ -336,12 +313,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 case TokenKind.KeywordClass:
                     return ParseClassDef();
                 case TokenKind.KeywordWith:
-                    if (HasWith) {
+                    if (_features.HasWith) {
                         return ParseWithStmt(isAsync);
                     }
                     goto default;
                 case TokenKind.KeywordPrint:
-                    if (!HasPrintFunction) {
+                    if (!_features.HasPrintFunction) {
                         return ParsePrintStmt();
                     }
                     goto default;
@@ -366,7 +343,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 case TokenKind.KeywordGlobal:
                     return ParseGlobalStmt();
                 case TokenKind.KeywordNonlocal:
-                    if (HasNonlocal) {
+                    if (_features.HasNonlocal) {
                         return ParseNonlocalStmt();
                     }
                     goto default;
@@ -375,7 +352,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 case TokenKind.KeywordAssert:
                     return ParseAssertStmt();
                 case TokenKind.KeywordExec:
-                    if (HasExecStatement) {
+                    if (_features.HasExecStatement) {
                         return ParseExecStmt();
                     }
                     goto default;
@@ -551,7 +528,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             } else if (next.IsAny(TokenKind.KeywordDef, TokenKind.KeywordClass, TokenKind.KeywordAsync)) {
                 ReadCurrentStatementBreak();
                 inner = ParseStmt();
-                if (inner is ClassDefinition && !HasClassDecorators) {
+                if (inner is ClassDefinition && !_features.HasClassDecorators) {
                     ReportError(
                         "invalid syntax, class decorators require 2.6 or later.",
                         new SourceSpan(start, decorator.Span.End)
@@ -559,7 +536,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
             } else {
                 ReportError(
-                    "invalid decorator, must be applied to function" + (HasClassDecorators ? " or class" : ""),
+                    "invalid decorator, must be applied to function" + (_features.HasClassDecorators ? " or class" : ""),
                     new SourceSpan(start, decorator.Span.End)
                 );
             }
@@ -590,7 +567,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     stmt.BeforeReturnAnnotation = ws;
                     stmt.ReturnAnnotation = ParseExpression();
 
-                    if (!HasAnnotations) {
+                    if (!_features.HasAnnotations) {
                         ReportError("invalid syntax, function annotations require 3.x", stmt.ReturnAnnotation.Span);
                     }
 
@@ -605,7 +582,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 _scopes.Pop();
             }
 
-            if (stmt.IsGenerator && !HasGeneratorReturn) {
+            if (stmt.IsGenerator && !_features.HasGeneratorReturn) {
                 stmt.Walk(new ReturnInGeneratorErrorWalker {
                     Parser = this,
                     StartFuncDef = stmt
@@ -812,30 +789,30 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     }
                     switch (ne.Name) {
                         case "division":
-                            _future |= FutureOptions.TrueDivision;
+                            _features.AddFuture(FutureOptions.TrueDivision);
                             break;
                         case "generators":
                             break;
                         case "with_statement":
-                            _future |= FutureOptions.WithStatement;
+                            _features.AddFuture(FutureOptions.WithStatement);
                             break;
                         case "absolute_import":
-                            _future |= FutureOptions.AbsoluteImports;
+                            _features.AddFuture(FutureOptions.AbsoluteImports);
                             break;
                         case "print_function":
-                            _future |= FutureOptions.PrintFunction;
+                            _features.AddFuture(FutureOptions.PrintFunction);
                             if (_version < PythonLanguageVersion.V26) {
                                 ReportError("future feature is not defined until 2.6: print_function", n.Span);
                             }
                             break;
                         case "unicode_literals":
-                            _future |= FutureOptions.UnicodeLiterals;
+                            _features.AddFuture(FutureOptions.UnicodeLiterals);
                             if (_version < PythonLanguageVersion.V26) {
                                 ReportError("future feature is not defined until 2.6: unicode_literals", n.Span);
                             }
                             break;
                         case "generator_stop":
-                            _future |= FutureOptions.GeneratorStop;
+                            _features.AddFuture(FutureOptions.GeneratorStop);
                             if (_version < PythonLanguageVersion.V35) {
                                 ReportError("future feature is not defined until 3.5: generator_stop", n.Span);
                             }
@@ -1025,7 +1002,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var targets = new List<SequenceItemExpression>();
 
             var ws = ReadWhitespace();
-            var expr = HasStarUnpacking ? ParseStarName() : ParsePrimaryWithTrailers();
+            var expr = _features.HasStarUnpacking ? ParseStarName() : ParsePrimaryWithTrailers();
             Debug.Assert(expr.BeforeNode.Length == 0, "Should not have read leading whitespace");
             expr.BeforeNode = ws;
 
@@ -1056,7 +1033,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
 
                 ws = ReadWhitespace();
-                expr = HasStarUnpacking ? ParseStarName() : ParsePrimaryWithTrailers();
+                expr = _features.HasStarUnpacking ? ParseStarName() : ParsePrimaryWithTrailers();
                 Debug.Assert(expr.BeforeNode.Length == 0, "Should not have read leading whitespace");
                 expr.BeforeNode = ws;
 
@@ -1285,7 +1262,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 } else if (TryRead(TokenKind.LeftParenthesis)) {
                     p.Kind = ParameterKind.Sublist;
                     var sublist = (TupleExpression)ParseAssignmentTarget(alwaysTuple: true);
-                    if (HasSublistParameters) {
+                    if (_features.HasSublistParameters) {
                         p.Sublist = sublist;
                     } else {
                         ReportError("sublist parameters are not supported in 3.x", sublist.Span);
@@ -1294,7 +1271,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
 
                 if (p.Kind != ParameterKind.Sublist) {
-                    if (HasBareStarParameter && p.Kind == ParameterKind.List && !Peek.Is(TokenKind.Name)) {
+                    if (_features.HasBareStarParameter && p.Kind == ParameterKind.List && !Peek.Is(TokenKind.Name)) {
                         if (bareStar >= 0) {
                             ReportError();
                         } else {
@@ -1306,7 +1283,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
                     if (!forLambda && TryRead(TokenKind.Colon)) {
                         p.Annotation = ParseSingleExpression();
-                        if (!HasAnnotations) {
+                        if (!_features.HasAnnotations) {
                             ReportError("invalid syntax, parameter annotations require 3.x", p.Annotation.Span);
                         }
                     }
@@ -1553,7 +1530,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         }
 
         private Expression ParseAwaitExpression() {
-            if (HasAsyncAwait && IsInAsyncFunction && TryRead(TokenKind.KeywordAwait)) {
+            if (_features.HasAsyncAwait && IsInAsyncFunction && TryRead(TokenKind.KeywordAwait)) {
                 var start = Current.Span.Start;
                 var ws = ReadWhitespace();
                 var expr = ParsePower();
@@ -1589,7 +1566,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 func.IsGenerator = true;
             }
 
-            if (!HasYieldFrom) {
+            if (!_features.HasYieldFrom) {
                 ReportError("'yield from' requires 3.3 or later", new SourceSpan(start, Current.Span.End));
             } else if (func == null) {
                 ReportError("'yield from' outside of generator", new SourceSpan(start, Current.Span.End));
@@ -1739,15 +1716,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             if (!Peek.Is(TokenUsage.Primary)) {
                 if (!IsInAsyncFunction && Peek.IsAny(TokenKind.KeywordAsync, TokenKind.KeywordAwait)) {
                     // pass
-                } else if (!HasWith && Peek.Is(TokenKind.KeywordWith)) {
+                } else if (!_features.HasWith && Peek.Is(TokenKind.KeywordWith)) {
                     // pass
-                } else if (!HasAs && Peek.Is(TokenKind.KeywordAs)) {
+                } else if (!_features.HasAs && Peek.Is(TokenKind.KeywordAs)) {
                     // pass
-                } else if (HasPrintFunction && Peek.Is(TokenKind.KeywordPrint)) {
+                } else if (_features.HasPrintFunction && Peek.Is(TokenKind.KeywordPrint)) {
                     // pass
-                } else if (!HasNonlocal && Peek.Is(TokenKind.KeywordNonlocal)) {
+                } else if (!_features.HasNonlocal && Peek.Is(TokenKind.KeywordNonlocal)) {
                     // pass
-                } else if (!HasExecStatement && Peek.Is(TokenKind.KeywordExec)) {
+                } else if (!_features.HasExecStatement && Peek.Is(TokenKind.KeywordExec)) {
                     // pass
                 } else if (Peek.IsAny(TokenUsage.Assignment, TokenUsage.EndGroup, TokenUsage.EndStatement) ||
                     Peek.Is(TokenCategory.Delimiter) ||
@@ -1808,7 +1785,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     });
 
                 case TokenKind.KeywordTrue:
-                    if (HasConstantBooleans) {
+                    if (_features.HasConstantBooleans) {
                         return WithCommentAndWhitespace(new ConstantExpression {
                             Span = Next().Span,
                             Value = true
@@ -1817,7 +1794,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         return WithCommentAndWhitespace(new NameExpression("True") { Span = Next().Span });
                     }
                 case TokenKind.KeywordFalse:
-                    if (HasConstantBooleans) {
+                    if (_features.HasConstantBooleans) {
                         return WithCommentAndWhitespace(new ConstantExpression {
                             Span = Next().Span,
                             Value = false
@@ -1961,7 +1938,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     ReportError("invalid string prefix", opening.Span);
                 }
                 if (isUnicode) {
-                    if (!HasUnicodePrefix) {
+                    if (!_features.HasUnicodePrefix) {
                         ReportError("invalid syntax", opening.Span);
                     } else if (isBytes) {
                         ReportError("b and u prefixes are not compatible", opening.Span);
@@ -1970,14 +1947,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     }
                 }
                 if (isBytes) {
-                    if (!HasBytesPrefix) {
+                    if (!_features.HasBytesPrefix) {
                         ReportError("invalid syntax", opening.Span);
-                    } else if (isRaw && !HasRawBytesPrefix) {
+                    } else if (isRaw && !_features.HasRawBytesPrefix) {
                         ReportError("invalid syntax", opening.Span);
                     }
                 }
                 if (!isBytes && !isUnicode) {
-                    isUnicode = HasUnicodeLiterals;
+                    isUnicode = _features.HasUnicodeLiterals;
                     isBytes = !isUnicode;
                 }
 
@@ -2005,7 +1982,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
                 var expr = WithCommentAndWhitespace(new ConstantExpression {
                     Value = isBytes ?
-                        new AsciiString(_tokenization.Encoding.GetBytes(fullText.ToString()), fullText.ToString()) :
+                        new ByteString(_tokenization.Encoding.GetBytes(fullText.ToString()), fullText.ToString()) :
                         (object)fullText.ToString(),
                     Span = new SourceSpan(quoteStart, Current.Span.End)
                 });
@@ -2144,7 +2121,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 Span = new SourceSpan(start, Read(TokenKind.RightBackQuote).End)
             };
 
-            if (!HasReprLiterals) {
+            if (!_features.HasReprLiterals) {
                 ReportError("invalid syntax", expr.Span);
             }
 
@@ -2224,7 +2201,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     Value = sliceExpr.SliceStop,
                     Iterators = ReadComprehension()
                 };
-                if (!HasDictComprehensions) {
+                if (!_features.HasDictComprehensions) {
                     ReportError(
                         "invalid syntax, dictionary comprehensions require Python 2.7 or later",
                         errorAt: new SourceSpan(sliceExpr.Span.Start, Current.Span.End)
@@ -2266,7 +2243,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     Item = expr,
                     Iterators = ReadComprehension()
                 };
-                if (!HasSetLiterals) {
+                if (!_features.HasSetLiterals) {
                     ReportError(
                         "invalid syntax, set literals require Python 2.7 or later",
                         new SourceSpan(expr.Span.Start, Current.Span.End)
@@ -2293,7 +2270,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
 
             if (Peek.Is(TokenKind.RightBrace) || Peek.Is(TokenUsage.EndStatement)) {
-                if (!HasSetLiterals) {
+                if (!_features.HasSetLiterals) {
                     ReportError(
                         "invalid syntax, set literals require Python 2.7 or later",
                         new SourceSpan(start, Current.Span.End)
@@ -2318,7 +2295,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         Left = ParseAssignmentTarget()
                     };
                     Read(TokenKind.KeywordIn);
-                    if (HasTupleAsComprehensionTarget) {
+                    if (_features.HasTupleAsComprehensionTarget) {
                         ((ComprehensionFor)it).List = ParseExpression(allowIfExpr: false, allowGenerator: false);
                     } else {
                         ((ComprehensionFor)it).List = ParseSingleExpression(allowIfExpr: false, allowGenerator: false);
@@ -2474,25 +2451,25 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     break;
                 case TokenKind.KeywordAsync:
                 case TokenKind.KeywordAwait:
-                    if (HasAsyncAwait && IsInAsyncFunction) {
+                    if (_features.HasAsyncAwait && IsInAsyncFunction) {
                         return null;
                     }
                     name = p.Is(TokenKind.KeywordAsync) ? "async" : "await";
                     break;
                 case TokenKind.KeywordWith:
-                    if (HasWith) {
+                    if (_features.HasWith) {
                         return null;
                     }
                     name = "with";
                     break;
                 case TokenKind.KeywordAs:
-                    if (HasAs) {
+                    if (_features.HasAs) {
                         return null;
                     }
                     name = "as";
                     break;
                 case TokenKind.KeywordNonlocal:
-                    if (HasNonlocal) {
+                    if (_features.HasNonlocal) {
                         return null;
                     }
                     name = "nonlocal";

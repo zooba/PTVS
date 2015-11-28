@@ -44,7 +44,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         private static bool IsNotByteStringPart(Expression part) {
             var ce = part as ConstantExpression;
-            return !(ce?.Value is AsciiString);
+            return !(ce?.Value is ByteString);
         }
 
         private static IEnumerable<byte> Identity(IReadOnlyList<byte> source) {
@@ -56,7 +56,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 return null;
             }
             return _parts
-                .Select(p => ((AsciiString)((ConstantExpression)p).Value).Bytes)
+                .Select(p => ((ByteString)((ConstantExpression)p).Value).Bytes)
                 .SelectMany(Identity)
                 .ToArray();
         }

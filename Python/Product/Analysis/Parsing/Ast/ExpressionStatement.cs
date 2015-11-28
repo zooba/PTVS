@@ -29,8 +29,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 if (ce != null) {
                     if (ce.Value is string) {
                         return ce.Value as string;
-                    } else if (ce.Value is AsciiString) {
-                        return ((AsciiString)ce.Value).String;
+                    } else if (ce.Value is ByteString) {
+                        return ((ByteString)ce.Value).String;
                     }
                 }
                 return null;

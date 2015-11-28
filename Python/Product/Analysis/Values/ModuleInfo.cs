@@ -34,7 +34,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _moniker = moniker;
         }
 
-        public override string ToAnnotation() {
+        public override string ToAnnotation(IAnalysisState state) {
             return _fullname;
         }
     }

@@ -48,6 +48,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         public PythonFileContext Context => _context;
         public ISourceDocument Document => _document;
         public long Version => _version;
+        public LanguageFeatures Features => _ast?.Features ?? default(LanguageFeatures);
 
         internal void SetDocument(ISourceDocument document) {
             _document = document;

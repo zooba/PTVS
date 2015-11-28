@@ -24,12 +24,22 @@ using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     public class FunctionInfo : AnalysisValue {
-        public FunctionInfo(FunctionDefinition node) : base(BuiltinTypes.Function) { }
+        private readonly FunctionDefinition _node;
 
-        public override string ToAnnotation() {
+        public FunctionInfo(FunctionDefinition node) : base(BuiltinTypes.Function) {
+            _node = node;
+        }
+
+        public override string ToAnnotation(IAnalysisState state) {
             return "Callable";
         }
 
-
+        public override AnalysisValue Call(
+            VariableKey self,
+            IReadOnlyList<VariableKey> args,
+            IReadOnlyDictionary<string, VariableKey> keywordArgs
+        ) {
+            return base.Call(self, args, keywordArgs);
+        }
     }
 }

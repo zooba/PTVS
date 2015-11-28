@@ -78,7 +78,7 @@
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="Interpreter\InterpreterConfiguration.cs" />
     <Compile Include="Interpreter\InterpreterUIMode.cs" />
-    <Compile Include="Parsing\AsciiString.cs" />
+    <Compile Include="Parsing\ByteString.cs" />
     <Compile Include="Parsing\Ast\Arg.cs" />
     <Compile Include="Parsing\Ast\AsExpression.cs" />
     <Compile Include="Parsing\Ast\AssertStatement.cs" />
@@ -131,6 +131,7 @@
     <Compile Include="Parsing\Ast\PythonAst.cs" />
     <Compile Include="AnalysisValue.cs" />
     <Compile Include="Parsing\Ast\SequenceItemExpression.cs" />
+    <Compile Include="LanguageFeatures.cs" />
     <Compile Include="Rules\ImportFromModule.cs" />
     <Compile Include="Values\BuiltinTypes.cs" />
     <Compile Include="Values\ClassInfo.cs" />
@@ -138,8 +139,10 @@
     <Compile Include="Values\InstanceInfo.cs" />
     <Compile Include="Values\ModuleInfo.cs" />
     <Compile Include="Values\NumberInfo.cs" />
+    <Compile Include="Values\StringInfo.cs" />
     <Compile Include="Values\TypeInfo.cs" />
     <Compile Include="Values\Variable.cs" />
+    <Compile Include="VariableKey.cs" />
     <None Include="Parsing\Ast\PythonNameBinder.cs" />
     <Compile Include="Parsing\Ast\PythonOperator.cs" />
     <Compile Include="Parsing\Ast\PythonReference.cs" />

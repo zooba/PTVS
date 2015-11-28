@@ -21,6 +21,7 @@ using System.Numerics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.PythonTools.Analysis.Values;
 using Microsoft.PythonTools.Infrastructure;
@@ -39,6 +40,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             IEnumerable<AnalysisRule> currentRules
         ) {
             _analyzer = analyzer;
+            _state = state;
             _vars = new Dictionary<string, Variable>();
             _rules = new List<AnalysisRule>();
             if (currentVariables != null) {
@@ -69,17 +71,42 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _rules.Add(rule);
         }
 
+        private AnalysisValue GetLiteralValue(ConstantExpression expr) {
+            if (expr == null) {
+                return null;
+            }
+            if (expr.Value is int) {
+                return BuiltinTypes.Int.Instance;
+            } else if (expr.Value is BigInteger) {
+                return _analyzer.Configuration.Version.Is3x() ?
+                    BuiltinTypes.Int.Instance :
+                    BuiltinTypes.Long.Instance;
+            } else if (expr.Value is double) {
+                return BuiltinTypes.Float.Instance;
+            } else if (expr.Value is ByteString) {
+                return BuiltinTypes.Bytes.Instance;
+            } else if (expr.Value is string) {
+                return BuiltinTypes.String.Instance;
+            }
+            return null;
+        }
+
+        private AnalysisValue GetStringValue(StringExpression expr) {
+            if (expr == null) {
+                return null;
+            }
+            if ((expr.Parts?.Count ?? 0) == 0) {
+                return _state.Features.HasUnicodeLiterals ? BuiltinTypes.String.Instance : BuiltinTypes.Bytes.Instance;
+            }
+            return GetLiteralValue(expr.Parts[0] as ConstantExpression);
+        }
+
         public override bool Walk(AssignmentStatement node) {
             if (node.Targets != null) {
-                AnalysisValue type = BuiltinTypes.None;
-                var ce = node.Expression as ConstantExpression;
-                if (ce != null) {
-                    if (ce.Value is int || ce.Value is BigInteger) {
-                        type = BuiltinTypes.Int.Instance;
-                    } else if (ce.Value is double) {
-                        type = BuiltinTypes.Float.Instance;
-                    }
-                }
+                AnalysisValue type =
+                    GetLiteralValue(node.Expression as ConstantExpression) ??
+                    GetStringValue(node.Expression as StringExpression) ??
+                    BuiltinTypes.None;
 
                 foreach (var n in node.Targets.OfType<NameExpression>()) {
                     Add(n.Prefix + n.Name, type);

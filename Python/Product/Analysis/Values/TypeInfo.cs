@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     class TypeInfo : AnalysisValue {
@@ -32,8 +33,8 @@ namespace Microsoft.PythonTools.Analysis.Values {
 
         public AnalysisValue Instance => _instance;
 
-        public override string ToAnnotation() => "type";
+        public override string ToAnnotation(IAnalysisState state) => "type";
 
-        public virtual string ToInstanceAnnotation() => _name;
+        public virtual string ToInstanceAnnotation(IAnalysisState state) => _name;
     }
 }

@@ -1,4 +1,4 @@
-// Python Tools for Visual Studio
+﻿// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -14,25 +14,26 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-
+using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis.Analyzer;
 
-namespace Microsoft.PythonTools.Analysis.Parsing {
-    public sealed class AsciiString {
-        private readonly IReadOnlyList<byte> _bytes;
-        private string _str;
-
-        public AsciiString(IReadOnlyList<byte> bytes, string str) {
-            _bytes = bytes;
-            _str = str;
+namespace Microsoft.PythonTools.Analysis.Values {
+    class StringInfo : TypeInfo {
+        private readonly bool _isUnicode;
+        public StringInfo(bool isUnicode) : base(isUnicode ? "unicode" : "bytes") {
+            _isUnicode = isUnicode;
         }
 
-        public IReadOnlyList<byte> Bytes => _bytes;
-        public string String => _str;
-        public override string ToString() => String;
-
-        public override bool Equals(object obj) => _str == (obj as AsciiString)?._str;
-        public override int GetHashCode() => _str.GetHashCode();
+        public override string ToInstanceAnnotation(IAnalysisState state) {
+            if (_isUnicode) {
+                return state.Features.IsUnicodeCalledStr ? "str" : "unicode";
+            } else {
+                return state.Features.IsUnicodeCalledStr ? "bytes" : "str";
+            }
+        }
     }
 }

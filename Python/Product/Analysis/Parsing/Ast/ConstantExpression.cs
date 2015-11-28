@@ -94,12 +94,12 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public string GetConstantRepr(PythonLanguageVersion version, bool escape8bitStrings = false) {
             if (_value == null) {
                 return "None";
-            } else if (_value is AsciiString) {
+            } else if (_value is ByteString) {
                 StringBuilder res = new StringBuilder();
                 if (!version.Is2x()) {
                     res.Append("b");
                 }
-                AppendEscapedString(res, ((AsciiString)_value).String, escape8bitStrings);
+                AppendEscapedString(res, ((ByteString)_value).String, escape8bitStrings);
                 return res.ToString();
             } else if (_value is string) {
                 StringBuilder res = new StringBuilder();

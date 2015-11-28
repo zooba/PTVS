@@ -24,7 +24,13 @@ namespace Microsoft.PythonTools.Analysis.Values {
         public static readonly AnalysisValue None = NoneType.Instance;
 
         public static readonly TypeInfo Int = new NumberInfo("int");
+        public static readonly TypeInfo Long = new NumberInfo("long");
         public static readonly TypeInfo Float = new NumberInfo("float");
         public static readonly TypeInfo Complex = new NumberInfo("complex");
+
+        // We use the Python 3.x names internally, and the string
+        // representations switch accordingly
+        public static readonly TypeInfo String = new StringInfo(isUnicode: true);
+        public static readonly TypeInfo Bytes = new StringInfo(isUnicode: false);
     }
 }

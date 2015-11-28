@@ -18,21 +18,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
-using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
-namespace Microsoft.PythonTools.Analysis.Values {
-    public class InstanceInfo : AnalysisValue {
-        public InstanceInfo(AnalysisValue type) : base(type) {
-        }
+namespace Microsoft.PythonTools.Analysis {
+    public struct VariableKey {
+        public IAnalysisState State;
+        public string Key;
 
-        public override string ToAnnotation(IAnalysisState state) {
-            var ti = Type as TypeInfo;
-            if (ti != null) {
-                return ti.ToInstanceAnnotation(state);
-            }
-            return "object";
+        public Task<IReadOnlyCollection<AnalysisValue>> GetTypesAsync(CancellationToken cancellationToken) {
+            return State.GetTypesAsync(Key, cancellationToken);
         }
     }
 }

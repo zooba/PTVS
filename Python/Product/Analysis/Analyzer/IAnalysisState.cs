@@ -27,8 +27,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         long Version { get; }
 
-        Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken);
+        LanguageFeatures Features { get; }
 
+        Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken);
         Task<IReadOnlyCollection<AnalysisValue>> GetTypesAsync(string name, CancellationToken cancellationToken);
+
     }
 }

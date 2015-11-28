@@ -34,7 +34,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
 
         public InstanceInfo Instance => _instance;
 
-        public override string ToAnnotation() {
+        public override string ToAnnotation(IAnalysisState state) {
             return _node.Name;
         }
     }

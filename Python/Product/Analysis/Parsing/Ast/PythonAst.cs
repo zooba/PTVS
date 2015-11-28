@@ -26,6 +26,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     /// </summary>
     public sealed class PythonAst : ScopeStatement /*, ILocationResolver*/ {
         private readonly Tokenization _tokenization;
+        private readonly LanguageFeatures _features;
         private readonly Dictionary<Node, Dictionary<object, object>> _attributes = new Dictionary<Node, Dictionary<object, object>>();
         private string _privatePrefix;
         private ErrorResult[] _errors;
@@ -38,14 +39,18 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public PythonAst(
             Statement body,
-            Tokenization tokenization
+            Tokenization tokenization,
+            LanguageFeatures features
         ) : base(TokenKind.Unknown) {
             if (body == null) {
                 throw new ArgumentNullException("body");
             }
             _tokenization = tokenization;
+            _features = features;
             Body = body;
         }
+
+        public LanguageFeatures Features => _features;
 
         internal void SetErrors(ErrorResult[] errors) {
             _errors = errors;

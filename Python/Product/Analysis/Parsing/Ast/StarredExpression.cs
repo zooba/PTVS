@@ -41,7 +41,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         internal override void CheckAssign(Parser parser) {
-            if (!parser.HasStarUnpacking) {
+            if (!parser._features.HasStarUnpacking) {
                 parser.ReportError("invalid syntax", Span);
             }
         }
@@ -51,7 +51,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         internal override void CheckDelete(Parser parser) {
-            if (parser.HasGeneralUnpacking) {
+            if (parser._features.HasGeneralUnpacking) {
                 parser.ReportError("can't use starred expression here", Span);
             } else {
                 parser.ReportError("invalid syntax", Span);

@@ -1,4 +1,4 @@
-﻿// Python Tools for Visual Studio
+// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -14,25 +14,23 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.PythonTools.Analysis.Analyzer;
-using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
-namespace Microsoft.PythonTools.Analysis.Values {
-    public class InstanceInfo : AnalysisValue {
-        public InstanceInfo(AnalysisValue type) : base(type) {
+namespace Microsoft.PythonTools.Analysis.Parsing {
+    public sealed class ByteString {
+        private readonly IReadOnlyList<byte> _bytes;
+        private string _str;
+
+        public ByteString(IReadOnlyList<byte> bytes, string str) {
+            _bytes = bytes;
+            _str = str;
         }
 
-        public override string ToAnnotation(IAnalysisState state) {
-            var ti = Type as TypeInfo;
-            if (ti != null) {
-                return ti.ToInstanceAnnotation(state);
-            }
-            return "object";
-        }
+        public IReadOnlyList<byte> Bytes => _bytes;
+        public string String => _str;
+        public override string ToString() => String;
+
+        public override bool Equals(object obj) => _str == (obj as ByteString)?._str;
+        public override int GetHashCode() => _str.GetHashCode();
     }
 }
