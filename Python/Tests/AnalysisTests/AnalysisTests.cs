@@ -34,8 +34,7 @@ using TestUtilities;
 namespace AnalysisTests {
     [TestClass, Ignore]
     public abstract class AnalysisTests {
-        [ClassInitialize]
-        public static void Initialize(TestContext context) {
+        static AnalysisTests() {
             AssertListener.Initialize();
         }
 
@@ -111,14 +110,89 @@ if True:
             await state.AssertAnnotationsAsync("B", "B");
             await state.AssertAnnotationsAsync("h");
         }
+
+        [TestMethod, Priority(0)]
+        public async Task AssignVariable() {
+            var state = await @"x = 1.0
+y = x
+x = 1".AnalyzeAsync(Configuration);
+            await state.AssertAnnotationsAsync("x", "int", "float");
+            await state.AssertAnnotationsAsync("y", "int", "float");
+        }
+
+        [TestMethod, Priority(0)]
+        public async Task AssignVariableScope() {
+            var state = await @"x = 1.0
+
+def f():
+    y = x
+
+def g():
+    y = x
+    x = 1".AnalyzeAsync(Configuration);
+            await state.AssertAnnotationsAsync("x", "float");
+            await state.AssertAnnotationsAsync("f@11#y", "float");
+            await state.AssertAnnotationsAsync("g@34#y", "int");
+        }
+
+        [TestMethod, Priority(0)]
+        public async Task AssignCallResult() {
+            var state = await @"def f(): return 1
+def g(a): return a
+
+x = f()
+y = g(1)".AnalyzeAsync(Configuration);
+            await state.AssertAnnotationsAsync("f@0#$r", "int");
+            await state.AssertAnnotationsAsync("x", "int");
+            await state.AssertAnnotationsAsync("g@19#$r", "Parameter[0]");
+            await state.AssertAnnotationsAsync("y", "int");
+            // TODO: Make annotation include parameter and return types
+            await state.AssertAnnotationsAsync("f", "Callable");
+            await state.AssertAnnotationsAsync("g", "Callable");
+        }
     }
 
     static class AnalysisTestsHelpers {
         public static async Task AssertAnnotationsAsync(this AnalysisState state, string key, params string[] annotations) {
             var values = await state.GetTypesAsync(key, CancellationTokens.After5s);
             if (annotations.Any()) {
-                Assert.IsNotNull(values, "No types returned");
-                AssertUtil.ContainsExactly(values.Select(v => v.ToAnnotation(state)), annotations);
+                Assert.IsNotNull(values, "No types returned for " + key);
+                var types = new HashSet<string>(values.Select(v => v.ToAnnotation(state)));
+                var expected = new HashSet<string>(annotations);
+                var expectedNotFound = new HashSet<string>(expected);
+                expectedNotFound.ExceptWith(types);
+                var foundNotExpected = new HashSet<string>(types);
+                foundNotExpected.ExceptWith(expected);
+
+                string message = null;
+                if (expectedNotFound.Any()) {
+                    message = string.Format(
+                        "Did not find {{{0}}}{2}{2}",
+                        string.Join(", ", expectedNotFound.OrderBy(s => s)),
+                        string.Join(", ", types.OrderBy(s => s)),
+                        Environment.NewLine
+                    );
+                }
+
+                if (foundNotExpected.Any()) {
+                    message = string.Format(
+                        "{1}Did not expect {{{0}}}{2}{2}",
+                        string.Join(", ", foundNotExpected.OrderBy(s => s)),
+                        message ?? "",
+                        Environment.NewLine
+                    );
+                }
+
+                if (message != null) {
+                    message = string.Format(
+                        "{3}{0} included {{{1}}}.{3}{3}{2}",
+                        key,
+                        string.Join(", ", types.OrderBy(s => s)),
+                        message,
+                        Environment.NewLine
+                    );
+                    Assert.Fail(message.TrimEnd());
+                }
             } else {
                 Assert.IsNull(values, "Expected no types");
             }
@@ -166,12 +240,15 @@ if True:
             await context.AddDocumentsAsync(new[] { document }, cancellationToken);
             await analyzer.AddFileContextAsync(context, cancellationToken);
 
-            return await analyzer.GetAnalysisStateAsync(
+            var state = await analyzer.GetAnalysisStateAsync(
                 context,
                 document.Moniker,
                 false,
                 cancellationToken
             );
+            await state.WaitForUpToDateAsync(cancellationToken);
+            state.Dump(Console.Out);
+            return state;
         }
     }
 

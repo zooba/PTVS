@@ -23,6 +23,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
         public static readonly TypeInfo NoneType = new TypeInfo("NoneType");
         public static readonly AnalysisValue None = NoneType.Instance;
 
+        public static readonly TypeInfo Bool = new NumberInfo("bool");
         public static readonly TypeInfo Int = new NumberInfo("int");
         public static readonly TypeInfo Long = new NumberInfo("long");
         public static readonly TypeInfo Float = new NumberInfo("float");

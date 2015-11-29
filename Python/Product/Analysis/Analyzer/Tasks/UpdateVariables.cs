@@ -40,8 +40,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             _item.SetAst(ast, errors.Errors);
 
             var walker = new VariableWalker(analyzer, _item, _item.GetVariables(), _item.GetRules());
-            ast.Walk(walker);
-            _item.SetVariablesAndRules(walker.Variables, walker.Rules);
+            var variables = walker.WalkVariables(ast);
+            var rules = walker.WalkRules(ast);
+            _item.SetVariablesAndRules(variables, rules);
 
             await analyzer.EnqueueAsync(context, new UpdateRules(_item), cancellationToken);
         }

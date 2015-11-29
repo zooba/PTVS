@@ -35,7 +35,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
         }
 
         public IAnalysisState State => _state;
-        public string Key => _key;
+        public VariableKey Key => new VariableKey(_state, _key);
 
         public IEnumerable<AnalysisValue> Types => _types.Keys;
 
@@ -48,12 +48,8 @@ namespace Microsoft.PythonTools.Analysis.Values {
             }
         }
 
-        public string ToAnnotationString() {
-            return ToString();
-        }
-
-        public override string ToString() {
-            return base.ToString();
+        public string ToAnnotationString(IAnalysisState state) {
+            return string.Format("{{{0}}}", string.Join(", ", _types.Keys.Select(k => k.ToAnnotation(state))));
         }
     }
 }

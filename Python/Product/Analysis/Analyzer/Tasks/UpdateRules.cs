@@ -53,6 +53,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
                     }
                 }
             }
+            _item.NotifyUpToDate();
         }
     }
 }

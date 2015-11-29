@@ -21,14 +21,59 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
+using Microsoft.PythonTools.Analysis.Values;
 
 namespace Microsoft.PythonTools.Analysis {
     public struct VariableKey {
         public IAnalysisState State;
         public string Key;
 
+        public VariableKey(IAnalysisState state, string key) {
+            State = state;
+            Key = key;
+        }
+
+        public static VariableKey operator +(VariableKey key, string suffix) {
+            return new VariableKey(key.State, key.Key + suffix);
+        }
+
+        public override int GetHashCode() {
+            return (State?.GetHashCode() ?? 0) | (Key?.GetHashCode() ?? 0);
+        }
+
+        public override bool Equals(object obj) {
+            if (!(obj is VariableKey)) {
+                return false;
+            }
+            var other = (VariableKey)obj;
+            return State == other.State && Key == other.Key;
+        }
+
+        public override string ToString() {
+            return string.Format("<{0}>#{1}", State.Document.Moniker, Key);
+        }
+
         public Task<IReadOnlyCollection<AnalysisValue>> GetTypesAsync(CancellationToken cancellationToken) {
             return State.GetTypesAsync(Key, cancellationToken);
+        }
+
+        /// <summary>
+        /// A faster call to get variable types when the lock for
+        /// <paramref name="callingState"/> is known to be held. Returns
+        /// <c>null</c> if the variable belongs to a different state.
+        /// </summary>
+        internal IReadOnlyCollection<AnalysisValue> GetTypes(AnalysisState callingState) {
+            if (callingState == State) {
+                Variable variable;
+                var key = Key;
+                if (callingState.GetVariables().TryGetValue(key, out variable)) {
+                    return variable.Types
+                        .Concat(callingState.GetRules().SelectMany(r => r.GetTypes(key)))
+                        .Where(r => r != AnalysisValue.Empty)
+                        .ToArray();
+                }
+            }
+            return null;
         }
     }
 }

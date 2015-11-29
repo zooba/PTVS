@@ -32,6 +32,14 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _instance = new InstanceInfo(this);
         }
 
+        public override bool Equals(object obj) {
+            return (obj as ClassInfo)?._node == _node;
+        }
+
+        public override int GetHashCode() {
+            return 389357 ^ _node.GetHashCode();
+        }
+
         public InstanceInfo Instance => _instance;
 
         public override string ToAnnotation(IAnalysisState state) {

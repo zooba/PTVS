@@ -24,10 +24,12 @@ using System.Threading.Tasks;
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     public interface IAnalysisState {
         PythonFileContext Context { get; }
-
+        ISourceDocument Document { get; }
         long Version { get; }
 
         LanguageFeatures Features { get; }
+
+        Task WaitForUpToDateAsync(CancellationToken cancellationToken);
 
         Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken);
         Task<IReadOnlyCollection<AnalysisValue>> GetTypesAsync(string name, CancellationToken cancellationToken);

@@ -34,6 +34,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
+                if (_parameters != null) {
+                    foreach (var p in _parameters) {
+                        p.Walk(walker);
+                    }
+                }
             }
             walker.PostWalk(this);
         }

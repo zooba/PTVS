@@ -25,26 +25,26 @@ using Microsoft.PythonTools.Analysis.Values;
 
 namespace Microsoft.PythonTools.Analysis {
     public abstract class AnalysisValue {
+        public static readonly AnalysisValue Empty = new EmptyAnalysisValue();
+
         private readonly AnalysisValue _type;
 
         public AnalysisValue(AnalysisValue type) {
             _type = type;
         }
 
-        public AnalysisValue Type => _type;
+        public AnalysisValue Type => _type ?? Empty;
 
         public abstract string ToAnnotation(IAnalysisState state);
 
         public virtual AnalysisValue GetAttribute(VariableKey self, string attribute) {
-            return BuiltinTypes.None;
+            return Empty;
         }
 
-        public virtual AnalysisValue Call(
-            VariableKey self,
-            IReadOnlyList<VariableKey> args,
-            IReadOnlyDictionary<string, VariableKey> keywordArgs
-        ) {
-            return BuiltinTypes.None;
+        private class EmptyAnalysisValue : AnalysisValue {
+            public EmptyAnalysisValue() : base(null) { }
+
+            public override string ToAnnotation(IAnalysisState state) => string.Empty;
         }
     }
 }

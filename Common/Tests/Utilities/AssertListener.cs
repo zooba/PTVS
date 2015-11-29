@@ -21,7 +21,6 @@ using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
-using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace TestUtilities {
@@ -41,8 +40,8 @@ namespace TestUtilities {
         public static void Initialize() {
             var listener = new AssertListener();
             if (null == Debug.Listeners[listener.Name]) {
+                Debug.Listeners.Clear();
                 Debug.Listeners.Add(listener);
-                Debug.Listeners.Remove("Default");
 
                 AppDomain.CurrentDomain.FirstChanceException += CurrentDomain_FirstChanceException;
             }

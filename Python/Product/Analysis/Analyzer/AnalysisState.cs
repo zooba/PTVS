@@ -24,6 +24,7 @@ using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.PythonTools.Analysis.Values;
 using System.Threading;
+using System.IO;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     class AnalysisState : IAnalysisState {
@@ -38,11 +39,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private IReadOnlyCollection<AnalysisRule> _rules;
 
         private TaskCompletionSource<object> _updated;
+        private TaskCompletionSource<object> _upToDate;
         private long _version;
 
         internal AnalysisState(ISourceDocument document, PythonFileContext context) {
             _document = document;
             _context = context;
+            _upToDate = new TaskCompletionSource<object>();
         }
 
         public PythonFileContext Context => _context;
@@ -79,17 +82,37 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             Interlocked.Exchange(ref _updated, null)?.SetResult(null);
             _context.NotifyDocumentAnalysisChanged(_document);
             Interlocked.Increment(ref _version);
+
+            if (Volatile.Read(ref _upToDate) == null) {
+                Interlocked.CompareExchange(ref _upToDate, new TaskCompletionSource<object>(), null);
+            }
         }
 
         internal Task WaitForUpdateAsync(CancellationToken cancellationToken) {
-            var updated = _updated;
+            var updated = Volatile.Read(ref _updated);
             if (updated == null) {
                 var tcs = new TaskCompletionSource<object>();
                 updated = Interlocked.CompareExchange(ref _updated, tcs, null) ?? tcs;
             }
 
             var cancelTcs = new TaskCompletionSource<object>();
+            cancellationToken.Register(cancelTcs.SetCanceled);
             return Task.WhenAny(updated.Task, cancelTcs.Task);
+        }
+
+        internal void NotifyUpToDate() {
+            Interlocked.Exchange(ref _upToDate, null)?.SetResult(null);
+        }
+
+        public Task WaitForUpToDateAsync(CancellationToken cancellationToken) {
+            var upToDate = Volatile.Read(ref _upToDate);
+            if (upToDate == null) {
+                return Task.FromResult<object>(null);
+            }
+
+            var cancelTcs = new TaskCompletionSource<object>();
+            cancellationToken.Register(cancelTcs.SetCanceled);
+            return Task.WhenAny(upToDate.Task, cancelTcs.Task);
         }
 
         public async Task<Tokenization> GetTokenizationAsync(CancellationToken cancellationToken) {
@@ -129,7 +152,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 variables = _variables;
                 rules = _rules;
             }
-            action(variables, rules);
+            action?.Invoke(variables, rules);
         }
 
         public async Task<IReadOnlyCollection<string>> GetVariablesAsync(
@@ -165,7 +188,30 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
             return variables[name].Types
                 .Concat(rules.SelectMany(r => r.GetTypes(name)))
+                .Where(t => t != AnalysisValue.Empty)
                 .ToArray();
+        }
+
+        internal void Dump(TextWriter output) {
+            output.WriteLine("Analysis Dump: {0}", _document.Moniker);
+            output.WriteLine("  Version: {0}, Futures: {1}", Features.Version, Features.Future);
+            output.WriteLine("  State Version: {0}", Version);
+            if (_variables != null) {
+                output.WriteLine("Variables");
+                foreach (var v in _variables.OrderBy(kv => kv.Key)) {
+                    output.WriteLine("  {0} = {1}", v.Key, v.Value.ToAnnotationString(this));
+                }
+                output.WriteLine();
+            }
+            if (_rules != null) {
+                output.WriteLine("Rules");
+                foreach (var r in _rules) {
+                    r.Dump(output, this, "  ");
+                }
+                output.WriteLine();
+            }
+            output.WriteLine("End of dump ({0} variables, {1} rules)", _variables?.Count ?? 0, _rules?.Count ?? 0);
+            output.WriteLine();
         }
     }
 }

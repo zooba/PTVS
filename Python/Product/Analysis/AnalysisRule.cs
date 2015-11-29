@@ -16,6 +16,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -26,7 +27,53 @@ using Microsoft.PythonTools.Analysis.Values;
 namespace Microsoft.PythonTools.Analysis {
     abstract class AnalysisRule {
         private Dictionary<string, IReadOnlyCollection<AnalysisValue>> _results;
+        private object _targets;
+
         private static readonly IReadOnlyCollection<string> EmptyNames = new string[0];
+
+        protected AnalysisRule(string target) {
+            _targets = target;
+        }
+
+        protected AnalysisRule(IEnumerable<string> targets) {
+            var targetsArray = targets.ToArray();
+            if (targetsArray.Length == 0) {
+                _targets = null;
+            } else if (targetsArray.Length == 1) {
+                _targets = targetsArray[0];
+            } else {
+                _targets = targetsArray;
+            }
+        }
+
+        protected IEnumerable<string> Targets {
+            get {
+                var asEnum = _targets as IEnumerable<string>;
+                if (asEnum != null) {
+                    return asEnum;
+                }
+                var asStr = _targets as string;
+                if (asStr != null) {
+                    return Enumerable.Repeat(asStr, 1);
+                }
+                return Enumerable.Empty<string>();
+            }
+        }
+
+        protected bool AreSame(
+            string target,
+            IReadOnlyDictionary<string, IReadOnlyCollection<AnalysisValue>> priorResults,
+            IReadOnlyCollection<AnalysisValue> newResults
+        ) {
+            if (priorResults == null) {
+                return false;
+            }
+            IReadOnlyCollection<AnalysisValue> oldResults;
+            if (!priorResults.TryGetValue(target, out oldResults)) {
+                return false;
+            }
+            return newResults.All(v => oldResults.Contains(v));
+        }
 
         public IReadOnlyCollection<string> GetVariableNames() {
             var results = Volatile.Read(ref _results);
@@ -62,5 +109,19 @@ namespace Microsoft.PythonTools.Analysis {
             IReadOnlyDictionary<string, IReadOnlyCollection<AnalysisValue>> priorResults,
             CancellationToken cancellationToken
         );
+
+        internal virtual void Dump(TextWriter output, IAnalysisState state, string indent = "") {
+            output.WriteLine("{0}{1}", indent, this);
+            if (_results != null) {
+                foreach (var v in _results.OrderBy(kv => kv.Key)) {
+                    output.WriteLine(
+                        "{0}  {1}: {2}",
+                        indent,
+                        v.Key,
+                        string.Join(", ", v.Value.Select(av => av.ToAnnotation(state)))
+                    );
+                }
+            }
+        }
     }
 }

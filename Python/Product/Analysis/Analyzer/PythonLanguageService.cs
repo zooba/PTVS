@@ -525,7 +525,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             private readonly CancellationToken _cancel;
             private bool _threadStarted;
             private ExceptionDispatchInfo _edi;
-            private TaskCompletionSource<TaskScheduler> _tasks;
+            private TaskCompletionSource<SynchronizationContext> _tasks;
 
             public ContextState(
                 PythonLanguageService analyzer,
@@ -536,7 +536,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 _analyzer = analyzer;
                 _context = context;
                 _cancel = cancellationToken;
-                _tasks = new TaskCompletionSource<TaskScheduler>();
+                _tasks = new TaskCompletionSource<SynchronizationContext>();
                 _thread = new Thread(Worker);
 
                 var name = context.ContextRoot;
@@ -555,35 +555,27 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             public Dictionary<string, HashSet<AnalysisState>> ReanalyzeOnUpdate { get; set; }
 
             public void Dispose() {
+                _edi?.Throw();
                 if (_threadStarted) {
                     _thread.Join(1000);
-                }
-                if (_edi != null) {
-                    _edi.Throw();
                 }
             }
 
             public void Enqueue(QueueItem item) {
-                _edi?.Throw();
-
                 if (!_threadStarted) {
                     _threadStarted = true;
                     _thread.Start(this);
                     _tasks.Task.Wait();
                 }
 
-                Task.Factory.StartNew(async () => {
-                    await item.PerformAsync(_analyzer, _context, _cancel);
-                }, CancellationToken.None, TaskCreationOptions.None, _tasks.Task.Result);
+                _tasks.Task.Result.Post(_ => item.PerformAsync(_analyzer, _context, _cancel).DoNotWait(), null);
             }
 
             private static void Worker(object o) {
                 var syncContext = new AnalysisSynchronizationContext();
                 SynchronizationContext.SetSynchronizationContext(syncContext);
                 var thread = (ContextState)o;
-
-                var tasks = TaskScheduler.FromCurrentSynchronizationContext();
-                thread._tasks.SetResult(tasks);
+                thread._tasks.SetResult(syncContext);
                 try {
                     while (true) {
                         syncContext.RunNext(thread._cancel);

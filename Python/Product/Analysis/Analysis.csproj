@@ -133,12 +133,16 @@
     <Compile Include="Parsing\Ast\SequenceItemExpression.cs" />
     <Compile Include="LanguageFeatures.cs" />
     <Compile Include="Rules\ImportFromModule.cs" />
+    <Compile Include="Rules\NameLookup.cs" />
+    <Compile Include="Rules\ReturnValueLookup.cs" />
+    <Compile Include="Values\BuiltinFunctionInfo.cs" />
     <Compile Include="Values\BuiltinTypes.cs" />
     <Compile Include="Values\ClassInfo.cs" />
     <Compile Include="Values\FunctionInfo.cs" />
     <Compile Include="Values\InstanceInfo.cs" />
     <Compile Include="Values\ModuleInfo.cs" />
     <Compile Include="Values\NumberInfo.cs" />
+    <Compile Include="Values\ParameterInfo.cs" />
     <Compile Include="Values\StringInfo.cs" />
     <Compile Include="Values\TypeInfo.cs" />
     <Compile Include="Values\Variable.cs" />

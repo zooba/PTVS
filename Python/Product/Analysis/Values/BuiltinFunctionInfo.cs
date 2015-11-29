@@ -20,41 +20,33 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
-using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    public class FunctionInfo : AnalysisValue {
-        private readonly FunctionDefinition _node;
-        private readonly string _fullName, _key;
+    class BuiltinFunctionInfo : AnalysisValue {
+        public delegate IReadOnlyList<AnalysisValue> CallDelegate(
+            IReadOnlyList<IReadOnlyList<AnalysisValue>> args,
+            IReadOnlyDictionary<string, IReadOnlyList<AnalysisValue>> keywordArgs,
+            Func<string, IReadOnlyList<AnalysisValue>> getVariable
+        );
 
-        public FunctionInfo(FunctionDefinition node, string fullName) : base(BuiltinTypes.Function) {
-            _node = node;
-            _fullName = fullName;
-            _key = string.Format("{0}@{1}", fullName, node.Span.Start.Index);
-        }
+        private readonly string _annotation;
+        private readonly CallDelegate _onCall;
 
-        public string Key => _key;
-
-        public override bool Equals(object obj) {
-            return (obj as FunctionInfo)?._node == _node;
-        }
-
-        public override int GetHashCode() {
-            return 261563 ^ _node.GetHashCode();
+        public BuiltinFunctionInfo(string annotation, CallDelegate onCall) : base(BuiltinTypes.Function) {
+            _annotation = annotation;
+            _onCall = onCall;
         }
 
         public override string ToAnnotation(IAnalysisState state) {
-            
-            return "Callable";
+            return _annotation;
         }
 
         public IReadOnlyList<AnalysisValue> Call(
-            VariableKey self,
             IReadOnlyList<IReadOnlyList<AnalysisValue>> args,
             IReadOnlyDictionary<string, IReadOnlyList<AnalysisValue>> keywordArgs,
             Func<string, IReadOnlyList<AnalysisValue>> getVariable
         ) {
-            return null;
+            return _onCall(args, keywordArgs, getVariable);
         }
     }
 }

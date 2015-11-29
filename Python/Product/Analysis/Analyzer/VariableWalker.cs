@@ -16,6 +16,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Text;
@@ -24,6 +25,7 @@ using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.PythonTools.Analysis.Values;
+using Microsoft.PythonTools.Common.Infrastructure;
 using Microsoft.PythonTools.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
@@ -32,6 +34,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private readonly AnalysisState _state;
         private readonly Dictionary<string, Variable> _vars;
         private readonly List<AnalysisRule> _rules;
+
+        private readonly Stack<string> _scope;
+        private readonly Stack<List<Node>> _deferredNodes;
+
+        private bool _addVariables;
+        private bool _addRules;
 
         public VariableWalker(
             PythonLanguageService analyzer,
@@ -43,6 +51,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _state = state;
             _vars = new Dictionary<string, Variable>();
             _rules = new List<AnalysisRule>();
+
+            _scope = new Stack<string>();
+            _deferredNodes = new Stack<List<Node>>();
+
             if (currentVariables != null) {
                 foreach (var kv in currentVariables) {
                     _vars[kv.Key] = kv.Value;
@@ -53,10 +65,78 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        public IReadOnlyDictionary<string, Variable> Variables => _vars;
-        public IReadOnlyCollection<AnalysisRule> Rules => _rules;
+        public IReadOnlyDictionary<string, Variable> WalkVariables(PythonAst ast) {
+            _addVariables = true;
+            try {
+                ast.Walk(this);
+            } finally {
+                _addVariables = false;
+            }
+            return _vars;
+        }
 
-        private void Add(string key, AnalysisValue value) {
+        public IReadOnlyCollection<AnalysisRule> WalkRules(PythonAst ast) {
+            _addRules = true;
+            try {
+                ast.Walk(this);
+            } finally {
+                _addRules = false;
+            }
+            return _rules;
+        }
+
+        private void EnterScope(string name, string suffix) {
+            if (_scope.Count <= 1) {
+                _scope.Push(name + suffix);
+            } else {
+                _scope.Push(_scope.Peek() + name + suffix);
+            }
+            _deferredNodes.Push(new List<Node>());
+        }
+
+        private bool Defer(Node node) {
+            var nodes = _deferredNodes.Peek();
+            if (nodes == null) {
+                return false;
+            }
+            nodes.Add(node);
+            return true;
+        }
+
+        private void LeaveScope(string name, string suffix) {
+            var nodes = _deferredNodes.Pop();
+            _deferredNodes.Push(null);
+            try {
+                foreach (var n in nodes) {
+                    n.Walk(this);
+                }
+            } finally {
+                _deferredNodes.Pop();
+            }
+
+            var scope = _scope.Pop();
+            if (!scope.EndsWith(name + suffix)) {
+                Debug.Fail("Did not pop " + name + " from " + scope);
+                var ex = new InvalidOperationException("Scopes were not processed correctly");
+                ex.Data["ExpectedScope"] = name;
+                ex.Data["PoppedScope"] = scope;
+                throw ex;
+            }
+        }
+
+        private IEnumerable<string> GetFullNames(NameExpression name) {
+            foreach (var scope in _scope) {
+                yield return scope + (name.Prefix ?? "") + name.Name;
+            }
+        }
+
+        private string Add(NameExpression name, AnalysisValue value) {
+            return Add((name.Prefix ?? "") + name.Name, value);
+        }
+
+        private string Add(string key, AnalysisValue value) {
+            key = _scope.Peek() + key;
+
             Variable v;
             if (!_vars.TryGetValue(key, out v)) {
                 _vars[key] = v = new Variable(_state, key);
@@ -65,17 +145,39 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             if (value != null) {
                 v.AddType(value);
             }
+
+            return key;
         }
 
         private void Add(AnalysisRule rule) {
-            _rules.Add(rule);
+            if (_addRules) {
+                _rules.Add(rule);
+            }
+        }
+
+        public override bool Walk(PythonAst node) {
+            _scope.Clear();
+            _deferredNodes.Clear();
+
+            EnterScope("", "");
+            return true;
+        }
+
+        public override void PostWalk(PythonAst node) {
+            base.PostWalk(node);
+            LeaveScope("", "");
         }
 
         private AnalysisValue GetLiteralValue(ConstantExpression expr) {
             if (expr == null) {
                 return null;
             }
-            if (expr.Value is int) {
+
+            if (expr.Value == null) {
+                return BuiltinTypes.None;
+            } else if (expr.Value == (object)true || expr.Value == (object)false) {
+                return BuiltinTypes.Bool.Instance;
+            } else if (expr.Value is int) {
                 return BuiltinTypes.Int.Instance;
             } else if (expr.Value is BigInteger) {
                 return _analyzer.Configuration.Version.Is3x() ?
@@ -92,39 +194,200 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         private AnalysisValue GetStringValue(StringExpression expr) {
-            if (expr == null) {
+            if ((expr?.Parts?.Count ?? 0) == 0) {
                 return null;
-            }
-            if ((expr.Parts?.Count ?? 0) == 0) {
-                return _state.Features.HasUnicodeLiterals ? BuiltinTypes.String.Instance : BuiltinTypes.Bytes.Instance;
             }
             return GetLiteralValue(expr.Parts[0] as ConstantExpression);
         }
 
-        public override bool Walk(AssignmentStatement node) {
-            if (node.Targets != null) {
-                AnalysisValue type =
-                    GetLiteralValue(node.Expression as ConstantExpression) ??
-                    GetStringValue(node.Expression as StringExpression) ??
-                    BuiltinTypes.None;
-
-                foreach (var n in node.Targets.OfType<NameExpression>()) {
-                    Add(n.Prefix + n.Name, type);
-                }
+        private bool GetVariableValue(NameExpression expr, IEnumerable<string> targets) {
+            if (expr == null) {
+                return false;
             }
 
+            Variable variable = null;
+            foreach (var name in GetFullNames(expr)) {
+                if (_vars.TryGetValue(name, out variable)) {
+                    break;
+                }
+            }
+            if (variable == null) {
+                return false;
+            }
+
+            _rules.Add(new Rules.NameLookup(variable.Key, targets));
+            
+            return true;
+        }
+
+        private bool GetAttributeValue(MemberExpression expr, IEnumerable<string> targets) {
+            if (expr == null) {
+                return false;
+            }
+
+            // TODO: Implement attribute handling
+            return false;
+        }
+
+        private bool GetReturnValue(CallExpression expr, IEnumerable<string> targets) {
+            if (expr == null) {
+                return false;
+            }
+
+            // TODO: Implement call handling
+            var callKey = string.Format("()@{0}", expr.Span.Start.Index);
+            Assign(callKey, expr.Expression);
+            if (expr.Args != null) {
+                int argIndex = 0;
+                foreach (var a in expr.Args) {
+                    var starArg = a.Expression as StarredExpression;
+                    if (starArg?.IsStar ?? false) {
+                        Assign(callKey + "#*", starArg.Expression);
+                    } else if (starArg?.IsDoubleStar ?? false) {
+                        Assign(callKey + "#**", starArg.Expression);
+                    } else if (a.NameExpression != null) {
+                        Assign(string.Format("{0}#${1}", callKey, a.Name), a.Expression);
+                    } else {
+                        Assign(string.Format("{0}#${1}", callKey, argIndex++), a.Expression);
+                    }
+                }
+            }
+            Assign(string.Format("{0}#$r", callKey), null);
+            Add(new Rules.ReturnValueLookup(new VariableKey(_state, callKey), targets));
+            return true;
+        }
+
+        private string GetTargetName(NameExpression expr) {
+            if (expr == null) {
+                return null;
+            }
+            return (expr.Prefix ?? "") + expr.Name;
+        }
+
+        private string GetTargetName(MemberExpression expr) {
+            if (expr == null) {
+                return null;
+            }
+            var baseName = GetTargetName(expr.Expression);
+            if (baseName == null) {
+                return null;
+            }
+            return baseName + "." + expr.Name;
+        }
+
+        private string GetTargetName(Expression expr) {
+            return
+                GetTargetName(expr as NameExpression) ??
+                GetTargetName(expr as MemberExpression);
+        }
+
+        private void Assign(IEnumerable<Expression> targets, Expression value) {
+            var targetNames = targets
+                .MaybeEnumerate()
+                .Select(t => GetTargetName(t))
+                .Where(n => !string.IsNullOrEmpty(n))
+                .ToList();
+
+            Assign(targetNames, value);
+        }
+
+        private void Assign(string target, Expression value) {
+            Assign(Enumerable.Repeat(target, 1), value);
+        }
+
+        private void Assign(IEnumerable<string> targets, Expression value) {
+            AnalysisValue type =
+                GetLiteralValue(value as ConstantExpression) ??
+                GetStringValue(value as StringExpression) ??
+                AnalysisValue.Empty;
+
+            var targetNames = targets.Select(t => Add(t, type)).ToList();
+
+            var addedRules = !_addRules ||
+                GetVariableValue(value as NameExpression, targetNames) ||
+                GetAttributeValue(value as MemberExpression, targetNames) ||
+                GetReturnValue(value as CallExpression, targetNames);
+        }
+
+        public override bool Walk(AssignmentStatement node) {
+            if (node.Targets != null) {
+                node.Expression.Walk(this);
+
+                Assign(node.Targets, node.Expression);
+            }
+
+            return false;
+        }
+
+        public override bool Walk(CallExpression node) {
             return false;
         }
 
         public override bool Walk(ClassDefinition node) {
             Add(node.Name, new ClassInfo(node));
 
+            if (Defer(node)) {
+                node.Decorators?.Walk(this);
+            } else {
+                EnterScope(node.Name, ".");
+                node.Body?.Walk(this);
+                LeaveScope(node.Name, ".");
+            }
+
             return false;
         }
 
         public override bool Walk(FunctionDefinition node) {
-            Add(node.Name, new FunctionInfo(node));
+            var fullName = Add(node.Name, null);
+            var fi = new FunctionInfo(node, fullName);
+            Add(node.Name, fi);
 
+            if (Defer(node)) {
+                node.Decorators?.Walk(this);
+            } else {
+                var defaults = new List<AnalysisValue>();
+                foreach (var p in (node.Parameters?.Parameters).MaybeEnumerate()) {
+                    // TODO: Walk annotation
+
+                    // TODO: Walk default value
+                    defaults.Add(null);
+                }
+
+                EnterScope(fi.Key, "#");
+                int parameterNumber = 0;
+                var defaultsEnum = defaults.GetEnumerator();
+                foreach (var p in (node.Parameters?.Parameters).MaybeEnumerate()) {
+                    ParameterInfo pi;
+                    string pKey;
+                    if (p.Kind == ParameterKind.List) {
+                        pi = ParameterInfo.ListParameter;
+                    } else if (p.Kind == ParameterKind.Dictionary) {
+                        pi = ParameterInfo.DictParameter;
+                    } else if (p.Kind == ParameterKind.KeywordOnly) {
+                        pi = null;
+                    } else {
+                        pi = ParameterInfo.Create(parameterNumber++);
+                    }
+                    pKey = Add(p.Name, pi);
+                    if (pi != null) {
+                        Add(pi.KeySuffix, null);
+                    }
+                    if (defaultsEnum.MoveNext()) {
+                        Add(p.Name, defaultsEnum.Current);
+                    }
+                }
+
+                node.Body?.Walk(this);
+                LeaveScope(fi.Key, "#");
+            }
+
+            return false;
+        }
+
+        public override bool Walk(ReturnStatement node) {
+            if (!node.IsExpressionEmpty) {
+                Assign("$r", node.Expression);
+            }
             return false;
         }
 
@@ -161,14 +424,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     continue;
                 }
 
-                importNames.Add(importName);
-                asNames.Add(asName);
                 if (asName != "*") {
                     Add(asName, null);
                 }
+                Add(new Rules.ImportFromModule(mi, importName, asName));
             }
 
-            Add(new Rules.ImportFromModule(mi, importNames, asNames));
 
             return false;
         }
