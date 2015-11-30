@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Choose>
     <When Condition=" '$(VisualStudioVersion)'=='15.0'  Or '$(TargetVisualStudioVersion)'=='VS150' ">
@@ -72,6 +72,9 @@
     <Reference Include="Microsoft.VisualStudio.Shell.$(VsTarget)">
       <Aliases>global</Aliases>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(PackagesPath)Newtonsoft.Json.6.0.8\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="System.XML" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="WindowsBase" />
@@ -92,6 +95,9 @@
       <Link>PythonToolsInstallPath.cs</Link>
     </Compile>
     <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="Cdp\Connection.cs" />
+    <Compile Include="Cdp\Requests.cs" />
+    <Compile Include="Cdp\Responses.cs" />
     <Compile Include="Debugger\BreakpointHitEventArgs.cs" />
     <Compile Include="Debugger\DebugConnectionListener.cs" />
     <Compile Include="Debugger\DebugEngine\AD7BoundBreakpoint.cs" />

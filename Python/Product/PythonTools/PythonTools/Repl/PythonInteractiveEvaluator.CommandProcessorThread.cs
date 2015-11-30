@@ -18,27 +18,15 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Markup;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using Microsoft.PythonTools.Analysis;
-using Microsoft.PythonTools.Debugger;
-using Microsoft.PythonTools.Interpreter;
-using Microsoft.VisualStudio.InteractiveWindow;
+using Microsoft.PythonTools.Cdp;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudioTools;
 using Microsoft.VisualStudioTools.Project;
-using Newtonsoft.Json;
 using SR = Microsoft.PythonTools.Project.SR;
 using Task = System.Threading.Tasks.Task;
 
@@ -129,10 +117,9 @@ namespace Microsoft.PythonTools.Repl {
             private readonly PythonInteractiveEvaluator _eval;
             private readonly Process _process;
             private readonly Stream _stream;
+            private readonly Connection _connection;
 
             private Task _connecting;
-
-            private int _seq;
 
             private readonly Dictionary<int, TaskCompletionSource<Response>> _completions;
 
@@ -152,13 +139,17 @@ namespace Microsoft.PythonTools.Repl {
                 _completions = new Dictionary<int, TaskCompletionSource<Response>>();
 
                 _stream = _process.StandardInput.BaseStream;
-                _process.OutputDataReceived += StdOutReceived;
                 _process.ErrorDataReceived += StdErrReceived;
                 _process.Exited += ProcessExited;
                 _process.EnableRaisingEvents = true;
 
-                _process.BeginOutputReadLine();
+                //_process.BeginOutputReadLine();
                 _process.BeginErrorReadLine();
+
+                _connection = new Connection(
+                    _process.StandardInput.BaseStream,
+                    _process.StandardOutput.BaseStream
+                );
 
                 _connecting = ConnectAsync();
             }
@@ -171,88 +162,8 @@ namespace Microsoft.PythonTools.Repl {
                 await c;
             }
 
-            private class Request {
-                public string type = "request";
-                public int seq;
-            }
-
-            private class InitializeRequest : Request {
-                public string command = "initialize";
-                public bool linesStartAt1 = true;
-                public bool columnsStartAt1 = true;
-                public string pathFormat = "path";
-            }
-
-            private class EvaluateRequest : Request {
-                public string command = "evaluate";
-                public Dictionary<string, object> arguments = new Dictionary<string, object>();
-
-                [JsonIgnore]
-                public string expression {
-                    get { return (string)arguments["expression"]; }
-                    set { arguments["expression"] = value; }
-                }
-                [JsonIgnore]
-                public int frameId {
-                    get { return (int)arguments["frameId"]; }
-                    set { arguments["frameId"] = value; }
-                }
-            }
-
-            private class Response {
-                public string type = "response";
-                public int seq = -1;
-                public int requestSeq = -1;
-                public bool success  = false;
-                public string command = string.Empty;
-                public string message = string.Empty;
-                public Dictionary<string, object> body = null;
-            }
-
-            private class EvaluateResponse : Response {
-                [JsonIgnore]
-                public string result => body?["result"] as string;
-
-                public static EvaluateResponse TryCreate(Response from) {
-                    if (!from.success || from.command != "evaluate" || from.body == null) {
-                        return null;
-                    }
-                    if (!from.body.ContainsKey("result")) {
-                        return null;
-                    }
-                    return new EvaluateResponse {
-                        seq = from.seq,
-                        requestSeq = from.requestSeq,
-                        success = from.success,
-                        command = from.command,
-                        message = from.message,
-                        body = from.body
-                    };
-                }
-            }
-
-            private async Task<Response> WriteRequestAsync(Request data) {
-                int seq = data.seq = Interlocked.Increment(ref _seq);
-                var tcs = new TaskCompletionSource<Response>();
-                lock (_completions) {
-                    _completions[seq] = tcs;
-                }
-
-                var str = JsonConvert.SerializeObject(data) + "\n";
-                var bytes = Encoding.UTF8.GetBytes(str);
-                try {
-                    await _stream.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
-                    await _stream.FlushAsync().ConfigureAwait(false);
-                    return await tcs.Task;
-                } finally {
-                    lock (_completions) {
-                        _completions.Remove(seq);
-                    }
-                }
-            }
-
             private async Task ConnectAsync() {
-                await WriteRequestAsync(new InitializeRequest());
+                await _connection.SendRequestAsync(new InitializeRequest(), CancellationToken.None);
             }
 
             public bool IsConnected => _connecting?.Status == TaskStatus.RanToCompletion;
@@ -300,27 +211,6 @@ namespace Microsoft.PythonTools.Repl {
                 }
                 if (!AppendPreConnectionOutput(e)) {
                     _eval.WriteError(FixNewLines(e.Data));
-                }
-            }
-
-            private void StdOutReceived(object sender, DataReceivedEventArgs e) {
-                if (e.Data == null) {
-                    return;
-                }
-
-                //if (!AppendPreConnectionOutput(e)) {
-                //    _eval.WriteOutput(FixNewLines(e.Data));
-                //}
-                var response = JsonConvert.DeserializeObject<Response>(e.Data);
-                if (response == null) {
-                    return;
-                }
-                TaskCompletionSource<Response> tcs;
-                lock (_completions) {
-                    if (_completions.TryGetValue(response.requestSeq, out tcs)) {
-                        _completions.Remove(response.requestSeq);
-                        tcs.TrySetResult(response);
-                    }
                 }
             }
 
@@ -579,15 +469,13 @@ namespace Microsoft.PythonTools.Repl {
                 // normalize line endings to \n which is all older versions of CPython can handle.
                 text = FixNewLines(text).TrimEnd(' ');
 
-                var response = await WriteRequestAsync(new EvaluateRequest {
-                    expression = text
-                });
+                var response = await _connection.SendRequestAsync(new EvaluateRequest(text), CancellationToken.None);
 
                 EvaluateResponse er;
-                if (response.success && (er = EvaluateResponse.TryCreate(response)) != null) {
-                    return er.result;
+                if ((er = EvaluateResponse.TryCreate(response)) != null) {
+                    return er.Result;
                 }
-                return response.message;
+                return response.Message;
             }
 
             //public Task<ExecutionResult> ExecuteFile(string filename, string extraArgs, string fileType) {

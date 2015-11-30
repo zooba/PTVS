@@ -48,7 +48,7 @@ class ReplCDP(visualstudio_py_cdp.CDP):
             result = ''.join(OUTPUT)
             OUTPUT.clear()
         except:
-            self._send_response(
+            self.send_response(
                 request,
                 success=False,
                 message=traceback.format_exc()
