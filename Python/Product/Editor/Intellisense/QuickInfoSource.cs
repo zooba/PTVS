@@ -26,39 +26,9 @@ using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
+using Microsoft.PythonTools.Analysis.Parsing;
 
 namespace Microsoft.PythonTools.Editor.Intellisense {
-    class QuickInfoContent {
-        private readonly object _content;
-        private readonly ITrackingSpan _applicableToSpan;
-
-        public object Content => _content;
-        public ITrackingSpan ApplicableToSpan => _applicableToSpan;
-
-        private QuickInfoContent(object content, ITrackingSpan applicableToSpan) {
-            _content = content;
-            _applicableToSpan = applicableToSpan;
-        }
-
-        public static async Task CreateAsync(ITrackingPoint trigger, CancellationToken cancellationToken) {
-            var snapshot = trigger.TextBuffer.CurrentSnapshot;
-            var span = await trigger.GetApplicableSpanAsync(snapshot, true, cancellationToken);
-
-            if (span.Length == 0) {
-                return;
-            }
-
-            var text = span.GetText();
-            var applicableToSpan = snapshot.CreateTrackingSpan(
-                span.Start.Position,
-                span.Length,
-                SpanTrackingMode.EdgeInclusive
-            );
-
-            trigger.TextBuffer.Properties[typeof(QuickInfoContent)] = new QuickInfoContent(text, applicableToSpan);
-        }
-    }
-
     class QuickInfoSource : IQuickInfoSource {
         private readonly ITextBuffer _textBuffer;
 
@@ -73,21 +43,48 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
             IList<object> quickInfoContent,
             out ITrackingSpan applicableToSpan
         ) {
-            applicableToSpan = null;
-            QuickInfoContent content;
-            if (session.Properties.TryGetProperty(typeof(QuickInfoContent), out content)) {
-                session.Properties.RemoveProperty(typeof(QuickInfoContent));
-            }
+            var snapshot = _textBuffer.CurrentSnapshot;
+            var span = session.GetTriggerPoint(_textBuffer).GetApplicableSpan(snapshot, true, CancellationToken.None);
+            applicableToSpan = snapshot.CreateTrackingSpan(span, SpanTrackingMode.EdgeInclusive);
 
-            if (content == null) {
-                if (!(session?.IsDismissed ?? true)) {
-                    session.Dismiss();
-                }
+            quickInfoContent.Add("Loading...");
+
+            BeginAugmentQuickInfoSession(session, quickInfoContent, span).DoNotWait();
+        }
+
+        private async Task BeginAugmentQuickInfoSession(
+            IQuickInfoSession session,
+            IList<object> quickInfoContent,
+            SnapshotSpan span
+        ) {
+            if (span.Length == 0) {
+                session.Dismiss();
                 return;
             }
 
-            quickInfoContent.Add(content.Content);
-            applicableToSpan = content.ApplicableToSpan;
+            var text = span.GetText();
+            var analyzer = _textBuffer.GetAnalyzer();
+            var context = _textBuffer.GetPythonFileContext();
+            var document = _textBuffer.GetDocument();
+            if (analyzer == null || context == null || document == null) {
+                text = string.Format(Strings.QuickInfo_UnknownType, text);
+            } else {
+                var startLine = span.Start.GetContainingLine();
+                var loc = new SourceLocation(
+                    span.Start.Position,
+                    startLine.LineNumber + 1,
+                    (span.Start.Position - startLine.Start.Position) + 1
+                );
+                var state = analyzer.GetAnalysisState(context, document.Moniker, true);
+                var types = await analyzer.GetVariableTypesAsync(state, text, loc, CancellationTokens.After500ms);
+                text = string.Format(Strings.QuickInfo_TypeNoDocs,
+                    text,
+                    string.Join(", ", types.Select(t => t.ToAnnotation(state)))
+                );
+            }
+
+            quickInfoContent.Clear();
+            quickInfoContent.Add(text);
         }
     }
 }

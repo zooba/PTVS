@@ -60,7 +60,7 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
                 _broker = broker;
             }
 
-            private async Task<bool> TriggerSessionAsync() {
+            private bool TriggerSession() {
                 //the caret must be in a non-projection location 
                 SnapshotPoint? caretPoint = _textView.Caret.Position.Point.GetInsertionPoint(
                     textBuffer => (!textBuffer.ContentType.IsOfType("projection"))
@@ -70,11 +70,6 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
                 }
                 var snapshot = caretPoint.Value.Snapshot;
                 var trigger = snapshot.CreateTrackingPoint(caretPoint.Value.Position, PointTrackingMode.Positive);
-                try {
-                    await QuickInfoContent.CreateAsync(trigger, CancellationTokens.After500ms);
-                } catch (OperationCanceledException) {
-                    return false;
-                }
 
                 _session = _broker.CreateQuickInfoSession(_textView, trigger, true);
 
@@ -89,13 +84,13 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
                 return true;
             }
 
-            public async Task<bool> TriggerOrRecalculate() {
+            public bool TriggerOrRecalculate() {
                 bool triggered = true;
                 if (!(_session?.IsDismissed ?? true)) {
                     _session.Dismiss();
                     triggered = false;
                 }
-                await TriggerSessionAsync();
+                TriggerSession();
                 return triggered;
             }
 
@@ -111,6 +106,24 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
 
         protected override State CreateSource(IWpfTextView textView, IVsTextView textViewAdapter) {
             return new State(textView, _broker);
+        }
+
+        protected override void QueryStatus(
+            State source,
+            Guid cmdGroup,
+            uint cmdID,
+            ref string name,
+            ref string status,
+            ref bool supported,
+            ref bool visible,
+            ref bool enable,
+            ref bool check
+        ) {
+            if (cmdGroup == VSConstants.VSStd2K && cmdID == (uint)VSConstants.VSStd2KCmdID.QUICKINFO) {
+                supported = true;
+                visible = true;
+                enable = true;
+            }
         }
 
         protected override int Exec(
@@ -131,7 +144,7 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
                 return forward();
             }
 
-            source.TriggerOrRecalculate().DoNotWait();
+            source.TriggerOrRecalculate();
 
             return forward();
         }

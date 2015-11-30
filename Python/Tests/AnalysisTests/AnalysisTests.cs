@@ -26,6 +26,7 @@ using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Values;
+using Microsoft.PythonTools.Common.Infrastructure;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -141,11 +142,13 @@ def g():
 def g(a): return a
 
 x = f()
-y = g(1)".AnalyzeAsync(Configuration);
+y = g(1)
+z = g('abc')".AnalyzeAsync(Configuration);
             await state.AssertAnnotationsAsync("f@0#$r", "int");
             await state.AssertAnnotationsAsync("x", "int");
             await state.AssertAnnotationsAsync("g@19#$r", "Parameter[0]");
             await state.AssertAnnotationsAsync("y", "int");
+            await state.AssertAnnotationsAsync("z", "str");
             // TODO: Make annotation include parameter and return types
             await state.AssertAnnotationsAsync("f", "Callable");
             await state.AssertAnnotationsAsync("g", "Callable");
@@ -153,11 +156,11 @@ y = g(1)".AnalyzeAsync(Configuration);
     }
 
     static class AnalysisTestsHelpers {
-        public static async Task AssertAnnotationsAsync(this AnalysisState state, string key, params string[] annotations) {
+        public static async Task AssertAnnotationsAsync(this IAnalysisState state, string key, params string[] annotations) {
             var values = await state.GetTypesAsync(key, CancellationTokens.After5s);
+            var types = new HashSet<string>(values.MaybeEnumerate().Select(v => v.ToAnnotation(state)));
             if (annotations.Any()) {
-                Assert.IsNotNull(values, "No types returned for " + key);
-                var types = new HashSet<string>(values.Select(v => v.ToAnnotation(state)));
+                Assert.IsTrue(types.Any(), "No types returned for " + key);
                 var expected = new HashSet<string>(annotations);
                 var expectedNotFound = new HashSet<string>(expected);
                 expectedNotFound.ExceptWith(types);
@@ -194,11 +197,16 @@ y = g(1)".AnalyzeAsync(Configuration);
                     Assert.Fail(message.TrimEnd());
                 }
             } else {
-                Assert.IsNull(values, "Expected no types");
+                Assert.IsFalse(types.Any(), string.Format(
+                    "Expected no types{2}{0} included {{{1}}}",
+                    key,
+                    string.Join(", ", types.OrderBy(s => s)),
+                    Environment.NewLine
+                ));
             }
         }
 
-        public static Task<AnalysisState> AnalyzeAsync(
+        public static Task<IAnalysisState> AnalyzeAsync(
             this string code,
             InterpreterConfiguration config,
             CancellationToken cancellationToken = default(CancellationToken),
@@ -210,7 +218,7 @@ y = g(1)".AnalyzeAsync(Configuration);
             );
         }
 
-        public static async Task<AnalysisState> AnalyzeAsync(
+        public static async Task<IAnalysisState> AnalyzeAsync(
             this ISourceDocument document,
             InterpreterConfiguration config,
             CancellationToken cancellationToken = default(CancellationToken)
@@ -240,14 +248,9 @@ y = g(1)".AnalyzeAsync(Configuration);
             await context.AddDocumentsAsync(new[] { document }, cancellationToken);
             await analyzer.AddFileContextAsync(context, cancellationToken);
 
-            var state = await analyzer.GetAnalysisStateAsync(
-                context,
-                document.Moniker,
-                false,
-                cancellationToken
-            );
+            var state = analyzer.GetAnalysisState(context, document.Moniker, false);
             await state.WaitForUpToDateAsync(cancellationToken);
-            state.Dump(Console.Out);
+            await state.DumpAsync(Console.Out);
             return state;
         }
     }

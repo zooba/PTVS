@@ -113,19 +113,20 @@ namespace AnalysisTests {
             var config = GetPythonConfig();
 
             using (var service = await lsp.GetServiceAsync(config, pfcp, Cancel5s)) {
-                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, Cancel5s);
+                await service.WaitForLoadAsync();
+                service.AddSearchPath(Path.Combine(config.PrefixPath, "Lib"), null);
 
                 Assert.AreEqual(
                     Path.Combine(config.PrefixPath, "Lib", "os.py"),
-                    await service.ResolveImportAsync("os", "", Cancel5s)
+                    service.ResolveImport("os", "")
                 );
                 Assert.AreEqual(
                     Path.Combine(config.PrefixPath, "Lib", "ctypes", "util.py"),
-                    await service.ResolveImportAsync("ctypes.util", "", Cancel5s)
+                    service.ResolveImport("ctypes.util", "")
                 );
                 Assert.AreEqual(
                     Path.Combine(config.PrefixPath, "Lib", "ctypes", "util.py"),
-                    await service.ResolveImportAsync(".util", "ctypes.__init__", Cancel5s)
+                    service.ResolveImport(".util", "ctypes.__init__")
                 );
 
                 var sitePath = Path.Combine(config.PrefixPath, "Lib", "site-packages");
@@ -135,11 +136,11 @@ namespace AnalysisTests {
                     Assert.Inconclusive("Could not use " + pipPath);
                 }
 
-                Assert.IsNull(await service.ResolveImportAsync("pip", "", Cancel5s));
+                Assert.IsNull(service.ResolveImport("pip", ""));
 
-                await service.AddSearchPathAsync(sitePath, null, Cancel5s);
+                service.AddSearchPath(sitePath, null);
 
-                Assert.AreEqual(pipPath, await service.ResolveImportAsync("pip", "", Cancel5s));
+                Assert.AreEqual(pipPath, service.ResolveImport("pip", ""));
             }
         }
 
@@ -151,15 +152,17 @@ namespace AnalysisTests {
             var config = GetPythonConfig();
 
             using (var service = await lsp.GetServiceAsync(config, pfcp, Cancel5s)) {
-                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, Cancel5s);
+                await service.WaitForLoadAsync();
+                service.AddSearchPath(Path.Combine(config.PrefixPath, "Lib"), null);
 
-                var imports = await service.GetImportableModulesAsync("", "", Cancel5s);
+                var imports = service.GetImportableModules("", "");
                 AssertUtil.ContainsAtLeast(imports.Keys, "os", "ctypes");
 
-                var ast = await service.GetAstAsync(null, imports["os"], Cancel5s);
+                var state = service.GetAnalysisState(null, imports["os"], true);
+                var ast = await state.GetAstAsync(Cancel5s);
                 Assert.IsNotNull(ast, "No AST for os module at " + imports["os"]);
 
-                imports = await service.GetImportableModulesAsync("ctypes", "", Cancel5s);
+                imports = service.GetImportableModules("ctypes", "");
                 AssertUtil.ContainsAtLeast(imports.Keys, "wintypes", "util");
             }
         }
@@ -172,9 +175,10 @@ namespace AnalysisTests {
             var config = GetPythonConfig();
 
             using (var service = await lsp.GetServiceAsync(config, pfcp, Cancel5s)) {
-                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, Cancel5s);
+                await service.WaitForLoadAsync();
+                service.AddSearchPath(Path.Combine(config.PrefixPath, "Lib"), null);
 
-                var moniker = await service.ResolveImportAsync("os", "", Cancel5s);
+                var moniker = service.ResolveImport("os", "");
                 Trace.TraceInformation("Looking at {0}", moniker);
                 var imports = await service.GetModuleMembersAsync(null, moniker, null, Cancel5s);
                 AssertUtil.CheckCollection(
@@ -185,7 +189,7 @@ namespace AnalysisTests {
                 var walk = await service.GetModuleMemberTypesAsync(null, moniker, "walk", Cancel5s);
                 Assert.IsInstanceOfType(walk.Single(), typeof(FunctionInfo));
 
-                moniker = await service.ResolveImportAsync("collections", "", Cancel5s);
+                moniker = service.ResolveImport("collections", "");
                 imports = await service.GetModuleMembersAsync(null, moniker, null, Cancel5s);
                 var Counter = await service.GetModuleMemberTypesAsync(null, moniker, "Counter", Cancel5s);
                 Assert.IsInstanceOfType(Counter.Single(), typeof(ClassInfo));
@@ -209,8 +213,10 @@ namespace AnalysisTests {
 
                 await service.AddFileContextAsync(context, Cancel5s);
 
-                var tree1 = await service.GetAstAsync(context, doc1.Moniker, Cancel5s);
-                var tree2 = await service.GetAstAsync(context, doc2.Moniker, Cancel5s);
+                var state1 = service.GetAnalysisState(context, doc1.Moniker, false);
+                var tree1 = await state1.GetAstAsync(Cancel5s);
+                var state2 = service.GetAnalysisState(context, doc2.Moniker, false);
+                var tree2 = await state2.GetAstAsync(Cancel5s);
 
                 Assert.IsNotNull(tree1, "No AST for doc1");
                 Assert.IsNotNull(tree2, "No AST for doc2");
@@ -229,6 +235,7 @@ namespace AnalysisTests {
 
             using (var service = await lsp.GetServiceAsync(config, null, Cancel5s))
             using (var context = new PythonFileContext(@"C:\Root\", "")) {
+                await service.WaitForLoadAsync();
                 await context.AddDocumentsAsync(new[] { doc1, doc2 }, Cancel5s);
                 await service.AddFileContextAsync(context, Cancel5s);
             
@@ -241,7 +248,8 @@ namespace AnalysisTests {
             var doc3 = new StringLiteralDocument("from stat import *", @"C:\Root\m3.py");
             using (var service = await lsp.GetServiceAsync(config, pfcp, Cancel5s))
             using (var context = new PythonFileContext(@"C:\", "")) {
-                await service.AddSearchPathAsync(Path.Combine(config.PrefixPath, "Lib"), null, Cancel5s);
+                await service.WaitForLoadAsync();
+                service.AddSearchPath(Path.Combine(config.PrefixPath, "Lib"), null);
 
                 await context.AddDocumentsAsync(new[] { doc3 }, Cancel5s);
                 await service.AddFileContextAsync(context, Cancel5s);

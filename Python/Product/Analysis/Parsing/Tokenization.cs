@@ -77,13 +77,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var tokens = new List<Token[]>();
             var lineStarts = new List<int>() { 0 };
             string line;
-            while ((line = await reader.ReadLineAsync()) != null) {
+            while ((line = (await reader.ReadLineAsync())) != null) {
                 lines.Add(line);
                 states.Add(tokenizer.SerializeState());
                 var tok = tokenizer.GetTokens(line).ToArray();
                 tokens.Add(tok);
                 Debug.Assert(tok.Length > 0);
                 lineStarts.Add(tok.Last().Span.End.Index);
+                cancellationToken.ThrowIfCancellationRequested();
             }
             lines.Add(string.Empty);
             states.Add(tokenizer.SerializeState());

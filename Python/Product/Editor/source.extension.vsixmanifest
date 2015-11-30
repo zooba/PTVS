@@ -6,7 +6,7 @@
     <MoreInfo>http://aka.ms/ptvs</MoreInfo>
     <GettingStartedGuide>http://aka.ms/ptvs</GettingStartedGuide>
   </Metadata>
-  <Installation InstalledByMsi="true">
+  <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="14.0" />
   </Installation>
   <Dependencies>

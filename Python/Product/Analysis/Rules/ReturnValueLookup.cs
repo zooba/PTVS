@@ -23,6 +23,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Values;
+using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Rules {
     class ReturnValueLookup : AnalysisRule {
@@ -36,10 +37,10 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             _function = function;
         }
 
-        protected override async Task<Dictionary<string, IReadOnlyCollection<AnalysisValue>>> ApplyWorkerAsync(
+        protected override async Task<Dictionary<string, AnalysisSet>> ApplyWorkerAsync(
             PythonLanguageService analyzer,
             AnalysisState state,
-            IReadOnlyDictionary<string, IReadOnlyCollection<AnalysisValue>> priorResults,
+            IReadOnlyDictionary<string, AnalysisSet> priorResults,
             CancellationToken cancellationToken
         ) {
             var callables = _function.GetTypes(state) ?? await _function.GetTypesAsync(cancellationToken);
@@ -48,11 +49,11 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             }
 
             var vars = state.GetVariables();
-            var values = new List<AnalysisValue>();
+            var values = new AnalysisSet();
             foreach (var func in callables.OfType<FunctionInfo>()) {
                 var returnKey = new VariableKey(state, func.Key + "#$r");
                 var types = returnKey.GetTypes(state) ?? await returnKey.GetTypesAsync(cancellationToken);
-                foreach (var t in types) {
+                foreach (var t in types.MaybeEnumerate()) {
                     var p = t as ParameterInfo;
                     if (p != null) {
                         var pKey = _function + ("#" + p.KeySuffix);
@@ -70,7 +71,7 @@ namespace Microsoft.PythonTools.Analysis.Rules {
                 
             }
 
-            var result = new Dictionary<string, IReadOnlyCollection<AnalysisValue>>();
+            var result = new Dictionary<string, AnalysisSet>();
             bool anyChanged = false;
             foreach (var target in Targets) {
                 result[target] = values;

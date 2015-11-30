@@ -53,7 +53,7 @@ namespace Microsoft.PythonTools.Analysis {
             return string.Format("<{0}>#{1}", State.Document.Moniker, Key);
         }
 
-        public Task<IReadOnlyCollection<AnalysisValue>> GetTypesAsync(CancellationToken cancellationToken) {
+        public Task<AnalysisSet> GetTypesAsync(CancellationToken cancellationToken) {
             return State.GetTypesAsync(Key, cancellationToken);
         }
 
@@ -62,15 +62,16 @@ namespace Microsoft.PythonTools.Analysis {
         /// <paramref name="callingState"/> is known to be held. Returns
         /// <c>null</c> if the variable belongs to a different state.
         /// </summary>
-        internal IReadOnlyCollection<AnalysisValue> GetTypes(AnalysisState callingState) {
+        internal AnalysisSet GetTypes(AnalysisState callingState) {
             if (callingState == State) {
                 Variable variable;
                 var key = Key;
                 if (callingState.GetVariables().TryGetValue(key, out variable)) {
-                    return variable.Types
+                    return new AnalysisSet(variable
+                        .Types
                         .Concat(callingState.GetRules().SelectMany(r => r.GetTypes(key)))
                         .Where(r => r != AnalysisValue.Empty)
-                        .ToArray();
+                    );
                 }
             }
             return null;

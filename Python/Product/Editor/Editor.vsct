@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Python Tools for Visual Studio
+Copyright(c) Microsoft Corporation
+All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the License); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at http://www.apache.org/licenses/LICENSE-2.0
+
+THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+MERCHANTABLITY OR NON-INFRINGEMENT.
+
+See the Apache Version 2.0 License for specific language governing
+permissions and limitations under the License.
+-->
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <Extern href="stdidcmd.h"/>
+  <Extern href="vsshlids.h"/>
+  <Extern href="VSDbgCmd.h"/>
+  <Extern href="VsDebugGuids.h"/>
+  <Include href="KnownImageIds.vsct"/>
+
+  <Commands package="EditorPackage">
+    <!--<Menus>
+    </Menus>-->
+
+    <!--<Groups>
+    </Groups>-->
+    
+    <Buttons>
+      <Button guid="PythonEditorCommands" id="DumpAnalysis" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_EDIT_GOTO"/>
+        <!--<CommandFlag>DefaultInvisible</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>-->
+        <Strings>
+          <ButtonText>Copy Analysis</ButtonText>
+        </Strings>
+      </Button>
+    </Buttons>
+
+    <!--<Combos>
+    </Combos>-->
+  </Commands>
+
+  <!--<CommandPlacements>
+  </CommandPlacements>-->
+
+  <!--<KeyBindings>
+  </KeyBindings>-->
+
+  <!--<UsedCommands>
+  </UsedCommands>-->
+
+  <Symbols>
+    <!-- This is the package guid. -->
+    <GuidSymbol name="EditorPackage" value="{2D0A237F-DBE5-41DD-B2CD-F1C0C6FDD3FD}" />
+
+    <!-- This is our command set GUID and associated commands -->
+    <GuidSymbol name="PythonEditorCommands" value="{2D0A237F-DBE5-41DD-B2CD-F1C0C6FDD3FD}">
+      <IDSymbol name="DumpAnalysis" value="0x0100"/>
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

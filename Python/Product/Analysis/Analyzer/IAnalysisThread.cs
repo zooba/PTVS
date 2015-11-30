@@ -15,23 +15,11 @@
 // permissions and limitations under the License.
 
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio;
-using Microsoft.VisualStudio.Shell;
 
-namespace Microsoft.PythonTools.Editor {
-    [PackageRegistration(UseManagedResourcesOnly = true)]
-    [Description("Python Tools Editor Package")]
-    [Guid("2D0A237F-DBE5-41DD-B2CD-F1C0C6FDD3FD")]
-    [ProvideMenuResource(1000, 1)]
-    public class PythonToolsEditorPackage : Package {
-        protected override void Initialize() {
-            base.Initialize();
-        }
+namespace Microsoft.PythonTools.Analysis.Analyzer {
+    interface IAnalysisThread {
+        Task Post(Func<Task> action);
+        Task<T> Post<T>(Func<Task<T>> task);
     }
 }

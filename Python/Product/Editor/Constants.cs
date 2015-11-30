@@ -15,23 +15,12 @@
 // permissions and limitations under the License.
 
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.VisualStudio;
-using Microsoft.VisualStudio.Shell;
 
 namespace Microsoft.PythonTools.Editor {
-    [PackageRegistration(UseManagedResourcesOnly = true)]
-    [Description("Python Tools Editor Package")]
-    [Guid("2D0A237F-DBE5-41DD-B2CD-F1C0C6FDD3FD")]
-    [ProvideMenuResource(1000, 1)]
-    public class PythonToolsEditorPackage : Package {
-        protected override void Initialize() {
-            base.Initialize();
-        }
+    static class Constants {
+        internal const string CommandsString = "{2D0A237F-DBE5-41DD-B2CD-F1C0C6FDD3FD}";
+        public static readonly Guid Commands = new Guid(CommandsString);
+
+        public const int DumpAnalysis = 0x100;
     }
 }

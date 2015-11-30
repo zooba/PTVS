@@ -25,9 +25,12 @@ using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.PythonTools.Analysis.Values;
 using System.Threading;
 using System.IO;
+using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     class AnalysisState : IAnalysisState {
+        private readonly PythonLanguageService _analyzer;
+        private readonly IAnalysisThread _thread;
         private readonly PythonFileContext _context;
         private ISourceDocument _document;
 
@@ -42,16 +45,25 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private TaskCompletionSource<object> _upToDate;
         private long _version;
 
-        internal AnalysisState(ISourceDocument document, PythonFileContext context) {
+        internal AnalysisState(
+            PythonLanguageService analyzer,
+            IAnalysisThread thread,
+            ISourceDocument document,
+            PythonFileContext context
+        ) {
+            _analyzer = analyzer;
+            _thread = thread;
             _document = document;
             _context = context;
             _upToDate = new TaskCompletionSource<object>();
         }
 
+        public PythonLanguageService Analyzer => _analyzer;
         public PythonFileContext Context => _context;
         public ISourceDocument Document => _document;
         public long Version => _version;
         public LanguageFeatures Features => _ast?.Features ?? default(LanguageFeatures);
+
 
         internal void SetDocument(ISourceDocument document) {
             _document = document;
@@ -96,8 +108,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             var cancelTcs = new TaskCompletionSource<object>();
-            cancellationToken.Register(cancelTcs.SetCanceled);
-            return Task.WhenAny(updated.Task, cancelTcs.Task);
+            updated.Task.ContinueWith(t => cancelTcs.TrySetResult(null));
+            cancellationToken.Register(() => cancelTcs.TrySetCanceled());
+            return cancelTcs.Task;
         }
 
         internal void NotifyUpToDate() {
@@ -111,26 +124,47 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             var cancelTcs = new TaskCompletionSource<object>();
-            cancellationToken.Register(cancelTcs.SetCanceled);
-            return Task.WhenAny(upToDate.Task, cancelTcs.Task);
+            upToDate.Task.ContinueWith(t => cancelTcs.TrySetResult(null));
+            cancellationToken.Register(() => cancelTcs.TrySetCanceled());
+            return cancelTcs.Task;
         }
 
         public async Task<Tokenization> GetTokenizationAsync(CancellationToken cancellationToken) {
             var tokenization = _tokenization;
-            while (tokenization == null) {
-                await WaitForUpdateAsync(cancellationToken);
-                tokenization = _tokenization;
+            if (tokenization != null) {
+                return tokenization;
             }
-            return tokenization;
+
+            return await _thread.Post(async () => {
+                while (true) {
+                    var t = _tokenization;
+                    if (t != null) {
+                        return t;
+                    }
+                    await Task.Yield();
+                }
+            }).ConfigureAwait(true);
+        }
+
+        public Tokenization TryGetTokenization() {
+            return _tokenization;
         }
 
         public async Task<PythonAst> GetAstAsync(CancellationToken cancellationToken) {
             var ast = _ast;
-            while (ast == null) {
-                await WaitForUpdateAsync(cancellationToken);
-                ast = _ast;
+            if (ast != null) {
+                return ast;
             }
-            return ast;
+
+            return await _thread.Post(async () => {
+                while (true) {
+                    var a = _ast;
+                    if (a != null) {
+                        return a;
+                    }
+                    await WaitForUpdateAsync(cancellationToken);
+                }
+            });
         }
 
         internal IReadOnlyDictionary<string, Variable> GetVariables() {
@@ -141,77 +175,107 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return _rules;
         }
 
-        internal async Task GetVariablesAndRules(
+        internal async Task GetVariablesAndRulesAsync(
             Action<IReadOnlyDictionary<string, Variable>, IReadOnlyCollection<AnalysisRule>> action,
             CancellationToken cancellationToken
         ) {
             var variables = _variables;
             var rules = _rules;
-            while (variables == null || rules == null) {
-                await WaitForUpdateAsync(cancellationToken);
-                variables = _variables;
-                rules = _rules;
+            if (variables != null && rules != null) {
+                action?.Invoke(variables, rules);
+                return;
             }
-            action?.Invoke(variables, rules);
+
+            await _thread.Post(async () => {
+                var t = Tuple.Create(_variables, _rules);
+                while (t.Item1 == null || t.Item2 == null) {
+                    await WaitForUpdateAsync(cancellationToken);
+                    t = Tuple.Create(_variables, _rules);
+                }
+                action?.Invoke(t.Item1, t.Item2);
+            });
         }
 
         public async Task<IReadOnlyCollection<string>> GetVariablesAsync(
             CancellationToken cancellationToken
         ) {
-            var variables = _variables;
-            var rules = _rules;
-            while (variables == null || rules == null) {
-                await WaitForUpdateAsync(cancellationToken);
-                variables = _variables;
-                rules = _rules;
-            }
-            return variables.Keys
-                .Union(rules.SelectMany(r => r.GetVariableNames()))
-                .ToArray();
+            IReadOnlyCollection<string> result = null;
+            await GetVariablesAndRulesAsync((variables, rules) => {
+                result = variables.Keys
+                    .Union(rules.SelectMany(r => r.GetVariableNames()))
+                    .ToArray();
+            }, cancellationToken);
+            return result ?? new string[0];
         }
 
-        public async Task<IReadOnlyCollection<AnalysisValue>> GetTypesAsync(
+        public async Task<string> GetFullNameAsync(
+            string name,
+            SourceLocation location,
+            CancellationToken cancellationToken
+        ) {
+            var ast = _ast;
+            var variables = _variables;
+            if (ast == null || variables == null) {
+                var aAndV = await _thread.Post(async () => {
+                    var t = Tuple.Create(_ast, _variables);
+                    while (t.Item1 == null || t.Item2 == null) {
+                        await WaitForUpdateAsync(cancellationToken);
+                        t = Tuple.Create(_ast, _variables);
+                    }
+                    return t;
+                });
+                ast = aAndV.Item1;
+                variables = aAndV.Item2;
+            }
+
+            return FindScopeFromLocationWalker
+                .FindNames(ast, location, name)
+                .MaybeEnumerate()
+                .FirstOrDefault(variables.ContainsKey) ?? name;
+        }
+
+        public async Task<AnalysisSet> GetTypesAsync(
             string name,
             CancellationToken cancellationToken
         ) {
-            var variables = _variables;
-            var rules = _rules;
-            while (variables == null || rules == null) {
-                await WaitForUpdateAsync(cancellationToken);
-                variables = _variables;
-                rules = _rules;
-            }
+            AnalysisSet result = null;
 
-            if (!variables.ContainsKey(name)) {
-                return null;
-            }
-
-            return variables[name].Types
-                .Concat(rules.SelectMany(r => r.GetTypes(name)))
-                .Where(t => t != AnalysisValue.Empty)
-                .ToArray();
+            await GetVariablesAndRulesAsync(async (variables, rules) => {
+                if (!variables.ContainsKey(name)) {
+                    result = null;
+                } else {
+                    result = new AnalysisSet(variables[name]
+                        .Types
+                        .Concat(rules.SelectMany(r => r.GetTypes(name)))
+                        .Where(t => t != AnalysisValue.Empty)
+                    );
+                }
+            }, cancellationToken);
+            return result ?? AnalysisSet.Empty;
         }
 
-        internal void Dump(TextWriter output) {
-            output.WriteLine("Analysis Dump: {0}", _document.Moniker);
-            output.WriteLine("  Version: {0}, Futures: {1}", Features.Version, Features.Future);
-            output.WriteLine("  State Version: {0}", Version);
-            if (_variables != null) {
-                output.WriteLine("Variables");
-                foreach (var v in _variables.OrderBy(kv => kv.Key)) {
-                    output.WriteLine("  {0} = {1}", v.Key, v.Value.ToAnnotationString(this));
+        public Task DumpAsync(TextWriter output) {
+            return _thread.Post(async () => {
+                output.WriteLine("Analysis Dump: {0}", _document.Moniker);
+                output.WriteLine("  Version: {0}, Futures: {1}", Features.Version, Features.Future);
+                output.WriteLine("  State Version: {0}", Version);
+                if (_variables != null) {
+                    output.WriteLine("Variables");
+                    foreach (var v in _variables.OrderBy(kv => kv.Key)) {
+                        output.WriteLine("  {0} = {1}", v.Key, v.Value.ToAnnotationString(this));
+                    }
+                    output.WriteLine();
                 }
-                output.WriteLine();
-            }
-            if (_rules != null) {
-                output.WriteLine("Rules");
-                foreach (var r in _rules) {
-                    r.Dump(output, this, "  ");
+                if (_rules != null) {
+                    output.WriteLine("Rules");
+                    foreach (var r in _rules) {
+                        r.Dump(output, this, "  ");
+                    }
+                    output.WriteLine();
                 }
+                output.WriteLine("End of dump ({0} variables, {1} rules)", _variables?.Count ?? 0, _rules?.Count ?? 0);
                 output.WriteLine();
-            }
-            output.WriteLine("End of dump ({0} variables, {1} rules)", _variables?.Count ?? 0, _rules?.Count ?? 0);
-            output.WriteLine();
+            });
         }
     }
 }

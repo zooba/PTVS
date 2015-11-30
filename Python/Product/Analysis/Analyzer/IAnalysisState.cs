@@ -16,10 +16,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis.Parsing;
+using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     public interface IAnalysisState {
@@ -29,10 +32,15 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         LanguageFeatures Features { get; }
 
+        Task DumpAsync(TextWriter output);
+
         Task WaitForUpToDateAsync(CancellationToken cancellationToken);
 
+        Tokenization TryGetTokenization();
+        Task<Tokenization> GetTokenizationAsync(CancellationToken cancellationToken);
+        Task<PythonAst> GetAstAsync(CancellationToken cancellationToken);
         Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken);
-        Task<IReadOnlyCollection<AnalysisValue>> GetTypesAsync(string name, CancellationToken cancellationToken);
-
+        Task<AnalysisSet> GetTypesAsync(string name, CancellationToken cancellationToken);
+        Task<string> GetFullNameAsync(string name, SourceLocation location, CancellationToken cancellationToken);
     }
 }

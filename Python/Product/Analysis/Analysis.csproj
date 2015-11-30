@@ -56,8 +56,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AnalysisDictionary.cs" />
+    <Compile Include="AnalysisSet.cs" />
     <Compile Include="AnalysisRule.cs" />
     <Compile Include="Analyzer\AnalysisState.cs" />
+    <Compile Include="Analyzer\FindScopeFromLocationWalker.cs" />
+    <Compile Include="Analyzer\IAnalysisThread.cs" />
+    <Compile Include="Analyzer\ScopeTrackingWalker.cs" />
     <Compile Include="Analyzer\Tasks\UpdateRules.cs" />
     <Compile Include="Analyzer\VariableChangedEventArgs.cs" />
     <Compile Include="Analyzer\IAnalysisState.cs" />

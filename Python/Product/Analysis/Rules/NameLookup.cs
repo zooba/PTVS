@@ -36,15 +36,15 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             _name = name;
         }
 
-        protected override async Task<Dictionary<string, IReadOnlyCollection<AnalysisValue>>> ApplyWorkerAsync(
+        protected override async Task<Dictionary<string, AnalysisSet>> ApplyWorkerAsync(
             PythonLanguageService analyzer,
             AnalysisState state,
-            IReadOnlyDictionary<string, IReadOnlyCollection<AnalysisValue>> priorResults,
+            IReadOnlyDictionary<string, AnalysisSet> priorResults,
             CancellationToken cancellationToken
         ) {
             var types = _name.GetTypes(state) ?? await _name.GetTypesAsync(cancellationToken);
 
-            var result = new Dictionary<string, IReadOnlyCollection<AnalysisValue>>();
+            var result = new Dictionary<string, AnalysisSet>();
             bool anyChanged = priorResults == null;
             foreach (var target in Targets) {
                 result[target] = types;

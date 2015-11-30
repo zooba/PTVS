@@ -131,6 +131,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             IProgress<string> progress,
             CancellationToken cancellationToken
         ) {
+            return await Task.Run(
+                () => GetContextsWorkerAsync(workspaceLocation, progress, cancellationToken),
+                cancellationToken
+            );
+        }
+
+        private async Task<IReadOnlyCollection<PythonFileContext>> GetContextsWorkerAsync(
+            string workspaceLocation,
+            IProgress<string> progress,
+            CancellationToken cancellationToken
+        ) {
             var contexts = new Dictionary<string, List<string>>();
             var contextMap = new Dictionary<string, List<string>>();
             var scan = new Queue<string>();

@@ -100,21 +100,26 @@ namespace Microsoft.PythonTools.Editor {
                 return false;
             }
 
-            var item = await analyzer.GetItemTokenAsync(context, document.Moniker, false, cancellationToken);
-            if (item == null) {
+            var state = analyzer.GetAnalysisState(context, document.Moniker, false);
+            if (state == null) {
                 return false;
             }
 
-            await analyzer.WaitForUpdateAsync(item, cancellationToken);
-
-            var ast = await analyzer.GetAstAsync(item, cancellationToken);
+            var ast = await state.GetAstAsync(cancellationToken);
+            var analysisSnapshot = ast.Tokenization.Cookie as ITextSnapshot ?? snapshot;
+            if (analysisSnapshot != snapshot) {
+                // Wait, then try again in case we can get a newer version
+                await analyzer.WaitForUpdateAsync(state, cancellationToken);
+                ast = await state.GetAstAsync(cancellationToken);
+                analysisSnapshot = ast.Tokenization.Cookie as ITextSnapshot ?? snapshot;
+            }
 
             //var start = e.Changes.Min(c => c.NewSpan.Start);
             //var end = e.Changes.Max(c => c.NewSpan.End);
             //var span = new SnapshotSpan(e.After, start, end - start);
             var span = new SnapshotSpan(snapshot, 0, snapshot.Length);
 
-            var walker = new ClassifierWalker(ast, analyzer, span.Snapshot, _provider.CategoryMap);
+            var walker = new ClassifierWalker(ast, analyzer, analysisSnapshot, _provider.CategoryMap);
             ast.Walk(walker);
             cancellationToken.ThrowIfCancellationRequested();
             

@@ -35,21 +35,17 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             get { return ThreadPriority.AboveNormal; }
         }
 
-        public override async Task PerformAsync(
-            PythonLanguageService analyzer,
-            PythonFileContext context,
-            CancellationToken cancellationToken
-        ) {
+        public override async Task PerformAsync(CancellationToken cancellationToken) {
             _item.SetDocument(_document);
 
             var tokenization = await Tokenization.TokenizeAsync(
                 _document,
-                analyzer.Configuration.Version,
+                _item.Analyzer.Configuration.Version,
                 cancellationToken
             );
             _item.SetTokenization(tokenization);
 
-            await analyzer.EnqueueAsync(context, new UpdateVariables(_item), cancellationToken);
+            _item.Analyzer.Enqueue(_item.Context, new UpdateVariables(_item));
         }
     }
 }

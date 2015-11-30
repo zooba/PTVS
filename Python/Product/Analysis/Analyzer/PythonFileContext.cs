@@ -26,7 +26,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private readonly string _contextRoot;
         private readonly string _packageName;
         private readonly PathSet<ISourceDocument> _files;
-        private readonly AsyncMutex _filesLock = new AsyncMutex();
 
         public PythonFileContext(
             string contextRoot,
@@ -56,7 +55,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             CancellationToken cancellationToken
         ) {
             bool anyAdded = false;
-            using (await _filesLock.WaitAsync(cancellationToken)) {
+            lock (_files) {
                 foreach (var file in inputFiles) {
                     anyAdded |= _files.Add(file.Moniker, file);
                 }
@@ -67,13 +66,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         public async Task<IReadOnlyCollection<ISourceDocument>> GetDocumentsAsync(CancellationToken cancellationToken) {
-            using (await _filesLock.WaitAsync(cancellationToken)) {
+            lock (_files) {
                 return _files.GetValues().ToList();
             }
         }
 
         public async Task<bool> ContainsAsync(string filePath, CancellationToken cancellationToken) {
-            using (await _filesLock.WaitAsync(cancellationToken)) {
+            lock (_files) {
                 return _files.Contains(filePath);
             }
         }

@@ -43,11 +43,10 @@ namespace EditorTests {
             var options = new MockTextOptions();
             options.SetOptionValue(DefaultOptions.TabSizeOptionId, tabSize);
 
-            var indent = await AutoIndent.CalculateIndentationAsync(
+            var indent = AutoIndent.CalculateIndentation(
                 tokenization,
                 line,
-                new MockTextOptions(),
-                Cancel5s
+                new MockTextOptions()
             );
 
             Assert.AreEqual(expected, indent ?? -1, code);

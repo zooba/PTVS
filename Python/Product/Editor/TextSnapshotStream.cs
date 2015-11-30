@@ -19,6 +19,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 
@@ -70,6 +72,15 @@ namespace Microsoft.PythonTools.Editor {
             int readBytes = _buffer.Read(buffer, offset, count);
             _position += readBytes;
             return readBytes;
+        }
+
+        public override async Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken
+        ) {
+            return Read(buffer, offset, count);
         }
 
         public override long Length => _length;

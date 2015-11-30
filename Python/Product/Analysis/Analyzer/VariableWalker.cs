@@ -29,16 +29,14 @@ using Microsoft.PythonTools.Common.Infrastructure;
 using Microsoft.PythonTools.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
-    class VariableWalker : PythonWalker {
+    class VariableWalker : ScopeTrackingWalker {
         private readonly PythonLanguageService _analyzer;
         private readonly AnalysisState _state;
         private readonly Dictionary<string, Variable> _vars;
         private readonly List<AnalysisRule> _rules;
 
-        private readonly Stack<string> _scope;
         private readonly Stack<List<Node>> _deferredNodes;
 
-        private bool _addVariables;
         private bool _addRules;
 
         public VariableWalker(
@@ -52,7 +50,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _vars = new Dictionary<string, Variable>();
             _rules = new List<AnalysisRule>();
 
-            _scope = new Stack<string>();
             _deferredNodes = new Stack<List<Node>>();
 
             if (currentVariables != null) {
@@ -66,12 +63,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         public IReadOnlyDictionary<string, Variable> WalkVariables(PythonAst ast) {
-            _addVariables = true;
-            try {
-                ast.Walk(this);
-            } finally {
-                _addVariables = false;
-            }
+            ast.Walk(this);
             return _vars;
         }
 
@@ -85,47 +77,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return _rules;
         }
 
-        private void EnterScope(string name, string suffix) {
-            if (_scope.Count <= 1) {
-                _scope.Push(name + suffix);
-            } else {
-                _scope.Push(_scope.Peek() + name + suffix);
-            }
-            _deferredNodes.Push(new List<Node>());
-        }
-
-        private bool Defer(Node node) {
-            var nodes = _deferredNodes.Peek();
-            if (nodes == null) {
-                return false;
-            }
-            nodes.Add(node);
-            return true;
-        }
-
-        private void LeaveScope(string name, string suffix) {
-            var nodes = _deferredNodes.Pop();
-            _deferredNodes.Push(null);
-            try {
-                foreach (var n in nodes) {
-                    n.Walk(this);
-                }
-            } finally {
-                _deferredNodes.Pop();
-            }
-
-            var scope = _scope.Pop();
-            if (!scope.EndsWith(name + suffix)) {
-                Debug.Fail("Did not pop " + name + " from " + scope);
-                var ex = new InvalidOperationException("Scopes were not processed correctly");
-                ex.Data["ExpectedScope"] = name;
-                ex.Data["PoppedScope"] = scope;
-                throw ex;
-            }
-        }
 
         private IEnumerable<string> GetFullNames(NameExpression name) {
-            foreach (var scope in _scope) {
+            foreach (var scope in CurrentScopesWithSuffix) {
                 yield return scope + (name.Prefix ?? "") + name.Name;
             }
         }
@@ -135,7 +89,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         private string Add(string key, AnalysisValue value) {
-            key = _scope.Peek() + key;
+            key = CurrentScopeWithSuffix + key;
 
             Variable v;
             if (!_vars.TryGetValue(key, out v)) {
@@ -155,18 +109,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        public override bool Walk(PythonAst node) {
-            _scope.Clear();
-            _deferredNodes.Clear();
-
-            EnterScope("", "");
-            return true;
-        }
-
-        public override void PostWalk(PythonAst node) {
-            base.PostWalk(node);
-            LeaveScope("", "");
-        }
 
         private AnalysisValue GetLiteralValue(ConstantExpression expr) {
             if (expr == null) {
@@ -399,7 +341,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             foreach (var n in node.Names) {
                 var importName = ImportStatement.GetImportName(n);
                 var asName = ImportStatement.GetAsName(n);
-                var mi = _analyzer.ResolveImportAsync(importName, "", CancellationToken.None).WaitAndUnwrapExceptions();
+                var mi = _analyzer.ResolveImport(importName, "");
                 Add(asName, null);
                 Add(new Rules.ImportFromModule(mi, ModuleInfo.VariableName, asName));
             }
@@ -413,7 +355,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             var import = node.Root.MakeString();
-            var mi = _analyzer.ResolveImportAsync(import, "", CancellationToken.None).WaitAndUnwrapExceptions();
+            var mi = _analyzer.ResolveImport(import, "");
 
             var importNames = new List<string>();
             var asNames = new List<string>();

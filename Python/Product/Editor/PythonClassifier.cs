@@ -73,7 +73,7 @@ namespace Microsoft.PythonTools.Editor {
             var buffer = snapshot.TextBuffer;
             var version = snapshot.Version;
 
-            var tokenization = await snapshot.GetTokenizationAsync(cancellationToken);
+            var tokenization = snapshot.GetTokenization(cancellationToken);
             if (tokenization == null) {
                 return false;
             }
@@ -89,8 +89,13 @@ namespace Microsoft.PythonTools.Editor {
                 if (clas != null) {
                     newClassifications.Add(clas);
                 }
+                if (newClassifications.Count % 100 == 0) {
+                    await System.Threading.Tasks.Task.Yield();
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
             }
 
+            await System.Threading.Tasks.Task.Yield();
             cancellationToken.ThrowIfCancellationRequested();
 
             bool changed = false;

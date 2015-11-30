@@ -79,23 +79,17 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         /// <summary>
         /// The start location of the span.
         /// </summary>
-        public SourceLocation Start {
-            get { return _start; }
-        }
+        public SourceLocation Start => _start;
 
         /// <summary>
         /// The end location of the span. Location of the first character behind the span.
         /// </summary>
-        public SourceLocation End {
-            get { return _end; }
-        }
+        public SourceLocation End => _end;
 
         /// <summary>
         /// Length of the span (number of characters inside the span).
         /// </summary>
-        public int Length {
-            get { return _end.Index - _start.Index; }
-        }
+        public int Length => _end.Index - _start.Index;
 
         /// <summary>
         /// A valid span that represents no location.

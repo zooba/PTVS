@@ -32,6 +32,7 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Projection;
 using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudio.Utilities;
+using Microsoft.PythonTools.Analysis.Parsing;
 
 namespace Microsoft.PythonTools.Editor.Intellisense {
     [Export(typeof(IVsTextViewCreationListener))]
@@ -67,6 +68,21 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
                 () => new TextBufferSourceDocument(buffer)
             );
 
+            PythonLanguageService langService;
+            if (!buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out langService)) {
+                buffer.Properties[typeof(PythonLanguageService)] = langService = await _serviceProvider.GetServiceAsync(
+                    _configService.DefaultInterpreter,
+                    _contextProvider,
+                    cancellationToken
+                );
+            }
+
+            buffer.Changed += Buffer_Changed;
+
+            var classifier = buffer.GetPythonClassifier();
+            var analysisClassifier = buffer.GetPythonAnalysisClassifier();
+
+
             PythonFileContext context;
             if (!buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context)) {
                 IReadOnlyCollection<PythonFileContext> contexts;
@@ -82,24 +98,13 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
             }
             await context.AddDocumentsAsync(new[] { document }, cancellationToken);
 
-            PythonLanguageService langService;
-            if (!buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out langService)) {
-                buffer.Properties[typeof(PythonLanguageService)] = langService = await _serviceProvider.GetServiceAsync(
-                    _configService.DefaultInterpreter,
-                    _contextProvider,
-                    cancellationToken
-                );
-            }
-
             if (context != null) {
                 await langService.AddFileContextAsync(context, cancellationToken);
+                var state = langService.GetAnalysisState(context, document.Moniker, false);
+                await state.WaitForUpToDateAsync(cancellationToken);
             }
 
-            buffer.Changed += Buffer_Changed;
-
-            var classifier = buffer.GetPythonClassifier();
             classifier?.BeginUpdateClassifications(buffer.CurrentSnapshot);
-            var analysisClassifier = buffer.GetPythonAnalysisClassifier();
             analysisClassifier?.BeginUpdateClassifications(buffer.CurrentSnapshot);
         }
 
@@ -136,13 +141,12 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
             }
         }
 
-        private void Buffer_Changed(object sender, TextContentChangedEventArgs e) {
+        private async void Buffer_Changed(object sender, TextContentChangedEventArgs e) {
             var buffer = e.After.TextBuffer;
-            ISourceDocument document;
-            PythonFileContext context;
+            var document = buffer.GetDocument();
+            var context = buffer.GetPythonFileContext();
 
-            if (buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) &&
-                buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context)) {
+            if (document != null && context != null) {
                 context.NotifyDocumentContentChanged(document);
             }
         }

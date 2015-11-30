@@ -61,17 +61,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             using (await _servicesLock.WaitAsync(cancellationToken)) {
                 PythonLanguageService service;
                 if (!_services.TryGetValue(config.InterpreterPath, out service) || !service.AddReference()) {
-                    service = new PythonLanguageService(this, config);
-                    if (fileContextProvider != null) {
-                        var contexts = await fileContextProvider.GetContextsForInterpreterAsync(
-                            config,
-                            null,
-                            cancellationToken
-                        );
-                        foreach (var context in contexts) {
-                            await service.AddFileContextAsync(context, cancellationToken);
-                        }
-                    }
+                    service = new PythonLanguageService(this, fileContextProvider, config);
                     _services.Add(config.InterpreterPath, service);
                 }
                 return service;

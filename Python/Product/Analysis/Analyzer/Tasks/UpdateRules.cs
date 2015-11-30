@@ -27,14 +27,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
         public UpdateRules(AnalysisState item)
             : base(item) { }
 
-        public override async Task PerformAsync(
-            PythonLanguageService analyzer,
-            PythonFileContext context,
-            CancellationToken cancellationToken
-        ) {
+        public override async Task PerformAsync(CancellationToken cancellationToken) {
             IReadOnlyDictionary<string, Variable> variables = null;
             IReadOnlyCollection<AnalysisRule> rules = null;
-            await _item.GetVariablesAndRules((v, r) => {
+            await _item.GetVariablesAndRulesAsync((v, r) => {
                 variables = v;
                 rules = r;
             }, cancellationToken);
@@ -47,7 +43,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             while (anyChange) {
                 anyChange = false;
                 foreach (var r in rules) {
-                    bool change = await r.ApplyAsync(analyzer, _item, cancellationToken);
+                    bool change = await r.ApplyAsync(_item.Analyzer, _item, cancellationToken);
                     if (change) {
                         anyChange = true;
                     }

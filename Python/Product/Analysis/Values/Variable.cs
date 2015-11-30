@@ -17,39 +17,37 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     sealed class Variable {
         private readonly AnalysisState _state;
         private readonly string _key;
-        // TODO: Make this a set
-        private readonly AnalysisDictionary<AnalysisValue, object> _types;
+        private readonly AnalysisSet _types;
 
         internal Variable(AnalysisState state, string key) {
             _state = state;
             _key = key;
-            _types = new AnalysisDictionary<AnalysisValue, object>();
+            _types = new AnalysisSet();
         }
 
         public IAnalysisState State => _state;
         public VariableKey Key => new VariableKey(_state, _key);
+        public long Version => _types.Version;
 
-        public IEnumerable<AnalysisValue> Types => _types.Keys;
+        public AnalysisSet Types => _types.Clone(true);
 
         internal void AddType(AnalysisValue type) {
             if (type == null) {
                 return;
             }
-            if (!_types.ContainsKey(type)) {
-                _types[type] = null;
+            if (!_types.Contains(type)) {
+                _types.Add(type);
             }
         }
 
         public string ToAnnotationString(IAnalysisState state) {
-            return string.Format("{{{0}}}", string.Join(", ", _types.Keys.Select(k => k.ToAnnotation(state))));
+            return string.Format("{{{0}}}", string.Join(", ", _types.Select(k => k.ToAnnotation(state))));
         }
     }
 }

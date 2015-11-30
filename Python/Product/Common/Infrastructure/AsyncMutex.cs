@@ -25,6 +25,10 @@ namespace Microsoft.PythonTools.Common.Infrastructure {
         private int _count;
         private readonly List<TaskCompletionSource<IDisposable>> _waiters;
 
+#if DEBUG
+        public string AcquiredAt;
+#endif
+
         public AsyncMutex() {
             _count = 1;
             _waiters = new List<TaskCompletionSource<IDisposable>>();
@@ -41,12 +45,18 @@ namespace Microsoft.PythonTools.Common.Infrastructure {
         public Task<IDisposable> WaitAsync(CancellationToken cancellationToken) {
             if (Interlocked.CompareExchange(ref _count, 0, 1) == 1) {
                 // We got the lock
+#if DEBUG
+                AcquiredAt = new StackTrace().ToString();
+#endif
                 return Task.FromResult<IDisposable>(new Holder(this, false));
             }
 
             lock (_waiters) {
                 if (Interlocked.CompareExchange(ref _count, 0, 1) == 1) {
                     // We got the lock 
+#if DEBUG
+                    AcquiredAt = new StackTrace().ToString();
+#endif
                     return Task.FromResult<IDisposable>(new Holder(this, false));
                 }
                 var tcs = new TaskCompletionSource<IDisposable>();
@@ -55,6 +65,14 @@ namespace Microsoft.PythonTools.Common.Infrastructure {
                 if (cancellationToken.CanBeCanceled) {
                     cancellationToken.Register(() => tcs.TrySetCanceled());
                 }
+
+#if DEBUG
+                Debug.Assert(_waiters.Count < 50, "Too much contention on single lock");
+
+                var trace = new StackTrace().ToString();
+                tcs.Task.ContinueWith(t => AcquiredAt = trace);
+#endif
+
                 return tcs.Task;
             }
         }
@@ -85,6 +103,9 @@ namespace Microsoft.PythonTools.Common.Infrastructure {
                 res?.Clear();
                 res?.Dispose();
                 Debug.Assert(Volatile.Read(ref _count) == 0);
+#if DEBUG
+                AcquiredAt = null;
+#endif
                 Interlocked.CompareExchange(ref _count, 1, 0);
                 Debug.Assert(Volatile.Read(ref _count) == 1);
             }

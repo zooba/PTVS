@@ -16,6 +16,7 @@
 
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
@@ -52,31 +53,12 @@ namespace Microsoft.PythonTools.Editor {
             return buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer) ? analyzer : null;
         }
 
-        internal static async Task<Tokenization> GetTokenizationAsync(
-            this ITextBuffer buffer,
-            CancellationToken cancellationToken
-        ) {
-            ISourceDocument document = null;
-            PythonFileContext context = null;
-            PythonLanguageService analyzer = null;
-
-            for (int retries = 5; retries > 0; --retries) {
-                if (buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) &&
-                    buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context) &&
-                    buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer)) {
-                    break;
-                }
-                // Probably still initializing - we'll come back to this shortly
-                await Task.Delay(100);
-            }
-            if (document == null || context == null || analyzer == null) {
-                return null;
-            }
-
-            return await analyzer.GetTokenizationAsync(context, document.Moniker, cancellationToken);
+        internal static Tokenization GetTokenization(this ITextBuffer buffer) {
+            Tokenization tokenization;
+            return buffer.Properties.TryGetProperty(typeof(Tokenization), out tokenization) ? tokenization : null;
         }
 
-        internal static async Task<Tokenization> GetTokenizationAsync(
+        internal static Tokenization GetTokenization(
             this ITextSnapshot snapshot,
             CancellationToken cancellationToken
         ) {
@@ -84,35 +66,26 @@ namespace Microsoft.PythonTools.Editor {
             ISourceDocument document = null;
             PythonFileContext context = null;
             PythonLanguageService analyzer = null;
+            Tokenization tokenization;
 
-            for (int retries = 5; retries > 0; --retries) {
-                if (buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) &&
-                    buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context) &&
-                    buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer)) {
-                    break;
-                }
-                // Probably still initializing - we'll come back to this shortly
-                await Task.Delay(100);
-            }
-            if (document == null || context == null || analyzer == null) {
-                return null;
-            }
-
-            var tokenization = await analyzer.GetTokenizationAsync(context, document.Moniker, cancellationToken);
-            if ((tokenization.Cookie as ITextSnapshot ?? snapshot) == snapshot) {
+            if (buffer.Properties.TryGetProperty(typeof(Tokenization), out tokenization) &&
+                (tokenization.Cookie as ITextSnapshot) == snapshot) {
                 return tokenization;
             }
-            var itemToken = analyzer.GetItemTokenAsync(context, document.Moniker, true, cancellationToken);
-            try {
-                await analyzer.WaitForUpdateAsync(itemToken, CancellationTokens.After100ms);
-                tokenization = await analyzer.GetTokenizationAsync(itemToken, cancellationToken);
-                if ((tokenization?.Cookie as ITextSnapshot) == snapshot) {
-                    return tokenization;
-                }
-            } catch (OperationCanceledException) {
-            }
 
-            return await Tokenization.TokenizeAsync(document, analyzer.Configuration.Version, cancellationToken);
+            if (!buffer.Properties.TryGetProperty(typeof(ISourceDocument), out document) ||
+                !buffer.Properties.TryGetProperty(typeof(PythonLanguageService), out analyzer)) {
+                return null;
+            }
+            buffer.Properties.TryGetProperty(typeof(PythonFileContext), out context);
+
+            var state = analyzer.GetAnalysisState(context, document.Moniker, true);
+            tokenization = state.TryGetTokenization();
+            if ((tokenization?.Cookie as ITextSnapshot) != snapshot) {
+                tokenization = state.GetTokenizationAsync(cancellationToken).WaitAndUnwrapExceptions();
+            }
+            buffer.Properties[typeof(Tokenization)] = tokenization;
+            return tokenization;
         }
 
         internal static async Task<PythonAst> GetAstAsync(
@@ -129,16 +102,17 @@ namespace Microsoft.PythonTools.Editor {
                 return null;
             }
 
-            return await analyzer.GetAstAsync(context, document.Moniker, cancellationToken);
+            var state = analyzer.GetAnalysisState(context, document.Moniker, false);
+            return await state.GetAstAsync(cancellationToken);
         }
 
-        public static Task<SnapshotSpan> GetApplicableSpanAsync(
+        public static SnapshotSpan GetApplicableSpan(
             this ITrackingPoint trigger,
             ITextSnapshot snapshot,
             bool toEndOfToken,
             CancellationToken cancellationToken
         ) {
-            return trigger.GetApplicableSpanAsync(
+            return trigger.GetApplicableSpan(
                 snapshot,
                 toEndOfToken,
                 DefaultApplicableSpanPredicate,
@@ -146,14 +120,14 @@ namespace Microsoft.PythonTools.Editor {
             );
         }
 
-        public static async Task<SnapshotSpan> GetApplicableSpanAsync(
+        public static SnapshotSpan GetApplicableSpan(
             this ITrackingPoint trigger,
             ITextSnapshot snapshot,
             bool toEndOfToken,
             Func<Token, bool> predicate,
             CancellationToken cancellationToken
         ) {
-            var tokenization = await snapshot.GetTokenizationAsync(cancellationToken);
+            var tokenization = snapshot.GetTokenization(cancellationToken);
 
             var point = trigger.GetPoint(snapshot);
             int position = point.Position;

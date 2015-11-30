@@ -42,7 +42,7 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
         public static async Task<bool> CreateAsync(ITrackingPoint trigger, CancellationToken cancellationToken) {
             var textBuffer = trigger.TextBuffer;
             var snapshot = textBuffer.CurrentSnapshot;
-            var span = await trigger.GetApplicableSpanAsync(snapshot, true, cancellationToken);
+            var span = trigger.GetApplicableSpan(snapshot, true, cancellationToken);
 
             var applicableToSpan = snapshot.CreateTrackingSpan(
                 span.Start.Position,
@@ -56,11 +56,7 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
             }
 
             IReadOnlyDictionary<string, string> names = null;
-            try {
-                names = await analyzer.GetImportableModulesAsync("", "", CancellationTokens.After500ms);
-            } catch (OperationCanceledException) {
-                return false;
-            }
+            names = analyzer.GetImportableModules("", "");
             if (names == null) {
                 return false;
             }

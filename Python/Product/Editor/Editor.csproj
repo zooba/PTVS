@@ -1,6 +1,16 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Choose>
+    <When Condition=" '$(VisualStudioVersion)'=='15.0'  Or '$(TargetVisualStudioVersion)'=='VS150' ">
+      <PropertyGroup>
+        <MinimumVisualStudioVersion>15.0</MinimumVisualStudioVersion>
+        <FileUpgradeFlags>
+        </FileUpgradeFlags>
+        <UpgradeBackupLocation>
+        </UpgradeBackupLocation>
+        <OldToolsVersion>14.0</OldToolsVersion>
+      </PropertyGroup>
+    </When>
     <When Condition=" '$(VisualStudioVersion)'=='14.0'  Or '$(TargetVisualStudioVersion)'=='VS140' ">
       <PropertyGroup>
         <MinimumVisualStudioVersion>14.0</MinimumVisualStudioVersion>
@@ -8,27 +18,7 @@
         </FileUpgradeFlags>
         <UpgradeBackupLocation>
         </UpgradeBackupLocation>
-        <OldToolsVersion>4.0</OldToolsVersion>
-      </PropertyGroup>
-    </When>
-    <When Condition=" '$(VisualStudioVersion)'=='12.0'  Or '$(TargetVisualStudioVersion)'=='VS120' ">
-      <PropertyGroup>
-        <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
-        <FileUpgradeFlags>
-        </FileUpgradeFlags>
-        <UpgradeBackupLocation>
-        </UpgradeBackupLocation>
-        <OldToolsVersion>4.0</OldToolsVersion>
-      </PropertyGroup>
-    </When>
-    <When Condition=" '$(VisualStudioVersion)'=='11.0'  Or '$(TargetVisualStudioVersion)'=='VS110' ">
-      <PropertyGroup>
-        <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
-        <FileUpgradeFlags>
-        </FileUpgradeFlags>
-        <UpgradeBackupLocation>
-        </UpgradeBackupLocation>
-        <OldToolsVersion>4.0</OldToolsVersion>
+        <OldToolsVersion>14.0</OldToolsVersion>
       </PropertyGroup>
     </When>
   </Choose>
@@ -38,7 +28,7 @@
     <Platform>AnyCPU</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectTypeGuids>{82b43b9b-a64c-4715-b499-d71e9ca2bd60};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <ProjectTypeGuids>{82b43b9b-a64c-4715-b499-d71e9ca2bd60};{60DC8134-EBA5-43B8-BCC9-BB4BC16C2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <ProjectGuid>{B22007B1-9564-40A2-8F89-35D37F0C5EB8}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -55,12 +45,12 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Microsoft.VisualStudio.ImageCatalog, Version=14.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
-    <Reference Include="Microsoft.VisualStudio.Imaging, Version=14.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
-    <Reference Include="Microsoft.VisualStudio.Imaging.Interop.14.0.DesignTime, Version=14.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+    <Reference Include="Microsoft.VisualStudio.ImageCatalog, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
+    <Reference Include="Microsoft.VisualStudio.Imaging, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
+    <Reference Include="Microsoft.VisualStudio.Imaging.Interop.$(VSTarget).DesignTime, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </Reference>
-    <Reference Include="Microsoft.VisualStudio.Threading, Version=14.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
+    <Reference Include="Microsoft.VisualStudio.Threading, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="PresentationCore" />
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
@@ -106,6 +96,8 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Constants.cs" />
+    <Compile Include="Intellisense\DumpAnalysisHandler.cs" />
     <Compile Include="Intellisense\EditorCommandHandler.cs" />
     <Compile Include="Intellisense\QuickInfoSource.cs" />
     <Compile Include="Intellisense\QuickInfoSourceProvider.cs" />
@@ -140,7 +132,6 @@
     </Compile>
     <Compile Include="SmartIndentProvider.cs" />
     <Compile Include="TokenExtensions.cs" />
-    <Compile Include="VSTaskExtensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Analysis\Analysis.csproj">
@@ -162,12 +153,24 @@
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <MergeWithCTO>true</MergeWithCTO>
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <VSCTCompile Include="Editor.vsct">
+      <ResourceName>1000</ResourceName>
+      <SubType>Designer</SubType>
+    </VSCTCompile>
+    <EmbeddedResource Include="VSPackage.resx">
+      <SubType>Designer</SubType>
+      <CustomToolNamespace>Microsoft.PythonTools.Editor</CustomToolNamespace>
+      <ManifestResourceName>Microsoft.VSPackage</ManifestResourceName>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="..\ProjectAfter.settings" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

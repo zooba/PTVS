@@ -26,7 +26,7 @@ using Microsoft.PythonTools.Analysis.Values;
 
 namespace Microsoft.PythonTools.Analysis {
     abstract class AnalysisRule {
-        private Dictionary<string, IReadOnlyCollection<AnalysisValue>> _results;
+        private Dictionary<string, AnalysisSet> _results;
         private object _targets;
 
         private static readonly IReadOnlyCollection<string> EmptyNames = new string[0];
@@ -62,17 +62,17 @@ namespace Microsoft.PythonTools.Analysis {
 
         protected bool AreSame(
             string target,
-            IReadOnlyDictionary<string, IReadOnlyCollection<AnalysisValue>> priorResults,
-            IReadOnlyCollection<AnalysisValue> newResults
+            IReadOnlyDictionary<string, AnalysisSet> priorResults,
+            AnalysisSet newResults
         ) {
             if (priorResults == null) {
                 return false;
             }
-            IReadOnlyCollection<AnalysisValue> oldResults;
+            AnalysisSet oldResults;
             if (!priorResults.TryGetValue(target, out oldResults)) {
                 return false;
             }
-            return newResults.All(v => oldResults.Contains(v));
+            return newResults.SetEquals(oldResults);
         }
 
         public IReadOnlyCollection<string> GetVariableNames() {
@@ -80,13 +80,13 @@ namespace Microsoft.PythonTools.Analysis {
             return results?.Keys ?? EmptyNames;
         }
 
-        public IEnumerable<AnalysisValue> GetTypes(string name) {
+        public AnalysisSet GetTypes(string name) {
             var results = Volatile.Read(ref _results);
             if (results == null) {
-                return PythonLanguageService.EmptyAnalysisValues;
+                return AnalysisSet.Empty;
             }
-            IReadOnlyCollection<AnalysisValue> v;
-            return results.TryGetValue(name, out v) ? v : PythonLanguageService.EmptyAnalysisValues;
+            AnalysisSet v;
+            return results.TryGetValue(name, out v) ? v : AnalysisSet.Empty;
         }
 
         public async Task<bool> ApplyAsync(
@@ -103,10 +103,10 @@ namespace Microsoft.PythonTools.Analysis {
             return false;
         }
 
-        protected abstract Task<Dictionary<string, IReadOnlyCollection<AnalysisValue>>> ApplyWorkerAsync(
+        protected abstract Task<Dictionary<string, AnalysisSet>> ApplyWorkerAsync(
             PythonLanguageService analyzer, 
             AnalysisState state,
-            IReadOnlyDictionary<string, IReadOnlyCollection<AnalysisValue>> priorResults,
+            IReadOnlyDictionary<string, AnalysisSet> priorResults,
             CancellationToken cancellationToken
         );
 

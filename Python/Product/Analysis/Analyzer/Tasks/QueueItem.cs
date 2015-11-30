@@ -32,10 +32,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
         public IEnumerator<QueueItem> GetEnumerator() { yield return this; }
 
         protected readonly AnalysisState _item;
-        public abstract Task PerformAsync(
-            PythonLanguageService analyzer,
-            PythonFileContext context,
-            CancellationToken cancellationToken
-        );
+        public abstract Task PerformAsync(CancellationToken cancellationToken);
     }
 }

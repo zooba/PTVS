@@ -24,7 +24,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
-    sealed class PythonSourceStreamReader : TextReader {
+    public sealed class PythonSourceStreamReader : TextReader {
         private readonly Stream _stream;
         private readonly bool _throwOnInvalidChar;
         private MemoryStream _buffer;

@@ -50,12 +50,7 @@ namespace Microsoft.PythonTools.Editor {
             public bool HasExplicitLineJoin;
         }
 
-        internal static async Task<int?> CalculateIndentationAsync(
-            Tokenization tokenization,
-            int lineNumber,
-            IEditorOptions options,
-            CancellationToken cancellationToken
-        ) {
+        internal static int? CalculateIndentation(Tokenization tokenization, int lineNumber, IEditorOptions options) {
             int tabSize = options.GetTabSize();
             int indentSize = options.GetIndentSize();
 
@@ -214,16 +209,20 @@ namespace Microsoft.PythonTools.Editor {
                 return null;
             }
 
-            var cts = new CancellationTokenSource(1000);
-            int? desiredIndentation;
+            Tokenization tokenization = null;
             try {
-                desiredIndentation = ThreadHelper.JoinableTaskFactory.Run(
-                    () => CalculateIndentationForLineAsync(line, options, cts.Token)
-                );
+                tokenization = line.Snapshot.GetTokenization(CancellationTokens.After1s);
             } catch (OperationCanceledException) {
+            }
+            var desiredIndentation = tokenization == null ? null : CalculateIndentation(
+                tokenization,
+                line.LineNumber,
+                options
+            );
+
+            if (desiredIndentation.HasValue && desiredIndentation.Value < 0) {
                 desiredIndentation = null;
             }
-
             var caretLine = textView.Caret.Position.BufferPosition.GetContainingLine();
             // VS will get the white space when the user is moving the cursor or when the user is doing an edit which
             // introduces a new line.  When the user is moving the cursor the caret line differs from the line
@@ -254,21 +253,6 @@ namespace Microsoft.PythonTools.Editor {
             }
 
             return desiredIndentation;
-        }
-
-        private static async Task<int?> CalculateIndentationForLineAsync(
-            ITextSnapshotLine line,
-            IEditorOptions options,
-            CancellationToken cancellationToken
-        ) {
-            var tokenization = await line.Snapshot.GetTokenizationAsync(cancellationToken);
-
-            return tokenization == null ? null : await CalculateIndentationAsync(
-                tokenization,
-                line.LineNumber,
-                options,
-                CancellationToken.None
-            );
         }
     }
 }
