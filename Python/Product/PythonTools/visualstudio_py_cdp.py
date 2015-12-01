@@ -49,7 +49,7 @@ class CDP(object):
                 return self.__exit
 
         if _TRACE:
-            print(msg)
+            print(msg, file=sys.__stderr__)
 
         if msg['type'] == 'request':
             self.on_request(msg)
@@ -87,7 +87,7 @@ class CDP(object):
 
     def send_response(self, request, success=True, message=None, **body):
         self._send(
-            type='request',
+            type='response',
             seq=next(self.__seq),
             requestSeq=int(request.get('seq', 0)),
             success=success,

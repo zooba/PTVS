@@ -143,15 +143,29 @@ namespace Microsoft.PythonTools.Repl {
                 _process.Exited += ProcessExited;
                 _process.EnableRaisingEvents = true;
 
-                //_process.BeginOutputReadLine();
                 _process.BeginErrorReadLine();
 
                 _connection = new Connection(
                     _process.StandardInput.BaseStream,
                     _process.StandardOutput.BaseStream
                 );
+                _connection.EventReceived += Connection_EventReceived;
 
                 _connecting = ConnectAsync();
+            }
+
+            private async void Connection_EventReceived(object sender, EventReceivedEventArgs e) {
+                OutputEvent oe;
+
+                if ((oe = OutputEvent.TryCreate(e.Event)) != null) {
+                    if (oe.Category == "stderr") {
+                        _eval.WriteError(oe.Output, addNewline: false);
+                    } else if (oe.Category == "stdout") {
+                        _eval.WriteOutput(oe.Output, addNewline: false);
+                    } else {
+                        _eval.WriteError(oe.Category + ": " + oe.Output, addNewline: false);
+                    }
+                }
             }
 
             public async Task EnsureConnectedAsync() {
@@ -456,67 +470,62 @@ namespace Microsoft.PythonTools.Repl {
             //    }
             //}
 
-            public async Task<string> ExecuteText(string text) {
+            public async Task<string> ExecuteTextAsync(string text, CancellationToken cancellationToken) {
                 if (text.StartsWith("$")) {
                     return SR.GetString(SR.ReplUnknownCommand, text.Trim());
                 }
 
                 Trace.TraceInformation("Executing text: {0}", text);
                 if (_process != null) {
-                    Microsoft.VisualStudioTools.Project.NativeMethods.AllowSetForegroundWindow(_process.Id);
+                    NativeMethods.AllowSetForegroundWindow(_process.Id);
                 }
 
                 // normalize line endings to \n which is all older versions of CPython can handle.
                 text = FixNewLines(text).TrimEnd(' ');
 
-                var response = await _connection.SendRequestAsync(new EvaluateRequest(text), CancellationToken.None);
+                var response = await _connection.SendRequestAsync(new EvaluateRequest(text), cancellationToken);
 
                 EvaluateResponse er;
-                if ((er = EvaluateResponse.TryCreate(response)) != null) {
-                    return er.Result;
+                if ((er = EvaluateResponse.TryCreate(response)) == null) {
+                    _eval.WriteError(response.Message);
+                    return null;
                 }
-                return response.Message;
+                return er.Result;
             }
 
-            //public Task<ExecutionResult> ExecuteFile(string filename, string extraArgs, string fileType) {
-            //    Action send = () => {
-            //        if (_process != null) {
-            //            Microsoft.VisualStudioTools.Project.NativeMethods.AllowSetForegroundWindow(_process.Id);
-            //        }
+            private async Task ExecuteAsync(ExecuteFileRequest request, CancellationToken cancellationToken) {
+                await EnsureConnectedAsync();
 
-            //        _stream.Write(ExecuteFileCommandBytes);
-            //        SendString(fileType ?? string.Empty);
-            //        SendString(filename ?? string.Empty);
-            //        SendString(extraArgs ?? string.Empty);
-            //    };
+                if (_process != null) {
+                    NativeMethods.AllowSetForegroundWindow(_process.Id);
+                }
 
-            //    using (new StreamLock(this, throwIfDisconnected: false)) {
-            //        if (_stream == null) {
-            //            // If we're still waiting for debuggee to connect to us, postpone the actual execution until we have the command stream.
-            //            if (_listenerSocket != null) {
-            //                _deferredExecute = send;
-            //                _completion = new TaskCompletionSource<ExecutionResult>();
-            //                return _completion.Task;
-            //            } else {
-            //                _eval.WriteError(SR.GetString(SR.ReplDisconnectedReset));
-            //                return ExecutionResult.Failed;
-            //            }
-            //        }
+                var resp = await _connection.SendRequestAsync(request, cancellationToken);
+                if (!resp.Success) {
+                    _eval.WriteError(resp.Message);
+                }
+            }
 
-            //        try {
-            //            send();
-            //        } catch (IOException) {
-            //            _eval.WriteError(SR.GetString(SR.ReplDisconnectedReset));
-            //            return ExecutionResult.Failed;
-            //        }
-            //    }
+            public Task ExecuteScriptAsync(string filename, string extraArgs, CancellationToken cancellationToken) {
+                return ExecuteAsync(new ExecuteFileRequest {
+                    ScriptPath = filename,
+                    ExtraArguments = extraArgs
+                }, cancellationToken);
+            }
 
-            //    lock (_completionLock) {
-            //        _completion = new TaskCompletionSource<ExecutionResult>();
-            //        return _completion.Task;
-            //    }
+            public Task ExecuteModuleAsync(string moduleName, string extraArgs, CancellationToken cancellationToken) {
+                return ExecuteAsync(new ExecuteFileRequest {
+                    ModuleName = moduleName,
+                    ExtraArguments = extraArgs
+                }, cancellationToken);
+            }
 
-            //}
+            public Task ExecuteProcessAsync(string filename, string extraArgs, CancellationToken cancellationToken) {
+                return ExecuteAsync(new ExecuteFileRequest {
+                    ProcessPath = filename,
+                    ExtraArguments = extraArgs
+                }, cancellationToken);
+            }
 
             public void AbortCommand() {
             //    using (new StreamLock(this, throwIfDisconnected: true)) {

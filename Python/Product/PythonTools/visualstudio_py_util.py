@@ -14,6 +14,8 @@
 # See the Apache Version 2.0 License for specific language governing
 # permissions and limitations under the License.
 
+from __future__ import with_statement
+
 __author__ = "Microsoft Corporation <ptvshelp@microsoft.com>"
 __version__ = "3.0.0.0"
 
@@ -50,6 +52,35 @@ if sys.version_info[0] >= 3:
 else:
     def to_bytes(cmd_str):
         return cmd_str
+
+try:
+    from tokenize import open as srcopen
+    def read_code(filename):
+        with srcopen(filename, 'r') as f:
+            return f.read() + '\n'
+except ImportError:
+    try:
+        from tokenize import detect_encoding
+        from io import TextIOWrapper
+    except ImportError:
+        def read_code(filename):
+            with open(filename, 'rb') as f:
+                return f.read().replace(to_bytes('\r\n'), to_bytes('\n')) + to_bytes('\n')
+    else:
+        def read_code(filename):
+            buff = open(filename, 'rb')
+            with open(filename, 'rb') as f:
+                encoding, lines = detect_encoding(f.readline)
+                f.seek(0)
+                if encoding == 'utf-8':
+                    if next(iter(f.read(1)), -1) == 0xEF:
+                        encoding = 'utf-8-sig'
+                    buff.seek(0)
+                stream = TextIOWrapper(f, encoding, line_buffering=True)
+                stream.mode = 'r'
+                return stream.read() + '\n'
+
+
 
 def exec_code(code, file, global_variables):
     '''Executes the provided code as if it were the original script provided
@@ -108,12 +139,7 @@ def exec_file(file, global_variables):
     ``sys.path[0]`` will be changed to the value of `file` without the filename.
     Both values are restored when this function exits.
     '''
-    f = open(file, "rb")
-    try:
-        code = f.read().replace(to_bytes('\r\n'), to_bytes('\n')) + to_bytes('\n')
-    finally:
-        f.close()
-    exec_code(code, file, global_variables)
+    exec_code(read_code(file), file, global_variables)
 
 def exec_module(module, global_variables):
     '''Executes the provided module as if it were provided as '-m module'. The

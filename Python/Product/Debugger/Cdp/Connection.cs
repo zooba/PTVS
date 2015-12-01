@@ -66,28 +66,32 @@ namespace Microsoft.PythonTools.Cdp {
             var reader = new StreamReader(_reader, Encoding.UTF8);
             string line;
             while ((line = await reader.ReadLineAsync()) != null) {
-                var response = JsonConvert.DeserializeObject<Response.Data>(line);
-                if (response == null) {
+                Response.Data response;
+                Event.Data evt;
+                if ((response = JsonConvert.DeserializeObject<Response.Data>(line)) != null &&
+                    response.type == "response") {
+                    RequestInfo r;
+                    lock (_requestCache) {
+                        _requestCache.TryGetValue(response.requestSeq, out r);
+                    }
+
+                    var resp = new Response(this, response);
+                    lock (_responseCache) {
+                        _responseCache[response.seq] = resp;
+                    }
+                    r.Task?.TrySetResult(resp);
+                } else if ((evt = JsonConvert.DeserializeObject<Event.Data>(line)) != null &&
+                    evt.type == "event") {
+                    EventReceived?.Invoke(this, new EventReceivedEventArgs(new Event(this, evt)));
+                } else {
                     Trace.TraceError("Unable to parse: " + line);
-                    continue;
                 }
-
-                RequestInfo r;
-                lock (_requestCache) {
-                    _requestCache.TryGetValue(response.requestSeq, out r);
-                }
-
-                var resp = new Response(this, response);
-                lock (_responseCache) {
-                    _responseCache[response.seq] = resp;
-                }
-                r.Task.TrySetResult(resp);
             }
         }
 
         public async Task<Response> SendRequestAsync(Request request, CancellationToken cancellationToken) {
             int seq = request._data.seq = Interlocked.Increment(ref _seq);
-            
+
             var task = new TaskCompletionSource<Response>();
             if (cancellationToken.CanBeCanceled) {
                 cancellationToken.Register(() => task.TrySetCanceled());
@@ -104,6 +108,8 @@ namespace Microsoft.PythonTools.Cdp {
             await _writer.FlushAsync().ConfigureAwait(false);
             return await r.Task.Task;
         }
+
+        public event EventHandler<EventReceivedEventArgs> EventReceived;
 
         internal Request GetRequest(int seq) {
             RequestInfo r;

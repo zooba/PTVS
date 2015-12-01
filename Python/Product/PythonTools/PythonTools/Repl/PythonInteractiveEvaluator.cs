@@ -376,19 +376,19 @@ namespace Microsoft.PythonTools.Repl {
                 return ExecutionResult.Failure;
             }
 
-            var result = await thread.ExecuteText(text);
-            WriteOutput(result);
+            await thread.ExecuteTextAsync(text, CancellationToken.None);
             return ExecutionResult.Success;
         }
 
         public async Task<ExecutionResult> ExecuteFileAsync(string filename, string extraArgs) {
-            //var thread = await EnsureConnectedAsync();
-            //if (thread != null) {
-            //    return await thread.ExecuteFile(filename, extraArgs, "script");
-            //}
+            var thread = await EnsureConnectedAsync();
+            if (thread == null) {
+                WriteError(SR.GetString(SR.ReplDisconnected));
+                return ExecutionResult.Failure;
+            }
 
-            WriteError(SR.GetString(SR.ReplDisconnected));
-            return ExecutionResult.Failure;
+            await thread.ExecuteScriptAsync(filename, extraArgs, CancellationToken.None);
+            return ExecutionResult.Success;
         }
 
         public async Task<ExecutionResult> ExecuteModuleAsync(string name, string extraArgs) {

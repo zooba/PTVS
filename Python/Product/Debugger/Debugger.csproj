@@ -96,6 +96,8 @@
     </Compile>
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="Cdp\Connection.cs" />
+    <Compile Include="Cdp\EventReceivedEventArgs.cs" />
+    <Compile Include="Cdp\Events.cs" />
     <Compile Include="Cdp\Requests.cs" />
     <Compile Include="Cdp\Responses.cs" />
     <Compile Include="Debugger\BreakpointHitEventArgs.cs" />
