@@ -17,13 +17,14 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class ClassDefinition : ScopeStatement {
         private NameExpression _name;
         private IList<Arg> _bases;
-        private DecoratorStatement _decorators;
+        private IList<Statement> _decorators;
 
         public ClassDefinition() : base(TokenKind.KeywordClass) { }
 
@@ -46,9 +47,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _bases = value; }
         }
 
-        public DecoratorStatement Decorators {
+        public IList<Statement> Decorators {
             get { return _decorators; }
-            internal set { ThrowIfFrozen(); _decorators = value; }
+            set { ThrowIfFrozen(); _decorators = value; }
         }
 
         //internal override bool TryBindOuter(ScopeStatement from, string name, bool allowGlobals, out PythonVariable variable) {
@@ -92,7 +93,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
-                _decorators?.Walk(walker);
+                if (_decorators != null) {
+                    foreach (var d in _decorators.OfType<DecoratorStatement>()) {
+                        d.Walk(walker);
+                    }
+                }
                 if (_bases != null) {
                     foreach (var b in _bases) {
                         b.Walk(walker);

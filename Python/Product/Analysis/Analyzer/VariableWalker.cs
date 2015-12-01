@@ -269,7 +269,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             Add(node.Name, new ClassInfo(node));
 
             if (Defer(node)) {
-                node.Decorators?.Walk(this);
+                foreach (var d in node.Decorators.MaybeEnumerate()) {
+                    d.Walk(this);
+                }
             } else {
                 EnterScope(node.Name, ".");
                 node.Body?.Walk(this);
@@ -285,7 +287,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             Add(node.Name, fi);
 
             if (Defer(node)) {
-                node.Decorators?.Walk(this);
+                foreach (var d in node.Decorators.MaybeEnumerate()) {
+                    d.Walk(this);
+                }
             } else {
                 var defaults = new List<AnalysisValue>();
                 foreach (var p in (node.Parameters?.Parameters).MaybeEnumerate()) {

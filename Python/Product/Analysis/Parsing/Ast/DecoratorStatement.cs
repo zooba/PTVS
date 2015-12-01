@@ -16,17 +16,9 @@
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class DecoratorStatement : StatementWithExpression {
-        private Statement _inner;
-
-        public Statement Inner {
-            get { return _inner; }
-            set { ThrowIfFrozen(); _inner = value; }
-        }
-
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 base.Walk(walker);
-                _inner?.Walk(walker);
             }
             walker.PostWalk(this);
         }

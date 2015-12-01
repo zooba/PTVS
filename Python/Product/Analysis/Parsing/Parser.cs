@@ -38,6 +38,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Token _eofToken;
         private Stack<ScopeStatement> _scopes;
         private Severity _indentationInconsistencySeverity;
+        public List<Statement> _decorators;
 
         public Parser(Tokenization tokenization) {
             _tokenization = tokenization;
@@ -121,15 +122,26 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             while (IsCurrentStatementBreak()) {
                 stmt.AfterNode = ReadCurrentStatementBreak(stmt is CompoundStatement);
-                stmt.Freeze();
 
-                body.Add(stmt);
+                if (!HandleDecorators(body, stmt)) {
+                    stmt.Freeze();
+                    body.Add(stmt);
+                }
 
                 stmt = ParseStmt();
             }
 
-            stmt.Freeze();
-            body.Add(stmt);
+            if (!HandleDecorators(body, stmt)) {
+                stmt.Freeze();
+                body.Add(stmt);
+            }
+            if (_decorators != null) {
+                foreach (var d in _decorators) {
+                    body.Add(d);
+                    ReportError(InvalidDecoratorError, d.Span);
+                }
+                _decorators = null;
+            }
 
             _currentIndent = prevIndent;
             _currentIndentLength = prevIndentLength;
@@ -139,6 +151,38 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             suite.Freeze();
 
             return suite;
+        }
+
+        private string InvalidDecoratorError {
+            get {
+                return "invalid decorator, must be applied to function" + (_features.HasClassDecorators ? " or class" : "");
+            }
+        }
+
+        private bool HandleDecorators(List<Statement> suite, Statement stmt) {
+            if (stmt is DecoratorStatement) {
+                if (_decorators == null) {
+                    _decorators = new List<Statement> { stmt };
+                } else {
+                    _decorators.Add(stmt);
+                }
+                stmt.Freeze();
+                return true;
+            } else if (stmt is EmptyStatement) {
+                if (_decorators == null) {
+                    return false;
+                }
+                _decorators.Add(stmt);
+                stmt.Freeze();
+                return true;
+            } else if (_decorators != null) {
+                foreach (var d in _decorators) {
+                    suite.Add(d);
+                    ReportError(InvalidDecoratorError, d.Span);
+                }
+                _decorators = null;
+            }
+            return false;
         }
 
         private bool IsCurrentStatementBreak(TokenKind nextToken = TokenKind.Unknown) {
@@ -245,7 +289,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     stmt = new EmptyStatement {
                         Span = new SourceSpan(Peek.Span.Start, 0)
                     };
-                } else if (Peek.IsAny(TokenUsage.BeginStatement, TokenUsage.BeginStatementOrBinaryOperator)) {
+                } else if (Peek.Is(TokenKind.At)) {
+                    stmt = ParseDecorator();
+                } else if (Peek.IsAny(TokenUsage.BeginStatement, TokenUsage.BeginStatementOrBinaryOperator) ||
+                    (Peek.Is(TokenKind.KeywordAsync) && _features.HasAsyncAwait)) {
                     stmt = ParseIdentifierAsStatement();
                 } else if (Peek.Is(TokenKind.Comment)) {
                     stmt = WithCommentAndWhitespace(new EmptyStatement {
@@ -262,6 +309,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         _tokenization.GetTokenText(Peek)
                     ));
                 }
+
                 Debug.Assert(stmt.BeforeNode.Length == 0);
                 stmt.BeforeNode = ws;
 
@@ -307,7 +355,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 case TokenKind.KeywordTry:
                     return ParseTryStmt();
                 case TokenKind.At:
-                    return ParseDecorated();
+                    Debug.Fail("Should have been handled earlier");
+                    return ParseDecorator();
                 case TokenKind.KeywordDef:
                     return ParseFuncDef(isAsync);
                 case TokenKind.KeywordClass:
@@ -516,40 +565,22 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return stmt;
         }
 
-        private Statement ParseDecorated() {
+        private Statement ParseDecorator() {
             var start = Peek.Span.Start;
             Read(TokenKind.At);
-            var decorator = ParsePrimaryWithTrailers();
-            Statement inner = null;
-            var next = GetTokenAfterCurrentStatementBreak();
-            if (next.Is(TokenKind.At)) {
-                ReadCurrentStatementBreak();
-                inner = ParseDecorated();
-            } else if (next.IsAny(TokenKind.KeywordDef, TokenKind.KeywordClass, TokenKind.KeywordAsync)) {
-                ReadCurrentStatementBreak();
-                inner = ParseStmt();
-                if (inner is ClassDefinition && !_features.HasClassDecorators) {
-                    ReportError(
-                        "invalid syntax, class decorators require 2.6 or later.",
-                        new SourceSpan(start, decorator.Span.End)
-                    );
-                }
-            } else {
-                ReportError(
-                    "invalid decorator, must be applied to function" + (_features.HasClassDecorators ? " or class" : ""),
-                    new SourceSpan(start, decorator.Span.End)
-                );
-            }
-            return new DecoratorStatement {
-                Expression = decorator,
-                Inner = inner,
+            return WithCommentAndWhitespace(new DecoratorStatement {
+                Expression = ParsePrimaryWithTrailers(),
                 Span = new SourceSpan(start, Current.Span.End)
-            };
+            });
         }
 
         private Statement ParseFuncDef(bool isCoroutine) {
             var start = Peek.Span.Start;
-            var stmt = new FunctionDefinition(TokenKind.KeywordDef);
+            var stmt = new FunctionDefinition(TokenKind.KeywordDef) {
+                Decorators = _decorators
+            };
+            _decorators = null;
+
             if (isCoroutine) {
                 Read(TokenKind.KeywordAsync);
                 stmt.AfterAsync = ReadWhitespace();
@@ -618,8 +649,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             Read(TokenKind.KeywordClass);
 
             var stmt = new ClassDefinition {
-                NameExpression = ReadMemberName()
+                NameExpression = ReadMemberName(),
+                Decorators = _decorators
             };
+            if (!_features.HasClassDecorators && (_decorators?.Any() ?? false)) {
+                foreach (var d in _decorators) {
+                    ReportError("invalid syntax, class decorators require 2.6 or later.", d.Span);
+                }
+            }
+            _decorators = null;
 
             if (TryRead(TokenKind.LeftParenthesis)) {
                 stmt.Bases = ParseArgumentList(TokenKind.RightParenthesis, true);
@@ -1654,6 +1692,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         expr.Freeze();
                         Read(TokenKind.LeftParenthesis);
                         expr = new CallExpression {
+                            FirstComment = ReadComment(true),
                             Expression = expr,
                             Args = ParseArgumentList(TokenKind.RightParenthesis, true)
                         };
@@ -1767,7 +1806,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     } else {
                         var ws = ReadWhitespace();
                         var start = Peek.Span.Start;
-                        ReadUntil(t => t.IsAny(TokenUsage.EndGroup, TokenUsage.EndStatement));
+                        ReadUntil(t => t.Is(TokenUsage.EndStatement));
                         ReportError(
                             "Missing parentheses in call to 'print'",
                             new SourceSpan(start, Current.Span.End)
@@ -2130,9 +2169,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         private Expression ParseListLiteralOrComprehension() {
             var start = Read(TokenKind.LeftBracket).Start;
+            var firstComment = ReadComment(true);
 
             if (TryRead(TokenKind.RightBracket)) {
                 return WithCommentAndWhitespace(new ListExpression {
+                    FirstComment = firstComment,
                     Span = new SourceSpan(start, Current.Span.End)
                 });
             }
@@ -2140,13 +2181,16 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var expr = ParseSingleExpression(allowSlice: false, allowGenerator: false);
             if (PeekNonWhitespace.Is(TokenKind.KeywordFor)) {
                 return WithCommentAndWhitespace(new ListComprehension {
+                    FirstComment = firstComment,
                     Item = expr,
                     Iterators = ReadComprehension(),
                     Span = new SourceSpan(start, Read(TokenKind.RightBracket).End)
                 });
             }
 
-            var list = new ListExpression();
+            var list = new ListExpression {
+                FirstComment = firstComment
+            };
             while (true) {
                 var item = new SequenceItemExpression {
                     Expression = expr,

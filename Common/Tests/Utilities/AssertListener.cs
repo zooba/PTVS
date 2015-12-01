@@ -40,7 +40,7 @@ namespace TestUtilities {
         public static void Initialize() {
             var listener = new AssertListener();
             if (null == Debug.Listeners[listener.Name]) {
-                Debug.Listeners.Clear();
+                Debug.Listeners.Remove("Default");
                 Debug.Listeners.Add(listener);
 
                 AppDomain.CurrentDomain.FirstChanceException += CurrentDomain_FirstChanceException;

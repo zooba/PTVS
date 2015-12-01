@@ -16,6 +16,7 @@
 
 
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class FunctionDefinition : ScopeStatement {
@@ -23,9 +24,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private ParameterList _parameters;
         private SourceSpan _beforeReturnAnnotation;
         private Expression _returnAnnotation;
-        private DecoratorStatement _decorators;
         private bool _generator;
         private IList<Expression> _returns;
+        private IList<Statement> _decorators;
 
         private IList<string> _globals, _nonLocals;
 
@@ -37,6 +38,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         protected override void OnFreeze() {
             base.OnFreeze();
             _parameters?.Freeze();
+            _decorators = FreezeList(_decorators);
             _returns = FreezeList(_returns);
             _globals = FreezeList(_globals);
             _nonLocals = FreezeList(_nonLocals);
@@ -68,7 +70,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             set { ThrowIfFrozen(); _name = value; }
         }
 
-        public DecoratorStatement Decorators {
+        public IList<Statement> Decorators {
             get { return _decorators; }
             internal set { ThrowIfFrozen(); _decorators = value; }
         }
@@ -226,7 +228,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 _parameters?.Walk(walker);
-                _decorators?.Walk(walker);
+                if (_decorators != null) {
+                    foreach (var d in _decorators.OfType<DecoratorStatement>()) {
+                        d.Walk(walker);
+                    }
+                }
                 base.Walk(walker);
             }
             walker.PostWalk(this);

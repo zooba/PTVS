@@ -27,6 +27,7 @@ using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
+using Microsoft.PythonTools.Common.Infrastructure;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TestUtilities;
@@ -1522,6 +1523,13 @@ namespace AnalysisTests {
             }
         }
 
+        [TestMethod, Priority(0)]
+        public void ComplexCode() {
+            foreach (var version in AllVersions) {
+                var ast = ParseFileNoErrors("ComplexCode.py", version);
+            }
+        }
+
 
         [TestMethod, Priority(0)]
         public void AssertStmt() {
@@ -1797,6 +1805,7 @@ namespace AnalysisTests {
                     new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 0, 1, 1, 4, 1, 5),
                     new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 23, 4, 1, 31, 4, 9),
                     new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 52, 8, 1, 61, 8, 10),
+                    new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 80, 11, 1, 84, 11, 5),
                     new ErrorInfo("invalid syntax, class decorators require 2.6 or later.", 86, 12, 1, 90, 12, 5)
                 );
             }
@@ -2791,20 +2800,19 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckFuncDef(string name, Action<Parameter>[] args, Action<Statement> body, Action<Expression>[] decorators = null, Action<Expression> returnAnnotation = null, bool isAsync = false) {
             return stmt => {
-                var s = stmt;
-                if (decorators != null) {
-                    foreach (var d in decorators) {
-                        Assert.IsInstanceOfType(s, typeof(DecoratorStatement));
-                        var ds = (DecoratorStatement)s;
-                        d(ds.Expression);
-                        s = ds.Inner;
-                    }
-                }
-                Assert.IsInstanceOfType(s, typeof(FunctionDefinition));
-                var funcDef = (FunctionDefinition)s;
+                Assert.IsInstanceOfType(stmt, typeof(FunctionDefinition));
+                var funcDef = (FunctionDefinition)stmt;
 
                 if (name != null) {
                     Assert.AreEqual(name, funcDef.Name);
+                }
+
+                if (decorators != null) {
+                    int i = 0;
+                    foreach (var d in funcDef.Decorators.MaybeEnumerate().OfType<DecoratorStatement>()) {
+                        Assert.IsInstanceOfType(d, typeof(DecoratorStatement));
+                        decorators[i++](d.Expression);
+                    }
                 }
 
                 Assert.AreEqual(isAsync, funcDef.IsAsync);
@@ -2832,21 +2840,19 @@ namespace AnalysisTests {
 
         private static Action<Statement> CheckClassDef(Action<NameExpression> name, Action<Statement> body, Action<Arg>[] bases = null, Action<Expression>[] decorators = null) {
             return stmt => {
-                var s = stmt;
-                if (decorators != null) {
-                    foreach (var d in decorators) {
-                        Assert.IsInstanceOfType(s, typeof(DecoratorStatement));
-                        var ds = (DecoratorStatement)s;
-                        d(ds.Expression);
-                        s = ds.Inner;
-                    }
-                }
-
-                Assert.IsInstanceOfType(s, typeof(ClassDefinition));
-                var classDef = (ClassDefinition)s;
+                Assert.IsInstanceOfType(stmt, typeof(ClassDefinition));
+                var classDef = (ClassDefinition)stmt;
 
                 if (name != null) {
                     name(classDef.NameExpression);
+                }
+
+                if (decorators != null) {
+                    int i = 0;
+                    foreach (var d in classDef.Decorators.MaybeEnumerate().OfType<DecoratorStatement>()) {
+                        Assert.IsInstanceOfType(d, typeof(DecoratorStatement));
+                        decorators[i++](d.Expression);
+                    }
                 }
 
                 if (bases != null) {

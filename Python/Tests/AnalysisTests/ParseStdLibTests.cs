@@ -206,6 +206,8 @@ namespace Analysis2Tests {
             }
         }
 
+        public abstract IEnumerable<string> SkipFilesInFullStdLibTest { get; }
+
         [TestMethod, Priority(2)]
         [TestCategory("10s")]
         public async Task FullStdLib() {
@@ -215,6 +217,10 @@ namespace Analysis2Tests {
             var output = new List<string>();
 
             foreach (var file in Directory.EnumerateFiles(dir, "*.py", SearchOption.AllDirectories)) {
+                var match = file.Substring(dir.Length);
+                if (SkipFilesInFullStdLibTest.Any(f => match.IndexOf(f, StringComparison.OrdinalIgnoreCase) >= 0)) {
+                    continue;
+                }
                 var error = await ParseOneFile(file);
                 if (!string.IsNullOrEmpty(error)) {
                     output.Add(error);
@@ -276,6 +282,12 @@ namespace Analysis2Tests {
                     PythonPaths.Python26_x64?.Configuration;
             }
         }
+
+        public override IEnumerable<string> SkipFilesInFullStdLibTest {
+            get {
+                yield break;
+            }
+        }
     }
 
     [TestClass]
@@ -284,6 +296,12 @@ namespace Analysis2Tests {
             get {
                 return PythonPaths.Python27?.Configuration ??
                     PythonPaths.Python27_x64?.Configuration;
+            }
+        }
+
+        public override IEnumerable<string> SkipFilesInFullStdLibTest {
+            get {
+                yield break;
             }
         }
     }
@@ -299,6 +317,12 @@ namespace Analysis2Tests {
                     PythonPaths.Python34_x64?.Configuration;
             }
         }
+
+        public override IEnumerable<string> SkipFilesInFullStdLibTest {
+            get {
+                yield return @"\lib2to3\tests\data\";
+            }
+        }
     }
 
     [TestClass]
@@ -310,6 +334,12 @@ namespace Analysis2Tests {
             get {
                 return PythonPaths.Python35?.Configuration ??
                     PythonPaths.Python35_x64?.Configuration;
+            }
+        }
+
+        public override IEnumerable<string> SkipFilesInFullStdLibTest {
+            get {
+                yield break;
             }
         }
     }
