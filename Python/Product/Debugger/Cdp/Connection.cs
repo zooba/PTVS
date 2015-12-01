@@ -56,9 +56,38 @@ namespace Microsoft.PythonTools.Cdp {
         }
 
         private async void BeginRead() {
-            try {
-                await ReadResponsesAsync();
-            } catch (ObjectDisposedException) {
+            await Task.Run(() => {
+                try {
+                    ReadOneResponse();
+                } catch (ObjectDisposedException) {
+                }
+            });
+        }
+
+        private void ReadOneResponse() {
+            var reader = new StreamReader(_reader, Encoding.UTF8);
+            string line;
+            while ((line = reader.ReadLine()) != null) {
+                Response.Data response;
+                Event.Data evt;
+                if ((response = JsonConvert.DeserializeObject<Response.Data>(line)) != null &&
+                    response.type == "response") {
+                    RequestInfo r;
+                    lock (_requestCache) {
+                        _requestCache.TryGetValue(response.requestSeq, out r);
+                    }
+
+                    var resp = new Response(this, response);
+                    lock (_responseCache) {
+                        _responseCache[response.seq] = resp;
+                    }
+                    r.Task?.TrySetResult(resp);
+                } else if ((evt = JsonConvert.DeserializeObject<Event.Data>(line)) != null &&
+                    evt.type == "event") {
+                    EventReceived?.Invoke(this, new EventReceivedEventArgs(new Event(this, evt)));
+                } else {
+                    Trace.TraceError("Unable to parse: " + line);
+                }
             }
         }
 
@@ -107,6 +136,26 @@ namespace Microsoft.PythonTools.Cdp {
             await _writer.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
             await _writer.FlushAsync().ConfigureAwait(false);
             return await r.Task.Task;
+        }
+
+        public Response SendRequest(Request request, CancellationToken cancellationToken) {
+            int seq = request._data.seq = Interlocked.Increment(ref _seq);
+
+            var task = new TaskCompletionSource<Response>();
+            if (cancellationToken.CanBeCanceled) {
+                cancellationToken.Register(() => task.TrySetCanceled());
+            }
+
+            RequestInfo r = new RequestInfo { Request = request, Task = task };
+            lock (_requestCache) {
+                _requestCache[seq] = r;
+            }
+
+            var str = JsonConvert.SerializeObject(r.Request._data) + "\n";
+            var bytes = Encoding.UTF8.GetBytes(str);
+            _writer.Write(bytes, 0, bytes.Length);
+            _writer.Flush();
+            return task.Task.GetAwaiter().GetResult();
         }
 
         public event EventHandler<EventReceivedEventArgs> EventReceived;

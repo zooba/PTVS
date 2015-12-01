@@ -29,8 +29,8 @@ namespace Microsoft.PythonTools.Repl {
     interface IPythonInteractiveIntellisense {
         bool LiveCompletionsOnly { get; }
         IEnumerable<KeyValuePair<string, bool>> GetAvailableScopesAndKind();
-        MemberResult[] GetMemberNames(string text);
-        OverloadDoc[] GetSignatureDocumentation(string text);
+        IReadOnlyCollection<MemberResult> GetMemberNames(string text);
+        IReadOnlyCollection<OverloadDoc> GetSignatureDocumentation(string text);
         VsProjectAnalyzer Analyzer { get; }
     }
 }

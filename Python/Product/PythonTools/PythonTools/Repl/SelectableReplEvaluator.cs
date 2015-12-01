@@ -292,12 +292,12 @@ namespace Microsoft.PythonTools.Repl {
                 ?? Enumerable.Empty<KeyValuePair<string, bool>>();
         }
 
-        public MemberResult[] GetMemberNames(string text) {
+        public IReadOnlyCollection<MemberResult> GetMemberNames(string text) {
             return (_evaluator as IPythonInteractiveIntellisense)?.GetMemberNames(text)
                 ?? new MemberResult[0];
         }
 
-        public OverloadDoc[] GetSignatureDocumentation(string text) {
+        public IReadOnlyCollection<OverloadDoc> GetSignatureDocumentation(string text) {
             return (_evaluator as IPythonInteractiveIntellisense)?.GetSignatureDocumentation(text)
                 ?? new OverloadDoc[0];
         }

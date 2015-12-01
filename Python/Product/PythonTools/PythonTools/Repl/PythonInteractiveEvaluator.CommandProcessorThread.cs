@@ -19,11 +19,13 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Cdp;
+using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudioTools;
 using Microsoft.VisualStudioTools.Project;
@@ -104,7 +106,7 @@ namespace Microsoft.PythonTools.Repl {
                     WriteError(SR.GetString(SR.ErrorStartingInteractiveProcess, e.ToString()));
                 }
                 return null;
-            } catch (Exception e) when(!e.IsCriticalException()) {
+            } catch (Exception e) when (!e.IsCriticalException()) {
                 return null;
             }
 
@@ -168,6 +170,18 @@ namespace Microsoft.PythonTools.Repl {
                 }
             }
 
+            public void EnsureConnected(CancellationToken cancellationToken) {
+                var c = _connecting;
+                if (c == null) {
+                    return;
+                }
+                try {
+                    c.Wait(cancellationToken);
+                } catch (AggregateException ae) {
+                    throw ae.InnerException;
+                }
+            }
+
             public async Task EnsureConnectedAsync() {
                 var c = _connecting;
                 if (c == null) {
@@ -177,7 +191,9 @@ namespace Microsoft.PythonTools.Repl {
             }
 
             private async Task ConnectAsync() {
-                await _connection.SendRequestAsync(new InitializeRequest(), CancellationToken.None);
+                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5))) {
+                    await _connection.SendRequestAsync(new InitializeRequest(), cts.Token);
+                }
             }
 
             public bool IsConnected => _connecting?.Status == TaskStatus.RanToCompletion;
@@ -213,7 +229,7 @@ namespace Microsoft.PythonTools.Repl {
                 if (!IsProcessExpectedToExit) {
                     try {
                         _eval.WriteError(SR.GetString(SR.ReplExited));
-                    } catch (Exception ex) when(!ex.IsCriticalException()) {
+                    } catch (Exception ex) when (!ex.IsCriticalException()) {
                     }
                 }
                 IsProcessExpectedToExit = false;
@@ -470,67 +486,70 @@ namespace Microsoft.PythonTools.Repl {
             //    }
             //}
 
-            public async Task<string> ExecuteTextAsync(string text, CancellationToken cancellationToken) {
-                if (text.StartsWith("$")) {
-                    return SR.GetString(SR.ReplUnknownCommand, text.Trim());
-                }
-
-                Trace.TraceInformation("Executing text: {0}", text);
-                if (_process != null) {
-                    NativeMethods.AllowSetForegroundWindow(_process.Id);
-                }
-
-                // normalize line endings to \n which is all older versions of CPython can handle.
-                text = FixNewLines(text).TrimEnd(' ');
-
-                var response = await _connection.SendRequestAsync(new EvaluateRequest(text), cancellationToken);
-
-                EvaluateResponse er;
-                if ((er = EvaluateResponse.TryCreate(response)) == null) {
-                    _eval.WriteError(response.Message);
-                    return null;
-                }
-                return er.Result;
-            }
-
-            private async Task ExecuteAsync(ExecuteFileRequest request, CancellationToken cancellationToken) {
+            private async Task<Response> ExecuteAsync(LaunchRequest request, CancellationToken cancellationToken) {
                 await EnsureConnectedAsync();
 
                 if (_process != null) {
-                    NativeMethods.AllowSetForegroundWindow(_process.Id);
+                    VisualStudioTools.Project.NativeMethods.AllowSetForegroundWindow(_process.Id);
                 }
 
                 var resp = await _connection.SendRequestAsync(request, cancellationToken);
                 if (!resp.Success) {
                     _eval.WriteError(resp.Message);
                 }
+                return resp;
+            }
+
+            public async Task ExecuteTextAsync(string text, CancellationToken cancellationToken) {
+                if (text.StartsWith("$")) {
+                    _eval.WriteError(SR.GetString(SR.ReplUnknownCommand, text.Trim()));
+                    return;
+                }
+
+                Trace.TraceInformation("Executing text: {0}", text);
+
+                // normalize line endings to \n which is all older versions of CPython can handle.
+                text = FixNewLines(text).TrimEnd(' ');
+
+                var resp = await ExecuteAsync(new LaunchRequest {
+                    Code = text
+                }, cancellationToken);
+
+                var er = EvaluateResponse.TryCreate(resp);
+                if (er != null) {
+                    foreach (var r in er.Reprs ?? new[] { er.Result }) {
+                        if (!string.IsNullOrEmpty(r)) {
+                            _eval.WriteOutput(r);
+                        }
+                    }
+                }
             }
 
             public Task ExecuteScriptAsync(string filename, string extraArgs, CancellationToken cancellationToken) {
-                return ExecuteAsync(new ExecuteFileRequest {
+                return ExecuteAsync(new LaunchRequest {
                     ScriptPath = filename,
                     ExtraArguments = extraArgs
                 }, cancellationToken);
             }
 
             public Task ExecuteModuleAsync(string moduleName, string extraArgs, CancellationToken cancellationToken) {
-                return ExecuteAsync(new ExecuteFileRequest {
+                return ExecuteAsync(new LaunchRequest {
                     ModuleName = moduleName,
                     ExtraArguments = extraArgs
                 }, cancellationToken);
             }
 
             public Task ExecuteProcessAsync(string filename, string extraArgs, CancellationToken cancellationToken) {
-                return ExecuteAsync(new ExecuteFileRequest {
+                return ExecuteAsync(new LaunchRequest {
                     ProcessPath = filename,
                     ExtraArguments = extraArgs
                 }, cancellationToken);
             }
 
             public void AbortCommand() {
-            //    using (new StreamLock(this, throwIfDisconnected: true)) {
-            //        _stream.Write(AbortCommandBytes);
-            //    }
+                //    using (new StreamLock(this, throwIfDisconnected: true)) {
+                //        _stream.Write(AbortCommandBytes);
+                //    }
             }
 
             //public void SetThreadAndFrameCommand(long thread, int frame, FrameKind frameKind) {
@@ -543,81 +562,89 @@ namespace Microsoft.PythonTools.Repl {
             //    }
             //}
 
-            public OverloadDoc[] GetSignatureDocumentation(string text) {
-            //    using (new StreamLock(this, throwIfDisconnected: false)) {
-            //        if (_stream == null) {
-            //            return new OverloadDoc[0];
-            //        }
-            //        try {
-            //            _stream.Write(GetSignaturesCommandBytes);
-            //            SendString(text);
-            //        } catch (IOException) {
-            //            return new OverloadDoc[0];
-            //        }
-            //    }
+            public IReadOnlyList<OverloadDoc> GetSignatureDocumentation(string text) {
+                Response response;
 
-            //    if (_completionResultEvent.WaitOne(1000)) {
-            //        var res = _overloads;
-            //        _overloads = null;
-            //        return res;
-            //    }
-                return null;
+                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(0.5))) {
+                    try {
+                        EnsureConnected(cts.Token);
+
+                        response = _connection.SendRequest(new EvaluateRequest(text) {
+                            IncludeDocs = true
+                        }, cts.Token);
+                    } catch (OperationCanceledException) {
+                        return null;
+                    }
+                }
+
+                if (!response.Success) {
+                    _eval.WriteError(response.Message);
+                    return null;
+                }
+
+                EvaluateResponse er;
+                if ((er = EvaluateResponse.TryCreate(response)) == null) {
+                    return null;
+                }
+
+                return new[] { new OverloadDoc(er.Docs?.LastOrDefault(), new ParameterResult[0]) };
             }
 
-            public MemberResult[] GetMemberNames(string text) {
-            //    _completionResultEvent.Reset();
-            //    _memberResults = null;
+            public IReadOnlyList<MemberResult> GetMemberNames(string text) {
+                Response response;
+                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1))) {
+                    try {
+                        EnsureConnected(cts.Token);
+                        response = _connection.SendRequest(new EvaluateRequest(text) {
+                            IncludeMembers = true
+                        }, cts.Token);
+                    } catch (OperationCanceledException) {
+                        return null;
+                    }
+                }
 
-            //    using (new StreamLock(this, throwIfDisconnected: false)) {
-            //        if (_stream == null) {
-            //            return new MemberResult[0];
-            //        }
-            //        try {
-            //            _stream.Write(GetMembersCommandBytes);
-            //            SendString(text);
-            //        } catch (IOException) {
-            //            return new MemberResult[0];
-            //        }
-            //    }
+                if (!response.Success) {
+                    _eval.WriteError(response.Message);
+                    return null;
+                }
 
-            //    if (_completionResultEvent.WaitOne(1000) && _memberResults != null) {
-            //        MemberResult[] res = new MemberResult[_memberResults.TypeMembers.Count + _memberResults.InstanceMembers.Count];
-            //        int i = 0;
-            //        foreach (var member in _memberResults.TypeMembers) {
-            //            res[i++] = CreateMemberResult(member.Key, member.Value);
-            //        }
-            //        foreach (var member in _memberResults.InstanceMembers) {
-            //            res[i++] = CreateMemberResult(member.Key, member.Value);
-            //        }
+                EvaluateResponse er;
+                if ((er = EvaluateResponse.TryCreate(response)) == null) {
+                    return null;
+                }
 
-            //        _memberResults = null;
-            //        return res;
-            //    }
-                return null;
+                return er.Members?.LastOrDefault()?.Select(CreateMemberResult).ToArray();
             }
 
-            //private static MemberResult CreateMemberResult(string name, string typeName) {
-            //    switch (typeName) {
-            //        case "__builtin__.method-wrapper":
-            //        case "__builtin__.builtin_function_or_method":
-            //        case "__builtin__.method_descriptor":
-            //        case "__builtin__.wrapper_descriptor":
-            //        case "__builtin__.instancemethod":
-            //            return new MemberResult(name, PythonMemberType.Method);
-            //        case "__builtin__.getset_descriptor":
-            //            return new MemberResult(name, PythonMemberType.Property);
-            //        case "__builtin__.namespace#":
-            //            return new MemberResult(name, PythonMemberType.Namespace);
-            //        case "__builtin__.type":
-            //            return new MemberResult(name, PythonMemberType.Class);
-            //        case "__builtin__.function":
-            //            return new MemberResult(name, PythonMemberType.Function);
-            //        case "__builtin__.module":
-            //            return new MemberResult(name, PythonMemberType.Module);
-            //    }
+            private static MemberResult CreateMemberResult(string name) {
+                int colon = name.IndexOf(':');
+                if (colon < 0) {
+                    return new MemberResult(name, PythonMemberType.Field);
+                }
+                var typeName = name.Substring(colon + 1).Trim();
+                name = name.Remove(colon).Trim();
 
-            //    return new MemberResult(name, PythonMemberType.Field);
-            //}
+                switch (typeName) {
+                    case "method-wrapper":
+                    case "builtin_function_or_method":
+                    case "method_descriptor":
+                    case "wrapper_descriptor":
+                    case "instancemethod":
+                        return new MemberResult(name, PythonMemberType.Method);
+                    case "getset_descriptor":
+                        return new MemberResult(name, PythonMemberType.Property);
+                    case "namespace#":
+                        return new MemberResult(name, PythonMemberType.Namespace);
+                    case "type":
+                        return new MemberResult(name, PythonMemberType.Class);
+                    case "function":
+                        return new MemberResult(name, PythonMemberType.Function);
+                    case "module":
+                        return new MemberResult(name, PythonMemberType.Module);
+                }
+
+                return new MemberResult(name, PythonMemberType.Field);
+            }
 
             //public async Task<string> GetScopeByFilenameAsync(string path) {
             //    await GetAvailableScopesAndKindAsync();

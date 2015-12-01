@@ -238,11 +238,11 @@ namespace Microsoft.PythonTools.Repl {
             return Enumerable.Empty<KeyValuePair<string, bool>>();
         }
 
-        public MemberResult[] GetMemberNames(string text) {
+        public IReadOnlyCollection<MemberResult> GetMemberNames(string text) {
             return _thread?.GetMemberNames(text) ?? new MemberResult[0];
         }
 
-        public OverloadDoc[] GetSignatureDocumentation(string text) {
+        public IReadOnlyCollection<OverloadDoc> GetSignatureDocumentation(string text) {
             return _thread?.GetSignatureDocumentation(text) ?? new OverloadDoc[0];
         }
 
@@ -392,23 +392,25 @@ namespace Microsoft.PythonTools.Repl {
         }
 
         public async Task<ExecutionResult> ExecuteModuleAsync(string name, string extraArgs) {
-            //var thread = await EnsureConnectedAsync();
-            //if (thread != null) {
-            //    return await thread.ExecuteFile(name, extraArgs, "module");
-            //}
+            var thread = await EnsureConnectedAsync();
+            if (thread == null) {
+                WriteError(SR.GetString(SR.ReplDisconnected));
+                return ExecutionResult.Failure;
+            }
 
-            WriteError(SR.GetString(SR.ReplDisconnected));
-            return ExecutionResult.Failure;
+            await thread.ExecuteModuleAsync(name, extraArgs, CancellationToken.None);
+            return ExecutionResult.Success;
         }
 
         public async Task<ExecutionResult> ExecuteProcessAsync(string filename, string extraArgs) {
-            //var thread = await EnsureConnectedAsync();
-            //if (thread != null) {
-            //    return await thread.ExecuteFile(filename, extraArgs, "process");
-            //}
+            var thread = await EnsureConnectedAsync();
+            if (thread == null) {
+                WriteError(SR.GetString(SR.ReplDisconnected));
+                return ExecutionResult.Failure;
+            }
 
-            WriteError(SR.GetString(SR.ReplDisconnected));
-            return ExecutionResult.Failure;
+            await thread.ExecuteProcessAsync(filename, extraArgs, CancellationToken.None);
+            return ExecutionResult.Success;
         }
 
         const string _splitRegexPattern = @"(?x)\s*,\s*(?=(?:[^""]*""[^""]*"")*[^""]*$)"; // http://regexhero.net/library/52/

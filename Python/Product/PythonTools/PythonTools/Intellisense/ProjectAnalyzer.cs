@@ -1035,14 +1035,14 @@ namespace Microsoft.PythonTools.Intellisense {
                 }
                 var liveSigs = dlrEval.GetSignatureDocumentation(text);
 
-                if (liveSigs != null && liveSigs.Length > 0) {
+                if (liveSigs != null && liveSigs.Count > 0) {
                     return new SignatureAnalysis(text, paramIndex, GetLiveSignatures(text, liveSigs, paramIndex, applicableSpan, lastKeywordArg), lastKeywordArg);
                 }
             }
             return null;
         }
 
-        private static ISignature[] GetLiveSignatures(string text, ICollection<OverloadDoc> liveSigs, int paramIndex, ITrackingSpan span, string lastKeywordArg) {
+        private static ISignature[] GetLiveSignatures(string text, IReadOnlyCollection<OverloadDoc> liveSigs, int paramIndex, ITrackingSpan span, string lastKeywordArg) {
             ISignature[] res = new ISignature[liveSigs.Count];
             int i = 0;
             foreach (var sig in liveSigs) {

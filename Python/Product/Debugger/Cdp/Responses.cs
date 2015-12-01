@@ -16,6 +16,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Microsoft.PythonTools.Cdp {
     public class Response : IDisposable {
@@ -67,6 +70,24 @@ namespace Microsoft.PythonTools.Cdp {
             }
         }
 
+        protected T TryGetFromBody<T>(string key) where T : class {
+            object obj;
+            return _data.body.TryGetValue(key, out obj) ? obj as T : null;
+        }
+
+        protected IReadOnlyList<T> TryGetListFromBody<T>(string key) {
+            object obj;
+            JArray list;
+            if (!_data.body.TryGetValue(key, out obj) || (list = obj as JArray) == null) {
+                return null;
+            }
+            try {
+                return list.Values<T>().ToArray();
+            } catch (InvalidCastException) {
+                return null;
+            }
+        }
+
         protected internal class Data {
             public string type = "response";
             public int seq = -1;
@@ -83,8 +104,32 @@ namespace Microsoft.PythonTools.Cdp {
 
         public string Result => RawBody["result"] as string;
 
+        public IReadOnlyList<string> Reprs => TryGetListFromBody<string>("reprs");
+
+        public IReadOnlyList<IReadOnlyList<string>> Members {
+            get {
+                object obj;
+                JArray listOfList;
+                if (!RawBody.TryGetValue("members", out obj) || (listOfList = obj as JArray) == null) {
+                    return null;
+                }
+                try {
+                    return listOfList.Select(a => a.Values<string>().ToArray()).ToArray();
+                } catch (InvalidCastException) {
+                    return null;
+                }
+            }
+        }
+
+        public IReadOnlyList<object> CallSignatures => TryGetFromBody<IReadOnlyList<object>>("callSignatures");
+
+        public IReadOnlyList<string> Docs => TryGetListFromBody<string>("docs");
+
         public static EvaluateResponse TryCreate(Response from) {
-            if (!from.Success || from.Command != "evaluate" || from.RawBody == null) {
+            if (!from.Success ||
+                // If we launch with code, we can get an EvaluateResponse
+                (from.Command != "evaluate" && from.Command != "launch") ||
+                from.RawBody == null) {
                 return null;
             }
             if (!from.RawBody.ContainsKey("result")) {

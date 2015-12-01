@@ -14,7 +14,7 @@
 # See the Apache Version 2.0 License for specific language governing
 # permissions and limitations under the License.
 
-from __future__ import division, with_statement, print_function, absolute_import
+from __future__ import division, with_statement, absolute_import
 
 __author__ = "Microsoft Corporation <ptvshelp@microsoft.com>"
 __version__ = "3.0.0.0"
@@ -49,7 +49,7 @@ class CDP(object):
                 return self.__exit
 
         if _TRACE:
-            print(msg, file=sys.__stderr__)
+            sys.__stderr__.write(str(msg) + '\n')
 
         if msg['type'] == 'request':
             self.on_request(msg)

@@ -237,7 +237,7 @@ namespace Microsoft.PythonTools.Repl {
             return new KeyValuePair<string, bool>[0];
         }
 
-        public Analysis.MemberResult[] GetMemberNames(string text) {
+        public IReadOnlyCollection<Analysis.MemberResult> GetMemberNames(string text) {
             if (_activeEvaluator != null) {
                 return _activeEvaluator.GetMemberNames(text);
             }
@@ -245,7 +245,7 @@ namespace Microsoft.PythonTools.Repl {
             return new Analysis.MemberResult[0];
         }
 
-        public OverloadDoc[] GetSignatureDocumentation(string text) {
+        public IReadOnlyCollection<OverloadDoc> GetSignatureDocumentation(string text) {
             if (_activeEvaluator != null) {
                 return _activeEvaluator.GetSignatureDocumentation(text);
             }

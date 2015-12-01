@@ -57,6 +57,45 @@ namespace Microsoft.PythonTools.Cdp {
         }
     }
 
+    public class LaunchRequest : Request {
+        public LaunchRequest() : base("launch") { }
+
+        public string Code {
+            get { return (string)Arguments["code"]; }
+            set { Arguments["code"] = value; }
+        }
+
+        public string ScriptPath {
+            get { return (string)Arguments["scriptPath"]; }
+            set { Arguments["scriptPath"] = value; }
+        }
+
+        public string ModuleName {
+            get { return (string)Arguments["moduleName"]; }
+            set { Arguments["moduleName"] = value; }
+        }
+
+        public string ProcessPath {
+            get { return (string)Arguments["processPath"]; }
+            set { Arguments["processPath"] = value; }
+        }
+
+        public string ExtraArguments {
+            get { return (string)Arguments["extraArguments"]; }
+            set { Arguments["extraArguments"] = value; }
+        }
+
+        public int MaximumResultLength {
+            get { return (int)Arguments["maximumResultLength"]; }
+            set { Arguments["maximumResultLength"] = value; }
+        }
+
+        public bool IncludeMembers {
+            get { return (bool)Arguments["includeMembers"]; }
+            set { Arguments["includeMembers"] = value; }
+        }
+    }
+
     public class EvaluateRequest : Request {
         public EvaluateRequest(string expression, int frameId = -1) : base("evaluate") {
             Expression = expression;
@@ -72,6 +111,31 @@ namespace Microsoft.PythonTools.Cdp {
             get { return (int)Arguments["frameId"]; }
             set { Arguments["frameId"] = value; }
         }
+
+        public int MaximumResultLength {
+            get { return (int)Arguments["maximumResultLength"]; }
+            set { Arguments["maximumResultLength"] = value; }
+        }
+
+        public bool IncludeMembers {
+            get { return (bool)Arguments["includeMembers"]; }
+            set { Arguments["includeMembers"] = value; }
+        }
+
+        public bool IncludeCallSignature {
+            get { return (bool)Arguments["includeCallSignature"]; }
+            set { Arguments["includeCallSignature"] = value; }
+        }
+
+        public bool IncludeDocs {
+            get { return (bool)Arguments["includeDocs"]; }
+            set { Arguments["includeDocs"] = value; }
+        }
     }
 
+    public class VariablesRequest : Request {
+        public VariablesRequest(int variableId) : base("variables") {
+
+        }
+    }
 }
