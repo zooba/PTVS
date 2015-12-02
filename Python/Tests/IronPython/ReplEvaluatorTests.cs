@@ -14,6 +14,7 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -81,13 +82,13 @@ namespace IronPythonTests {
             execute.Wait();
             Assert.IsTrue(execute.Result.IsSuccessful);
 
-            OverloadDoc[] sigs = null;
+            IReadOnlyCollection<OverloadDoc> sigs = null;
             for (int retries = 0; retries < 5 && sigs == null; retries += 1) {
                 sigs = replEval.GetSignatureDocumentation("Array[int]");
             }
             Assert.IsNotNull(sigs, "GetSignatureDocumentation timed out");
-            Assert.AreEqual(sigs.Length, 1);
-            Assert.AreEqual("Array[int](: int)\r\n", sigs[0].Documentation);
+            Assert.AreEqual(sigs.Count, 1);
+            Assert.AreEqual("Array[int](: int)\r\n", sigs.First().Documentation);
         }
 
         [TestMethod, Priority(1)]
@@ -158,7 +159,7 @@ namespace IronPythonTests {
             using (var analyzer = new VsProjectAnalyzer(PythonToolsTestUtilities.CreateMockServiceProvider(), fact, new[] { fact })) {
                 replWindow.TextView.TextBuffer.Properties.AddProperty(typeof(VsProjectAnalyzer), analyzer);
 
-                MemberResult[] names = null;
+                IReadOnlyCollection<MemberResult> names = null;
                 for (int retries = 0; retries < 5 && names == null; retries += 1) {
                     names = replEval.GetMemberNames("t");
                 }

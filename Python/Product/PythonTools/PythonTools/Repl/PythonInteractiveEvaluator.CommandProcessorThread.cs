@@ -156,6 +156,19 @@ namespace Microsoft.PythonTools.Repl {
                 _connecting = ConnectAsync();
             }
 
+            public bool AllErrors { get; set; }
+
+            class StandardInputRequest : Request {
+                public StandardInputRequest() : base("stdin") {
+                    Text = string.Empty;
+                }
+
+                public string Text {
+                    get { return (string)Arguments["text"]; }
+                    set { Arguments["text"] = value; }
+                }
+            }
+
             private async void Connection_EventReceived(object sender, EventReceivedEventArgs e) {
                 OutputEvent oe;
 
@@ -166,6 +179,14 @@ namespace Microsoft.PythonTools.Repl {
                         _eval.WriteOutput(oe.Output, addNewline: false);
                     } else {
                         _eval.WriteError(oe.Category + ": " + oe.Output, addNewline: false);
+                    }
+                } else if (e.Event.EventName == "readStdin") {
+                    var reader = _eval.CurrentWindow.ReadStandardInput();
+                    if (reader != null) {
+                        var line = await reader.ReadLineAsync();
+                        await _connection.SendRequestAsync(new StandardInputRequest {
+                            Text = line
+                        }, CancellationToken.None);
                     }
                 }
             }
@@ -573,12 +594,17 @@ namespace Microsoft.PythonTools.Repl {
                             IncludeDocs = true
                         }, cts.Token);
                     } catch (OperationCanceledException) {
+                        if (AllErrors) {
+                            _eval.WriteError("Timed out getting signature documentation");
+                        }
                         return null;
                     }
                 }
 
                 if (!response.Success) {
-                    _eval.WriteError(response.Message);
+                    if (AllErrors) {
+                        _eval.WriteError(response.Message);
+                    }
                     return null;
                 }
 
@@ -599,12 +625,17 @@ namespace Microsoft.PythonTools.Repl {
                             IncludeMembers = true
                         }, cts.Token);
                     } catch (OperationCanceledException) {
+                        if (AllErrors) {
+                            _eval.WriteError("Timed out getting member names");
+                        }
                         return null;
                     }
                 }
 
                 if (!response.Success) {
-                    _eval.WriteError(response.Message);
+                    if (AllErrors) {
+                        _eval.WriteError(response.Message);
+                    }
                     return null;
                 }
 
@@ -630,6 +661,7 @@ namespace Microsoft.PythonTools.Repl {
                     case "method_descriptor":
                     case "wrapper_descriptor":
                     case "instancemethod":
+                    case "method":
                         return new MemberResult(name, PythonMemberType.Method);
                     case "getset_descriptor":
                         return new MemberResult(name, PythonMemberType.Property);

@@ -20,6 +20,7 @@ __author__ = "Microsoft Corporation <ptvshelp@microsoft.com>"
 __version__ = "3.0.0.0"
 
 import json
+import os.path
 import sys
 import itertools
 import traceback
@@ -27,6 +28,10 @@ import traceback
 _TRACE = True
 
 NEWLINE_BYTES = '\n'.encode('ascii')
+
+SKIP_TB_PREFIXES = [
+    os.path.normcase(os.path.dirname(os.path.abspath(__file__)))
+]
 
 class CDP(object):
     def __init__(self, *args, **kwargs):
@@ -37,6 +42,18 @@ class CDP(object):
 
     def _receive_message(self, message):
         self.__message.append(message)
+
+    def format_exc(self, exc_type=None, exc_value=None, exc_tb=None):
+        if not exc_type:
+            exc_type, exc_value, exc_tb = sys.exc_info()
+        tb = traceback.extract_tb(exc_tb)
+        while tb:
+            file = os.path.normcase(os.path.dirname(tb[0][0]))
+            if file not in SKIP_TB_PREFIXES:
+                break
+            tb.pop(0)
+        return ''.join(traceback.format_exception_only(exc_type, exc_value) +
+                       traceback.format_list(tb)).strip()
 
     def process_one_message(self):
         try:
@@ -51,14 +68,21 @@ class CDP(object):
         if _TRACE:
             sys.__stderr__.write(str(msg) + '\n')
 
-        if msg['type'] == 'request':
-            self.on_request(msg)
-        elif msg['type'] == 'response':
-            self.on_response(msg)
-        elif msg['type'] == 'event':
-            self.on_event(msg)
-        else:
-            self.on_invalid_request(msg, {})
+        try:
+            if msg['type'] == 'request':
+                self.on_request(msg)
+            elif msg['type'] == 'response':
+                self.on_response(msg)
+            elif msg['type'] == 'event':
+                self.on_event(msg)
+            else:
+                self.on_invalid_request(msg, {})
+        except:
+            self.send_event(
+                'output',
+                category='internal error',
+                output=traceback.format_exc()
+            )
 
         return self.__exit
 
@@ -74,7 +98,7 @@ class CDP(object):
             self.send_response(
                 request,
                 success=False,
-                message='internal error:\n' + traceback.format_exc(),
+                message=self.format_exc(),
             )
 
     def send_request(self, command, **args):

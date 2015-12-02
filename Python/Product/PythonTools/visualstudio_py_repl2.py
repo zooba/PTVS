@@ -143,14 +143,7 @@ class ReplCDP(visualstudio_py_cdp.CDP):
         expr = args['expression']
         frame_id = int(args.get('frameId', 0))
 
-        try:
-            self.__evaluate(request, args, expr)
-        except:
-            self.send_response(
-                request,
-                success=False,
-                message=traceback.format_exc()
-            )
+        self.__evaluate(request, args, expr)
 
     def __evaluate(self, request, args, expr):
         with CaptureVariables(args, self.__state.get('_')) as results:
@@ -174,50 +167,61 @@ class ReplCDP(visualstudio_py_cdp.CDP):
         module = args.get('moduleName')
         process = args.get('processPath')
         extra_args = args.get('extraArguments') or ''
-        try:
-            if code:
-                self.__evaluate(request, args, code)
-                return
-            elif script:
-                old_argv = sys.argv[:]
-                try:
-                    sys.argv[:] = [script] + shlex.split(extra_args)
-                    visualstudio_py_util.exec_file(script, self.__state)
-                finally:
-                    sys.argv[:] = old_argv
-            elif module:
-                old_argv = sys.argv[:]
-                try:
-                    sys.argv[:] = [''] + shlex.split(extra_args)
-                    visualstudio_py_util.exec_module(module, self.__state)
-                finally:
-                    sys.argv[:] = old_argv
-            elif process:
-                proc = subprocess.Popen(
-                    '"%s" %s' % (process, extra_args),
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    bufsize=0,
-                )
+        if code:
+            self.__evaluate(request, args, code)
 
-                for line in proc.stdout:
-                    sys.stdout.write(utf_8.decode(line, 'replace')[0])
-            else:
-                self.send_response(
-                    request,
-                    success=False,
-                    message='Unsupported script type'
-                )
-                return
-        except Exception:
+        elif script:
+            old_argv = sys.argv[:]
+            try:
+                sys.argv[:] = [script] + shlex.split(extra_args)
+                visualstudio_py_util.exec_file(script, self.__state)
+            finally:
+                sys.argv[:] = old_argv
+            self.send_response(request)
+
+        elif module:
+            old_argv = sys.argv[:]
+            try:
+                sys.argv[:] = [''] + shlex.split(extra_args)
+                visualstudio_py_util.exec_module(module, self.__state)
+            finally:
+                sys.argv[:] = old_argv
+            self.send_response(request)
+
+        elif process:
+            proc = subprocess.Popen(
+                '"%s" %s' % (process, extra_args),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                bufsize=0,
+            )
+
+            for line in proc.stdout:
+                sys.stdout.write(utf_8.decode(line, 'replace')[0])
+            self.send_response(request)
+
+        else:
             self.send_response(
                 request,
                 success=False,
-                message=traceback.format_exc()
+                message='Unsupported script type'
             )
-        else:
-            self.send_response(request)
 
+    def read_stdin_line(self, readline):
+        self.send_event('readStdin')
+        while not self.process_one_message():
+            line = readline()
+            if line is not None:
+                return line
+        return None
+
+    def on_stdin(self, request, args):
+        try:
+            _add_line = sys.stdin._add_line
+        except AttributeError:
+            pass
+        _add_line(args.get('text', ''))
+        self.send_response(request)
 
 class _ReplOutput(object):
     """File-like object which redirects output to the REPL window."""
@@ -227,7 +231,7 @@ class _ReplOutput(object):
     def __init__(self, io, category, old_out=None):
         self.name = '<%s>' % category
         self.category = category
-        self.io = io
+        self._io = io
         self.old_out = old_out
         self.pipe = None
 
@@ -259,7 +263,7 @@ class _ReplOutput(object):
             self.write(str(line) + '\n')
     
     def write(self, value):
-        self.io.send_event('output', category=self.category, output=str(value))
+        self._io.send_event('output', category=self.category, output=str(value))
         if self.old_out:
             self.old_out.write(value)
     
@@ -272,20 +276,28 @@ class _ReplOutput(object):
 
 class _ReplInput(object):
     """file like object which redirects input from the repl window"""
-    def __init__(self, backend):
-        self.backend = backend
+    def __init__(self, io):
+        self._io = io
+        self._lines = []
     
+    def _add_line(self, line):
+        self._lines.append(line)
+
+    def _pop_line(self):
+        return self._lines.pop(0) if self._lines else None
+
     def readline(self):
-        return self.backend.read_line()
+        if self._lines:
+            return self._lines.pop(0)
+        return self._io.read_stdin_line(self._pop_line)
     
     def readlines(self, size=None):
         res = []
         while True:
             line = self.readline()
-            if line is not None:
-                res.append(line)
-            else:
+            if line is None:
                 break
+            res.append(line)
         
         return res
 
@@ -315,10 +327,12 @@ class ReplStandardIO(ReplCDP, visualstudio_py_cdp.StandardIO):
 def main(args):
     try:
         io = ReplSocketIO(int(args[args.index('--port')+1]))
+        sys.stdin = _ReplInput(io)
         sys.stdout = _ReplOutput(io, "stdout", sys.stdout)
         sys.stderr = _ReplOutput(io, "stderr", sys.stderr)
     except (ValueError, LookupError):
         io = ReplStandardIO(sys.stdin, sys.stdout)
+        sys.stdin = _ReplInput(io)
         sys.stdout = _ReplOutput(io, "stdout", None)
         sys.stderr = _ReplOutput(io, "stderr", sys.stderr)
 

@@ -35,6 +35,11 @@ namespace Microsoft.PythonTools.Cdp {
         public string EventName => _data.event_;
         public IReadOnlyDictionary<string, object> RawBody => _data.body;
 
+        protected T TryGetFromBody<T>(string key) where T : class {
+            object obj;
+            return _data.body.TryGetValue(key, out obj) ? obj as T : null;
+        }
+
         internal class Data {
             public string type = "event";
             public int seq;
@@ -47,17 +52,7 @@ namespace Microsoft.PythonTools.Cdp {
     public class OutputEvent : Event {
         private OutputEvent(Event from) : base(from) { }
 
-        public string Category {
-            get {
-                string value;
-                object valueObj;
-                if (!RawBody.TryGetValue("category", out valueObj) || (value = valueObj as string) == null) {
-                    value = "console";
-                }
-                return value;
-            }
-        }
-
+        public string Category => TryGetFromBody<string>("category") ?? "console";
         public string Output => (string)RawBody["output"];
 
         public static OutputEvent TryCreate(Event from) {
