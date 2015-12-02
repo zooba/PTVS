@@ -18,27 +18,28 @@ using System.Text;
 
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class AsExpression : ExpressionWithExpression {
-        private NameExpression _name;
+        private Expression _name;
 
-        public NameExpression Name {
+        public Expression NameExpression {
             get { return _name; }
             set { ThrowIfFrozen(); _name = value; }
         }
+
+        public string Name => (_name as DottedName)?.MakeString() ?? (_name as NameExpression)?.Name;
 
         internal override void AppendCodeString(StringBuilder output, PythonAst ast, CodeFormattingOptions format) {
             // TODO: Apply formatting options
             BeforeNode.AppendCodeString(output, ast);
             Expression?.AppendCodeString(output, ast, format);
             output.Append("as");
-            Name?.AppendCodeString(output, ast, format);
-            Comment?.AppendCodeString(output, ast, format);
+            NameExpression?.AppendCodeString(output, ast, format);
             AfterNode.AppendCodeString(output, ast);
         }
 
         public override void Walk(PythonWalker walker) {
             if (walker.Walk(this)) {
                 Expression?.Walk(walker);
-                Name?.Walk(walker);
+                NameExpression?.Walk(walker);
             }
             walker.PostWalk(this);
         }

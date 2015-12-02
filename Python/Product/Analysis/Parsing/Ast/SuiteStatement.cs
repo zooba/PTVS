@@ -64,7 +64,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                     s.AppendCodeString(output, ast, format);
                 }
             }
-            Comment?.AppendCodeString(output, ast, format);
             AfterNode.AppendCodeString(output, ast);
         }
 

@@ -21,7 +21,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         private Expression _right;
         private PythonOperator _op;
         private SourceSpan _opSpan, _withinOp;
-        private CommentExpression _opComment;
 
         public Expression Left {
             get { return Expression; }
@@ -46,11 +45,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public SourceSpan WithinOperator {
             get { return _withinOp; }
             set { ThrowIfFrozen(); _withinOp = value; }
-        }
-
-        public CommentExpression OperatorComment {
-            get { return _opComment; }
-            set { ThrowIfFrozen(); _opComment = value; }
         }
 
         private bool IsComparison() {

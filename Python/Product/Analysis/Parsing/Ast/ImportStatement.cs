@@ -60,7 +60,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             if (dn != null) {
                 return dn.MakeString();
             }
-            return (expr.Expression as AsExpression)?.Name?.Name;
+            return (expr.Expression as AsExpression)?.Name;
         }
 
         /// <summary>

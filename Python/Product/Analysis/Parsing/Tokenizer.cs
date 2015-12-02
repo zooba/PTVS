@@ -25,12 +25,14 @@ using System.Threading.Tasks;
 namespace Microsoft.PythonTools.Analysis.Parsing {
     sealed class Tokenizer {
         PythonLanguageVersion _version;
+        LanguageFeatures _features;
         int _lineNumber;
         int _lineStart;
         Stack<TokenKind> _nesting;
 
         public Tokenizer(PythonLanguageVersion version) {
             _version = version;
+            _features = new LanguageFeatures(_version, FutureOptions.None);
             _lineNumber = 0;
             _lineStart = 0;
             _nesting = new Stack<TokenKind>();
@@ -70,6 +72,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 switch (key) {
                     case "v":
                         _version = (PythonLanguageVersion)int.Parse(value);
+                        _features = new LanguageFeatures(_version, FutureOptions.None);
                         break;
                     case "ln":
                         _lineNumber = int.Parse(value);
@@ -121,12 +124,16 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var leadingWsKind = TokenKind.SignificantWhitespace;
             int leadingWsLength = 0;
 
-            if (_nesting.Any()) {
-                var inGroup = _nesting.Peek();
+            foreach (var inGroup in _nesting) {
                 if (inGroup.GetCategory() == TokenCategory.StringLiteral) {
                     leadingWsKind = TokenKind.Unknown;
-                } else {
+                    break;
+                } else if (inGroup.GetUsage() == TokenUsage.EndGroup) {
                     leadingWsKind = TokenKind.Whitespace;
+                    break;
+                } else if (inGroup == TokenKind.ExplicitLineJoin) {
+                    leadingWsKind = TokenKind.Whitespace;
+                    break;
                 }
             }
 
@@ -141,18 +148,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
                 leadingWsLength = i;
 
-                if (i < line.Length) {
-                    char c = line[i];
-                    if (c == '\r' || c == '\n' || c == '#') {
-                        leadingWsKind = TokenKind.Whitespace;
-                    }
-                } else {
+                if (i >= line.Length) {
                     i = 0;
                     leadingWsKind = TokenKind.Unknown;
                 }
             }
 
-            if (_nesting.Any() && _nesting.Peek() == TokenKind.ExplicitLineJoin) {
+            if (_nesting.Any() && _nesting.Peek().GetUsage() != TokenUsage.EndGroup) {
                 _nesting.Pop();
             }
 
@@ -192,9 +194,17 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         case TokenKind.MatMultiply:
                             kind = TokenKind.At;
                             break;
+                        case TokenKind.Comment:
+                            leadingWsKind = TokenKind.Whitespace;
+                            _nesting.Push(TokenKind.Comment);
+                            break;
+                        case TokenKind.NewLine:
+                            leadingWsKind = TokenKind.Whitespace;
+                            kind = TokenKind.Whitespace;
+                            break;
                     }
 
-                    if (_nesting.Any() && kind.GetUsage() == TokenUsage.BeginStatement) {
+                    if (_nesting.Any() && TriggerGroupingRecovery(kind)) {
                         // Grouping has gone bad, so reset
                         _nesting.Clear();
 
@@ -251,6 +261,21 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     yield return new Token(_nesting.Pop(), start + lineWithoutNewline.Length, 0);
                 }
             }
+        }
+
+        private bool TriggerGroupingRecovery(TokenKind kind) {
+            if (kind.GetUsage() != TokenUsage.BeginStatement) {
+                return false;
+            }
+            switch (kind) {
+                case TokenKind.KeywordAsync:
+                    return _features.HasAsyncAwait;
+                case TokenKind.KeywordExec:
+                    return _features.HasExecStatement;
+                case TokenKind.KeywordPrint:
+                    return !_features.HasPrintFunction;
+            }
+            return true;
         }
 
         private TokenKind GetStringLiteralToken(string line, int start, TokenKind inGroup, out int length) {

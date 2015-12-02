@@ -1037,7 +1037,12 @@ namespace AnalysisTests {
                         CheckWithStmt(CheckTupleExpr(
                             CheckAsExpression(Fob, Oar),
                             CheckAsExpression(Baz, Quox)
-                        ), CheckSuite(Pass))
+                        ), CheckSuite(Pass)),
+                        CheckWithStmt(expr => {
+                            Assert.IsInstanceOfType(expr, typeof(AsExpression));
+                            Fob(((AsExpression)expr).Expression);
+                            Assert.AreEqual("oar.spam", ((AsExpression)expr).Name);
+                        }, CheckSuite(Pass))
                     )
                 );
             }
@@ -1047,7 +1052,8 @@ namespace AnalysisTests {
                     new ErrorInfo("invalid syntax", 5, 1, 6, 14, 1, 15),
                     new ErrorInfo("invalid syntax", 23, 3, 6, 39, 3, 22),
                     new ErrorInfo("invalid syntax", 48, 5, 6, 62, 5, 20),
-                    new ErrorInfo("invalid syntax", 71, 7, 6, 100, 7, 35)
+                    new ErrorInfo("invalid syntax", 71, 7, 6, 100, 7, 35),
+                    new ErrorInfo("invalid syntax", 109, 9, 6, 130, 9, 27)
                 );
             }
         }
@@ -1081,7 +1087,9 @@ namespace AnalysisTests {
                         CheckDelStmt(CheckIndexExpression(Fob, Oar)),
                         CheckDelStmt(CheckParenExpr(CheckTupleExpr(Fob, Oar))),
                         CheckDelStmt(CheckListExpr(Fob, Oar)),
-                        CheckDelStmt(CheckParenExpr(Fob))
+                        CheckDelStmt(CheckParenExpr(Fob)),
+                        // Semicolon separated
+                        CheckDelStmt(Fob), CheckDelStmt(Oar)
                     )
                 );
             }
@@ -1526,6 +1534,10 @@ namespace AnalysisTests {
         [TestMethod, Priority(0)]
         public void ComplexCode() {
             foreach (var version in AllVersions) {
+                // This file is a broad sample of code that has previously
+                // caused incorrect parser errors. If the parser does not break,
+                // it is good enough. More specific tests should be used for
+                // ensuring the generated AST is valid.s
                 var ast = ParseFileNoErrors("ComplexCode.py", version);
             }
         }
@@ -1550,6 +1562,8 @@ namespace AnalysisTests {
                 CheckAst(
                     ParseFileNoErrors("ListComp.py", version),
                     CheckSuite(
+                        CheckExprStmt(CheckListExpr()),
+                        CheckExprStmt(CheckListExpr()),
                         CheckExprStmt(CheckListComp(Fob, CompFor(Fob, Oar))),
                         CheckExprStmt(CheckListComp(Fob, CompFor(Fob, Oar), CompIf(Baz))),
                         CheckExprStmt(CheckListComp(Fob, CompFor(Fob, Oar), CompFor(Baz, Quox)))
@@ -1597,6 +1611,8 @@ namespace AnalysisTests {
                 CheckAst(
                     ParseFileNoErrors("DictComp.py", version),
                     CheckSuite(
+                        CheckDictionaryStmt(),
+                        CheckDictionaryStmt(),
                         CheckExprStmt(CheckDictComp(Fob, Oar, CompFor(CheckTupleExpr(Fob, Oar), Baz))),
                         CheckExprStmt(CheckDictComp(Fob, Oar, CompFor(CheckTupleExpr(Fob, Oar), Baz), CompIf(Quox))),
                         CheckExprStmt(CheckDictComp(Fob, Oar, CompFor(CheckTupleExpr(Fob, Oar), Baz), CompFor(Quox, Exception)))
@@ -1606,9 +1622,9 @@ namespace AnalysisTests {
 
             foreach (var version in V25_V26Versions) {
                 ParseErrors("DictComp.py", version,
-                    new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 1, 1, 2, 27, 1, 28),
-                    new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 31, 2, 2, 65, 2, 36),
-                    new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 69, 3, 2, 117, 3, 50)
+                    new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 10, 3, 2, 36, 3, 28),
+                    new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 40, 4, 2, 74, 4, 36),
+                    new ErrorInfo("invalid syntax, dictionary comprehensions require Python 2.7 or later", 78, 5, 2, 126, 5, 50)
                 );
             }
         }
@@ -2572,13 +2588,13 @@ namespace AnalysisTests {
             };
         }
 
-        private static Action<Expression> CheckAsExpression(Action<Expression> expression, Action<NameExpression> name) {
+        private static Action<Expression> CheckAsExpression(Action<Expression> expression, Action<Expression> name) {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(AsExpression));
                 var ae = (AsExpression)expr;
 
                 expression(ae.Expression);
-                name(ae.Name);
+                name(ae.NameExpression);
             };
         }
 
@@ -3101,9 +3117,9 @@ namespace AnalysisTests {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(DictionaryExpression));
                 var dictExpr = (DictionaryExpression)expr;
-                Assert.AreEqual(items.Length, dictExpr.Items.Count);
+                Assert.AreEqual(items.Length, dictExpr.Count);
 
-                for (int i = 0; i < dictExpr.Items.Count; i++) {
+                for (int i = 0; i < dictExpr.Count; i++) {
                     items[i]((SliceExpression)dictExpr.Items[i].Expression);
                 }
             };
@@ -3133,9 +3149,9 @@ namespace AnalysisTests {
             return expr => {
                 Assert.IsInstanceOfType(expr, typeof(ListExpression));
                 var listExpr = (ListExpression)expr;
-                Assert.AreEqual(items.Length, listExpr.Items.Count);
+                Assert.AreEqual(items.Length, listExpr.Count);
 
-                for (int i = 0; i < listExpr.Items.Count; i++) {
+                for (int i = 0; i < listExpr.Count; i++) {
                     items[i](listExpr.Items[i].Expression);
                 }
             };

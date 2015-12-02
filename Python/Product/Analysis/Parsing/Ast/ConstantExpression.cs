@@ -53,7 +53,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             // TODO: Apply formatting options
             BeforeNode.AppendCodeString(output, ast);
             output.Append(GetConstantRepr(ast.LanguageVersion));
-            Comment?.AppendCodeString(output, ast, format);
             AfterNode.AppendCodeString(output, ast);
         }
 

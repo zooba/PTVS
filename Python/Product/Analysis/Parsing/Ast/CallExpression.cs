@@ -22,12 +22,10 @@ using System.Text;
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public class CallExpression : ExpressionWithExpression {
         private IList<Arg> _args;
-        private CommentExpression _firstComment;
 
         protected override void OnFreeze() {
             base.OnFreeze();
             _args = FreezeList(_args);
-            _firstComment?.Freeze();
         }
 
         public IList<Arg> Args {
@@ -40,11 +38,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
                 _args = new List<Arg>();
             }
             _args.Add(arg);
-        }
-
-        internal CommentExpression FirstComment {
-            get { return _firstComment; }
-            set { ThrowIfFrozen(); _firstComment = value; }
         }
 
         public bool NeedsLocalsDictionary() {

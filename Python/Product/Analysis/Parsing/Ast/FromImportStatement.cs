@@ -90,10 +90,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         public static string GetAsName(SequenceItemExpression expr) {
-            return (
-                (expr.Expression as NameExpression) ??
-                (expr.Expression as AsExpression)?.Name
-            )?.Name;
+            return (expr.Expression as NameExpression)?.Name ??
+                (expr.Expression as AsExpression)?.Name;
         }
 
         /// <summary>

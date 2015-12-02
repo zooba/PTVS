@@ -156,6 +156,26 @@ namespace Analysis2Tests {
             }
         }
 
+        [TestMethod, Priority(0)]
+        public async virtual Task TestBuiltinModule() {
+            var file = Path.Combine(Configuration.PrefixPath, "Lib", "test", "test_builtin.py");
+            Assert.IsTrue(File.Exists(file), "Cannot find " + file);
+            var text = await ParseOneFile(file);
+            if (!string.IsNullOrEmpty(text)) {
+                Assert.Fail(text);
+            }
+        }
+
+        [TestMethod, Priority(0)]
+        public async virtual Task TestGrammarModule() {
+            var file = Path.Combine(Configuration.PrefixPath, "Lib", "test", "test_grammar.py");
+            Assert.IsTrue(File.Exists(file), "Cannot find " + file);
+            var text = await ParseOneFile(file);
+            if (!string.IsNullOrEmpty(text)) {
+                Assert.Fail(text);
+            }
+        }
+
         [TestMethod, Priority(1)]
         public virtual async Task CompilerPackage() {
             var path = Path.Combine(Configuration.PrefixPath, "Lib", "compiler");
@@ -265,6 +285,10 @@ namespace Analysis2Tests {
     public class Parse26StdLib : ParseStdLibTests {
         [Ignore]
         public override async Task ArgParseModule() { }
+        [Ignore]
+        public override async Task TestBuiltinModule() { }
+        [Ignore]
+        public override async Task TestGrammarModule() { }
 
         [TestMethod, Priority(0)]
         public async Task PyDocTopicsModule() {
@@ -292,6 +316,11 @@ namespace Analysis2Tests {
 
     [TestClass]
     public class Parse27StdLib : ParseStdLibTests {
+        [Ignore]
+        public override async Task TestBuiltinModule() { }
+        [Ignore]
+        public override async Task TestGrammarModule() { }
+
         public override InterpreterConfiguration Configuration {
             get {
                 return PythonPaths.Python27?.Configuration ??
@@ -321,6 +350,8 @@ namespace Analysis2Tests {
         public override IEnumerable<string> SkipFilesInFullStdLibTest {
             get {
                 yield return @"\lib2to3\tests\data\";
+                yield return @"\test\badsyntax_3131.py";
+                yield return "site-packages";
             }
         }
     }
@@ -339,7 +370,7 @@ namespace Analysis2Tests {
 
         public override IEnumerable<string> SkipFilesInFullStdLibTest {
             get {
-                yield break;
+                yield return @"\lib2to3\tests\data\";
             }
         }
     }

@@ -46,7 +46,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             if (HasComma) {
                 output.Append(',');
             }
-            Comment?.AppendCodeString(output, ast, format);
             AfterNode.AppendCodeString(output, ast);
         }
     }

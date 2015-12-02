@@ -182,35 +182,35 @@ namespace AnalysisTests {
         public void CommentTokenization() {
             AssertTokens(
                 Tokenize("# a=b+c \n\nd=a   # c\n  #eof", PythonLanguageVersion.V35),
-                "# a=b+c ", "NewLine:\\n",
-                "NewLine:\\n",
+                "# a=b+c ", "WS:\\n",
+                "WS:\\n",
                 "SWS:", "d", "Assign:=", "a", "WS:   ", "# c", "NewLine:\\n",
                 "WS:  ", "#eof", "EndOfFile:"
             );
 
             AssertTokens(
                 Tokenize(new FileSourceDocument(PythonTestData.GetTestDataSourcePath("Grammar\\Comments.py")), PythonLanguageVersion.V35),
-                    "# Above", "NewLine:\\r\\n",
+                    "# Above", "WS:\\r\\n",
                     "SWS:", "a", "NewLine:\\r\\n",
-                    "NewLine:\\r\\n",
+                    "WS:\\r\\n",
                     "SWS:", "a", "WS: ", "# After", "NewLine:\\r\\n",
-                    "NewLine:\\r\\n",
+                    "WS:\\r\\n",
                     "SWS:", "Def:def", "WS: ", "f", "(", "WS:\\r\\n",
                     "WS:    ", "a", "Comma:,", "WS: ", "#param", "WS:\\r\\n",
                     ")", ":", "WS: ", "#suite", "NewLine:\\r\\n",
                     "SWS:....", "Pass:pass", "WS: ", "#stmt", "NewLine:\\r\\n",
-                    "#func", "NewLine:\\r\\n",
+                    "#func", "WS:\\r\\n",
                     "SWS:....", "Pass:pass", "NewLine:\\r\\n",
-                    "WS:    ", "#func", "NewLine:\\r\\n",
-                    "#notfunc", "NewLine:\\r\\n",
-                    "NewLine:\\r\\n",
+                    "WS:    ", "#func", "WS:\\r\\n",
+                    "#notfunc", "WS:\\r\\n",
+                    "WS:\\r\\n",
                     "SWS:", "a", "NewLine:\\r\\n",
-                    "# Below", "NewLine:\\r\\n",
-                    "NewLine:\\r\\n",
+                    "# Below", "WS:\\r\\n",
+                    "WS:\\r\\n",
                     "SWS:", "If:if", "WS: ", "True:True", ":", "NewLine:\\r\\n",
-                    "WS:    ", "#block", "NewLine:\\r\\n",
+                    "WS:    ", "#block", "WS:\\r\\n",
                     "SWS:....", "Pass:pass", "NewLine:\\r\\n",
-                    "NewLine:\\r\\n",
+                    "WS:\\r\\n",
                     "#eof", "EndOfFile:"
                 );
         }

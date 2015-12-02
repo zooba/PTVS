@@ -20,18 +20,10 @@ using System.Collections.Generic;
 namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
     public abstract class SequenceExpression : Expression {
         private IList<SequenceItemExpression> _items;
-        private CommentExpression _firstComment;
-
-        internal CommentExpression FirstComment {
-            get { return _firstComment; }
-            set { ThrowIfFrozen(); _firstComment = value; }
-        }
-
 
         protected override void OnFreeze() {
             base.OnFreeze();
             _items = FreezeList(_items);
-            _firstComment?.Freeze();
         }
 
         public IList<SequenceItemExpression> Items {

@@ -40,10 +40,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         public virtual bool Walk(CallExpression node) { return true; }
         public virtual void PostWalk(CallExpression node) { }
 
-        // CommentExpression
-        public virtual bool Walk(CommentExpression node) { return true; }
-        public virtual void PostWalk(CommentExpression node) { }
-
         // ConditionalExpression
         public virtual bool Walk(ConditionalExpression node) { return true; }
         public virtual void PostWalk(ConditionalExpression node) { }
@@ -293,10 +289,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         // CallExpression
         public override bool Walk(CallExpression node) { return false; }
         public override void PostWalk(CallExpression node) { }
-
-        // CommentExpression
-        public override bool Walk(CommentExpression node) { return false; }
-        public override void PostWalk(CommentExpression node) { }
 
         // ConditionalExpression
         public override bool Walk(ConditionalExpression node) { return false; }
@@ -548,9 +540,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
 
         // CallExpression
         public override bool Walk(CallExpression node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
-
-        // CommentExpression
-        public override bool Walk(CommentExpression node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }
 
         // ConditionalExpression
         public override bool Walk(ConditionalExpression node) { return Location >= node.Span.Start.Index && Location <= node.Span.End.Index; }

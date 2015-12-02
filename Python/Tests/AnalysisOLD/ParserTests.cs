@@ -1069,7 +1069,8 @@ namespace AnalysisTests {
                         CheckWithStmt(Fob, CheckSuite(Pass)),
                         CheckWithStmt(Fob, Oar, CheckSuite(Pass)),
                         CheckWithStmt(new[] { Fob, Oar }, CheckSuite(Pass)),
-                        CheckWithStmt(new[] { Fob, Baz }, new[] { Oar, Quox }, CheckSuite(Pass))
+                        CheckWithStmt(new[] { Fob, Baz }, new[] { Oar, Quox }, CheckSuite(Pass)),
+                        CheckWithStmt(Fob, CheckMemberExpr(Oar, "spam"), CheckSuite(Pass))
                     )
                 );
             }

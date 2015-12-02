@@ -126,7 +126,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
         KeywordAnd = 0x40 | TokenUsage.BinaryOperator | TokenCategory.Keyword,
         KeywordAssert = 0x41 | TokenUsage.BeginStatement | TokenCategory.Keyword,
-        KeywordAsync = 0x42 | TokenUsage.None | TokenCategory.Keyword,
+        KeywordAsync = 0x42 | TokenUsage.BeginStatement | TokenCategory.Keyword,
         KeywordAwait = 0x43 | TokenUsage.None | TokenCategory.Keyword,
         KeywordBreak = 0x44 | TokenUsage.BeginStatement | TokenCategory.Keyword,
         KeywordClass = 0x45 | TokenUsage.BeginStatement | TokenCategory.Keyword,

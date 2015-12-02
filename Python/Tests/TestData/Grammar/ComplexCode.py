@@ -16,3 +16,5 @@ else: pass
 # comment
 @decorator2
 def f(): pass
+
+zip_ = lambda * args: list(zip(*args))

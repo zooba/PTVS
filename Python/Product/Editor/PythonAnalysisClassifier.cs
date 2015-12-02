@@ -454,7 +454,7 @@ namespace Microsoft.PythonTools.Editor {
                         // rest of the module.
                         AddSpan(Tuple.Create(n.Name, n.Span), PythonPredefinedClassificationTypeNames.Module);
                     }
-                    _head.Modules.Add(asName.Name.Name);
+                    _head.Modules.Add(asName.Name);
                 } else if ((importName = name.Expression as DottedName) != null) {
                     foreach (var n in importName.Names.MaybeEnumerate()) {
                         _head.Modules.Add(n.Name);
@@ -477,7 +477,7 @@ namespace Microsoft.PythonTools.Editor {
                 NameExpression importName;
                 if ((asName = name.Expression as AsExpression) != null &&
                     (importName = asName.Expression as NameExpression) != null) {
-                    _head.Names.Add(Tuple.Create(asName.Name.Name, asName.Name.Span));
+                    _head.Names.Add(Tuple.Create(asName.Name, asName.NameExpression.Span));
                     AddSpan(Tuple.Create(importName.Name, importName.Span), PythonPredefinedClassificationTypeNames.Module);
                 } else if ((importName = name.Expression as NameExpression) != null) {
                     _head.Names.Add(Tuple.Create(importName.Name, importName.Span));

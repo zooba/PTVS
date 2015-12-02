@@ -26,7 +26,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         internal static readonly Node EndOfLine = new SingletonNode("<EOL>");
 
         private SourceSpan _span, _beforeNode, _afterNode;
-        private CommentExpression _comment;
 
         internal Node() { }
 
@@ -43,7 +42,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         internal void Freeze() {
 #if DEBUG
             _frozen = true;
-            _comment?.Freeze();
 #endif
             OnFreeze();
         }
@@ -63,7 +61,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         }
 
         protected virtual void OnFreeze() {
-            _comment?.Freeze();
         }
 
         [Conditional("DEBUG")]
@@ -86,11 +83,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
         internal SourceSpan BeforeNode {
             get { return _beforeNode; }
             set { ThrowIfFrozen(); _beforeNode = value;}
-        }
-
-        internal CommentExpression Comment {
-            get { return _comment; }
-            set { ThrowIfFrozen(); _comment = value; }
         }
 
         internal SourceSpan AfterNode {
@@ -118,7 +110,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing.Ast {
             // TODO: Apply formatting options
             BeforeNode.AppendCodeString(output, ast);
             Span.AppendCodeString(output, ast);
-            Comment?.AppendCodeString(output, ast, format);
             AfterNode.AppendCodeString(output, ast);
         }
 
