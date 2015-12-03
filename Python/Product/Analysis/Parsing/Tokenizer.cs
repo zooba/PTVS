@@ -154,11 +154,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
             }
 
+            bool firstTokenOnLine = true;
+            bool doNotTreatNewlineAsWhitespace = false;
             if (_nesting.Any() && _nesting.Peek().GetUsage() != TokenUsage.EndGroup) {
+                if (_nesting.Peek() == TokenKind.ExplicitLineJoin) {
+                    doNotTreatNewlineAsWhitespace = true;
+                }
                 _nesting.Pop();
             }
-
-            bool firstTokenOnLine = true;
 
             while (i < line.Length) {
                 int len = 0;
@@ -183,12 +186,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     kind = GetNextToken(line, i, out len);
                 }
 
-                if (inGroup != TokenKind.Unknown) {
-                    if (kind == TokenKind.NewLine) {
-                        kind = TokenKind.Whitespace;
-                    }
-                }
-
                 if (firstTokenOnLine) {
                     switch (kind) {
                         case TokenKind.MatMultiply:
@@ -200,7 +197,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                             break;
                         case TokenKind.NewLine:
                             leadingWsKind = TokenKind.Whitespace;
-                            kind = TokenKind.Whitespace;
+                            if (!doNotTreatNewlineAsWhitespace) {
+                                kind = TokenKind.Whitespace;
+                            }
                             break;
                     }
 
@@ -222,9 +221,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         yield return new Token(leadingWsKind, start, leadingWsLength);
                     }
                     leadingWsKind = TokenKind.Unknown;
-
-                    firstTokenOnLine = false;
                 }
+
+                if (inGroup != TokenKind.Unknown) {
+                    if (kind == TokenKind.NewLine && !doNotTreatNewlineAsWhitespace) {
+                        kind = TokenKind.Whitespace;
+                    }
+                }
+
+                firstTokenOnLine = false;
 
                 var token = new Token(kind, start + i, len);
                 yield return token;
@@ -242,6 +247,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 if (kind == TokenKind.ExplicitLineJoin) {
                     _nesting.Push(kind);
                 }
+                doNotTreatNewlineAsWhitespace = false;
             }
 
             // In case we never yielded the leading whitespace
@@ -269,7 +275,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
             switch (kind) {
                 case TokenKind.KeywordAsync:
-                    return _features.HasAsyncAwait;
+                    return false;
                 case TokenKind.KeywordExec:
                     return _features.HasExecStatement;
                 case TokenKind.KeywordPrint:
@@ -446,7 +452,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 return kind;
             }
 
-            if (char.IsLetter(c) || c == '_') {
+            if (IsIdentifierChar(c, allowNumbers: false) || c == '_') {
                 kind = ReadIdentifier(line, ref end);
                 length = end - start;
                 return kind;
@@ -486,14 +492,44 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return kind;
         }
 
+        private static bool IsIdentifierChar(char c, bool allowNumbers = true) {
+            if (c == '_') {
+                return true;
+            }
+
+            switch (CharUnicodeInfo.GetUnicodeCategory(c)) {
+                case UnicodeCategory.LowercaseLetter:
+                case UnicodeCategory.UppercaseLetter:
+                case UnicodeCategory.TitlecaseLetter:
+                case UnicodeCategory.ModifierLetter:
+                case UnicodeCategory.OtherLetter:
+                case UnicodeCategory.LetterNumber:
+                // HACK: Accepting Surrogate here is not correct - we should
+                // normalize properly.
+                case UnicodeCategory.Surrogate:
+                    return true;
+                case UnicodeCategory.NonSpacingMark:
+                case UnicodeCategory.SpacingCombiningMark:
+                case UnicodeCategory.DecimalDigitNumber:
+                case UnicodeCategory.ConnectorPunctuation:
+                    return allowNumbers;
+            }
+
+            return false;
+            
+        }
+
         private static TokenKind ReadIdentifier(string line, ref int end) {
             int start = end - 1;
             int len = line.Length;
-            while (end < len && (char.IsLetterOrDigit(line, end) || line[end] == '_')) {
+            while (end < len && (IsIdentifierChar(line[end]) || line[end] == '_')) {
                 end += 1;
             }
             TokenKind kind;
             if (end < len && (line[end] == '"' || line[end] == '\'')) {
+                if (Keywords.TryGetValue(line.Substring(start, end - start), out kind)) {
+                    return kind;
+                }
                 char c = line[end];
                 if (IsNextChar(line, end, c) && IsNextChar(line, end, c, 2)) {
                     end += 3;

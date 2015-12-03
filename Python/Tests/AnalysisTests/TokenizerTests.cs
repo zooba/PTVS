@@ -157,6 +157,13 @@ namespace AnalysisTests {
                 "SWS:", "a", "Assign:=", "b", "Add:+", "ExplicitLineJoin:\\\\", "WS:\\n",
                 "c", "EndOfFile:"
             );
+
+            AssertTokens(
+                Tokenize("a=b+\\\n\nc", PythonLanguageVersion.V35),
+                "SWS:", "a", "Assign:=", "b", "Add:+", "ExplicitLineJoin:\\\\", "WS:\\n",
+                "NewLine:\\n",
+                "SWS:", "c", "EndOfFile:"
+            );
         }
 
         [TestMethod, Priority(0)]

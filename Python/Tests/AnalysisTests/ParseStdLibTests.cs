@@ -347,11 +347,20 @@ namespace Analysis2Tests {
             }
         }
 
+        [TestMethod, Priority(0)]
+        public async virtual Task TestPep3131Module() {
+            var file = Path.Combine(Configuration.PrefixPath, "Lib", "test", "test_pep3131.py");
+            Assert.IsTrue(File.Exists(file), "Cannot find " + file);
+            var text = await ParseOneFile(file);
+            if (!string.IsNullOrEmpty(text)) {
+                Assert.Fail(text);
+            }
+        }
+
         public override IEnumerable<string> SkipFilesInFullStdLibTest {
             get {
                 yield return @"\lib2to3\tests\data\";
                 yield return @"\test\badsyntax_3131.py";
-                yield return "site-packages";
             }
         }
     }
@@ -371,6 +380,7 @@ namespace Analysis2Tests {
         public override IEnumerable<string> SkipFilesInFullStdLibTest {
             get {
                 yield return @"\lib2to3\tests\data\";
+                yield return @"\test\badsyntax_";
             }
         }
     }

@@ -151,7 +151,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             _currentIndentLength = prevIndentLength;
             _singleLine = prevSingleLine;
 
-            suite = WithCommentAndWhitespace(new SuiteStatement(body, indent));
+            suite = WithTrailingWhitespace(new SuiteStatement(body, indent));
             suite.Freeze();
 
             return suite;
@@ -299,7 +299,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             try {
                 if (Peek.Is(TokenUsage.EndStatement)) {
-                    stmt = WithCommentAndWhitespace(new EmptyStatement {
+                    stmt = WithTrailingWhitespace(new EmptyStatement {
                         Span = new SourceSpan(Peek.Span.Start, 0)
                     });
                 } else if (Peek.Is(TokenKind.At)) {
@@ -378,15 +378,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     }
                     goto default;
                 case TokenKind.KeywordPass:
-                    return WithCommentAndWhitespace(new PassStatement {
+                    return WithTrailingWhitespace(new PassStatement {
                         Span = Read(TokenKind.KeywordPass),
                     });
                 case TokenKind.KeywordBreak:
-                    return WithCommentAndWhitespace(new BreakStatement {
+                    return WithTrailingWhitespace(new BreakStatement {
                         Span = Read(TokenKind.KeywordBreak),
                     });
                 case TokenKind.KeywordContinue:
-                    return WithCommentAndWhitespace(new ContinueStatement {
+                    return WithTrailingWhitespace(new ContinueStatement {
                         Span = Read(TokenKind.KeywordContinue),
                     });
                 case TokenKind.KeywordReturn:
@@ -574,7 +574,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Statement ParseDecorator() {
             var start = Peek.Span.Start;
             Read(TokenKind.At);
-            return WithCommentAndWhitespace(new DecoratorStatement {
+            return WithTrailingWhitespace(new DecoratorStatement {
                 Expression = ParsePrimaryWithTrailers(),
                 Span = new SourceSpan(start, Current.Span.End)
             });
@@ -760,7 +760,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
-            return WithCommentAndWhitespace(stmt);
+            return WithTrailingWhitespace(stmt);
         }
 
         private Statement ParseFromImportStmt() {
@@ -796,7 +796,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     nameExpr = name;
                 }
 
-                names.Add(WithCommentAndWhitespace(new SequenceItemExpression {
+                names.Add(WithTrailingWhitespace(new SequenceItemExpression {
                     Expression = nameExpr,
                     Span = new SourceSpan(name.Span.Start, Current.Span.End),
                     HasComma = TryRead(TokenKind.Comma)
@@ -865,7 +865,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
             }
 
-            return WithCommentAndWhitespace(stmt);
+            return WithTrailingWhitespace(stmt);
         }
 
         private Statement ParseImportStmt() {
@@ -884,10 +884,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     };
                 }
 
-                nameExpr = WithCommentAndWhitespace(nameExpr);
+                nameExpr = WithTrailingWhitespace(nameExpr);
                 nameExpr.Freeze();
 
-                names.Add(WithCommentAndWhitespace(new SequenceItemExpression {
+                names.Add(WithTrailingWhitespace(new SequenceItemExpression {
                     Expression = expr,
                     HasComma = TryRead(TokenKind.Comma),
                     Span = new SourceSpan(nameExpr.Span.Start, Current.Span.End)
@@ -905,7 +905,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             stmt.Names = names;
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
-            return WithCommentAndWhitespace(stmt);
+            return WithTrailingWhitespace(stmt);
         }
 
         private Statement ParseGlobalStmt() {
@@ -920,7 +920,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             } while (TryRead(TokenKind.Comma));
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
-            return WithCommentAndWhitespace(stmt);
+            return WithTrailingWhitespace(stmt);
         }
 
         private Statement ParseNonlocalStmt() {
@@ -940,7 +940,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             } while (TryRead(TokenKind.Comma));
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
-            return WithCommentAndWhitespace(stmt);
+            return WithTrailingWhitespace(stmt);
         }
 
         private Statement ParseRaiseStmt() {
@@ -966,7 +966,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
 
-            return WithCommentAndWhitespace(stmt);
+            return WithTrailingWhitespace(stmt);
         }
 
         private Statement ParseAssertStmt() {
@@ -977,7 +977,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             stmt.Span = new SourceSpan(start, Current.Span.End);
 
-            return WithCommentAndWhitespace(stmt);
+            return WithTrailingWhitespace(stmt);
         }
 
         private Statement ParseExecStmt() {
@@ -990,7 +990,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             stmt.CheckSyntax(this);
 
-            return WithCommentAndWhitespace(stmt);
+            return WithTrailingWhitespace(stmt);
         }
 
         private Statement ParseDelStmt() {
@@ -1003,14 +1003,14 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             stmt.Expression.CheckDelete(this);
 
-            return WithCommentAndWhitespace(stmt);
+            return WithTrailingWhitespace(stmt);
         }
 
         private Statement ParseExprStmt() {
             var expr = ParseExpression();
 
             if (!Peek.Is(TokenUsage.Assignment)) {
-                return WithCommentAndWhitespace(new ExpressionStatement {
+                return WithTrailingWhitespace(new ExpressionStatement {
                     Expression = expr,
                     Span = expr.Span
                 });
@@ -1024,7 +1024,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     expr = ParseExpression();
                 }
 
-                return WithCommentAndWhitespace(new AssignmentStatement {
+                return WithTrailingWhitespace(new AssignmentStatement {
                     Targets = targets,
                     Expression = expr,
                     Span = new SourceSpan(targets[0].Span.Start, Current.Span.End)
@@ -1032,7 +1032,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
 
             expr.CheckAugmentedAssign(this);
-            return WithCommentAndWhitespace(new AugmentedAssignStatement {
+            return WithTrailingWhitespace(new AugmentedAssignStatement {
                 Target = expr,
                 Operator = Next().Kind.GetBinaryOperator(),
                 Expression = ParseExpression()
@@ -1056,11 +1056,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
 
             if (!Peek.Is(TokenKind.Comma) && !alwaysTuple) {
-                return WithCommentAndWhitespace(expr);
+                return WithTrailingWhitespace(expr);
             }
 
             while (true) {
-                var item = WithCommentAndWhitespace(new SequenceItemExpression {
+                var item = WithTrailingWhitespace(new SequenceItemExpression {
                     Expression = expr,
                     Span = expr.Span,
                     HasComma = TryRead(TokenKind.Comma)
@@ -1072,7 +1072,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
                 targets.Add(item);
 
-                if (!item.HasComma) {
+                if (!item.HasComma || PeekNonWhitespace.IsAny(TokenUsage.Assignment, TokenUsage.Comparison)) {
                     break;
                 }
 
@@ -1086,7 +1086,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     CurrentScope?.AddLocalDefinition(ne.Name);
                 }
             }
-            var tuple = WithCommentAndWhitespace(new TupleExpression {
+            var tuple = WithTrailingWhitespace(new TupleExpression {
                 Items = targets,
                 Span = new SourceSpan(start, Current.Span.End)
             });
@@ -1111,7 +1111,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             var start = expr.Span.Start;
             var tuple = new TupleExpression();
-            var item = WithCommentAndWhitespace(new SequenceItemExpression {
+            var item = WithTrailingWhitespace(new SequenceItemExpression {
                 Expression = expr,
                 Span = expr.Span,
                 HasComma = TryRead(TokenKind.Comma)
@@ -1132,7 +1132,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 if (item.IsExpressionEmpty && !item.HasComma) {
                     break;
                 }
-                tuple.AddItem(WithCommentAndWhitespace(item));
+                tuple.AddItem(WithTrailingWhitespace(item));
             }
 
             tuple.Span = new SourceSpan(start, tuple.Items[tuple.Count - 1].Span.End);
@@ -1165,7 +1165,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 Read(TokenKind.KeywordElse);
                 condExpr.FalseExpression = ParseSingleExpression();
                 condExpr.Span = new SourceSpan(expr.Span.Start, condExpr.FalseExpression.Span.End);
-                expr = WithCommentAndWhitespace(condExpr);
+                expr = WithTrailingWhitespace(condExpr);
             }
 
             if (allowSlice && Peek.Is(TokenKind.Colon)) {
@@ -1179,7 +1179,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
 
                 sliceExpr.Span = new SourceSpan(expr.Span.Start, Current.Span.End);
-                expr = WithCommentAndWhitespace(sliceExpr);
+                expr = WithTrailingWhitespace(sliceExpr);
             }
 
             if (allowGenerator && Peek.Is(TokenKind.KeywordFor)) {
@@ -1190,7 +1190,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 };
 
                 genExpr.Span = new SourceSpan(expr.Span.Start, Current.Span.End);
-                expr = WithCommentAndWhitespace(genExpr);
+                expr = WithTrailingWhitespace(genExpr);
             }
 
             expr.BeforeNode = ws;
@@ -1206,7 +1206,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             var start = expr.Span.Start;
             var tuple = new TupleExpression();
-            var item = WithCommentAndWhitespace(new SequenceItemExpression {
+            var item = WithTrailingWhitespace(new SequenceItemExpression {
                 Expression = expr,
                 Span = expr.Span,
                 HasComma = TryRead(TokenKind.Comma)
@@ -1223,7 +1223,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 if (item.IsExpressionEmpty && !item.HasComma) {
                     break;
                 }
-                tuple.AddItem(WithCommentAndWhitespace(item));
+                tuple.AddItem(WithTrailingWhitespace(item));
             }
 
             tuple.Span = new SourceSpan(start, expr.Span.End);
@@ -1235,10 +1235,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var expr = ParseSingleExpression();
             if (Peek.Is(TokenKind.KeywordAs)) {
                 var start = expr.Span.Start;
-                var asExpr = WithCommentAndWhitespace(new AsExpression {
+                var asExpr = WithTrailingWhitespace(new AsExpression {
                     Expression = expr,
                     Span = Read(TokenKind.KeywordAs),
-                    NameExpression = ReadNameOrDottedName()
+                    NameExpression = ParseSingleExpression()
                 });
                 asExpr.Span = new SourceSpan(
                     asExpr.Expression.Span.Start,
@@ -1337,7 +1337,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
                 p.Span = new SourceSpan(start, Current.Span.End);
                 p.HasCommaBeforeComment = TryRead(TokenKind.Comma);
-                WithCommentAndWhitespace(p);
+                WithTrailingWhitespace(p);
                 p.HasCommaAfterNode = TryRead(TokenKind.Comma);
                 p.Freeze();
 
@@ -1382,7 +1382,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     break;
                 }
 
-                var a = WithCommentAndWhitespace(new Arg {
+                var a = WithTrailingWhitespace(new Arg {
                     Expression = expr,
                     NameExpression = nameExpr,
                     HasComma = hasComma
@@ -1440,7 +1440,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             rhs.BeforeNode = ws;
             rhs.Freeze();
 
-            return WithCommentAndWhitespace(new BinaryExpression {
+            return WithTrailingWhitespace(new BinaryExpression {
                 Left = expr,
                 Operator = op,
                 WithinOperator = withinOp,
@@ -1456,7 +1456,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 var expr = ParseNotTest();
                 expr.BeforeNode = ws;
                 expr.Freeze();
-                return WithCommentAndWhitespace(new UnaryExpression {
+                return WithTrailingWhitespace(new UnaryExpression {
                     Operator = PythonOperator.Not,
                     Expression = expr,
                     Span = new SourceSpan(start, expr.Span.End)
@@ -1473,7 +1473,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 var expr = ParsePrimaryWithTrailers();
                 expr.BeforeNode = ws;
                 expr.Freeze();
-                return WithCommentAndWhitespace(new StarredExpression(kind, expr) {
+                return WithTrailingWhitespace(new StarredExpression(kind, expr) {
                     Span = new SourceSpan(start, expr.Span.End)
                 });
             }
@@ -1489,7 +1489,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 var expr = ParseExpr();
                 expr.BeforeNode = ws;
                 expr.Freeze();
-                return WithCommentAndWhitespace(new StarredExpression(kind, expr) {
+                return WithTrailingWhitespace(new StarredExpression(kind, expr) {
                     Span = new SourceSpan(start, expr.Span.End)
                 });
             }
@@ -1520,7 +1520,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 rhs.BeforeNode = ws;
                 rhs.Freeze();
 
-                expr = WithCommentAndWhitespace(new BinaryExpression {
+                expr = WithTrailingWhitespace(new BinaryExpression {
                     Left = expr,
                     Operator = op,
                     Right = rhs,
@@ -1537,7 +1537,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 var expr = ParseFactor();
                 expr.BeforeNode = ws;
                 expr.Freeze();
-                var ue = WithCommentAndWhitespace(new UnaryExpression {
+                var ue = WithTrailingWhitespace(new UnaryExpression {
                     Expression = expr,
                     Span = new SourceSpan(token.Span.Start, Current.Span.End)
                 });
@@ -1567,7 +1567,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 var expr = ParsePower();
                 expr.BeforeNode = ws;
                 expr.Freeze();
-                return WithCommentAndWhitespace(new AwaitExpression {
+                return WithTrailingWhitespace(new AwaitExpression {
                     BeforeNode = ws,
                     Expression = expr,
                     Span = new SourceSpan(start, Current.Span.End)
@@ -1614,7 +1614,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 ReportError(errorAt: new SourceSpan(start, Current.Span.End));
             }
 
-            return WithCommentAndWhitespace(new YieldFromExpression {
+            return WithTrailingWhitespace(new YieldFromExpression {
                 BeforeFrom = ws,
                 Expression = expr,
                 Span = new SourceSpan(start, Current.Span.End)
@@ -1635,7 +1635,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 ReportError("'yield' in async function", Current.Span);
             }
 
-            return WithCommentAndWhitespace(new YieldExpression {
+            return WithTrailingWhitespace(new YieldExpression {
                 Expression = ParseExpression(allowGenerator: false),
                 Span = new SourceSpan(start, Current.Span.End)
             });
@@ -1649,7 +1649,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 rhs.BeforeNode = ws;
                 rhs.Freeze();
 
-                expr = WithCommentAndWhitespace(new BinaryExpression {
+                expr = WithTrailingWhitespace(new BinaryExpression {
                     Left = expr,
                     Operator = PythonOperator.Power,
                     Right = rhs,
@@ -1666,7 +1666,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             while (true) {
                 switch (PeekNonWhitespace.Kind) {
                     case TokenKind.Comment:
-                        expr = WithCommentAndWhitespace(expr);
+                        expr = WithTrailingWhitespace(expr);
                         break;
                     case TokenKind.Dot:
                         expr.AfterNode = ReadWhitespace();
@@ -1699,7 +1699,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                         expr.Span = new SourceSpan(start, Read(TokenKind.RightBracket).End);
                         break;
                     default:
-                        return WithCommentAndWhitespace(expr);
+                        return WithTrailingWhitespace(expr);
                 }
             }
         }
@@ -1718,7 +1718,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     return ParseListLiteralOrComprehension();
                 case TokenKind.LeftParenthesis:
                     Next();
-                    return WithCommentAndWhitespace(new ParenthesisExpression {
+                    return WithTrailingWhitespace(new ParenthesisExpression {
                         Expression = ParseExpression(),
                         Span = new SourceSpan(start, Read(TokenKind.RightParenthesis).End)
                     });
@@ -1780,15 +1780,15 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 case TokenKind.KeywordNonlocal:
                 case TokenKind.KeywordExec:
                     text = _tokenization.GetTokenText(Next());
-                    return WithCommentAndWhitespace(new NameExpression(text) {
+                    return WithTrailingWhitespace(new NameExpression(text) {
                         Span = Current.Span
                     });
 
                 case TokenKind.KeywordPrint:
                     var printToken = Next();
                     if (PeekNonWhitespace.Is(TokenUsage.EndStatement) ||
-                        PeekNonWhitespace.IsAny(TokenKind.LeftParenthesis, TokenKind.Comment)) {
-                        return WithCommentAndWhitespace(new NameExpression("print") {
+                        !PeekNonWhitespace.IsAny(TokenCategory.StringLiteral, TokenCategory.Identifier, TokenCategory.NumericLiteral)) {
+                        return WithTrailingWhitespace(new NameExpression("print") {
                             Span = printToken.Span
                         });
                     } else {
@@ -1806,28 +1806,28 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     }
 
                 case TokenKind.KeywordNone:
-                    return WithCommentAndWhitespace(new ConstantExpression {
+                    return WithTrailingWhitespace(new ConstantExpression {
                         Span = Next().Span,
                         Value = null
                     });
 
                 case TokenKind.KeywordTrue:
                     if (_features.HasConstantBooleans) {
-                        return WithCommentAndWhitespace(new ConstantExpression {
+                        return WithTrailingWhitespace(new ConstantExpression {
                             Span = Next().Span,
                             Value = true
                         });
                     } else {
-                        return WithCommentAndWhitespace(new NameExpression("True") { Span = Next().Span });
+                        return WithTrailingWhitespace(new NameExpression("True") { Span = Next().Span });
                     }
                 case TokenKind.KeywordFalse:
                     if (_features.HasConstantBooleans) {
-                        return WithCommentAndWhitespace(new ConstantExpression {
+                        return WithTrailingWhitespace(new ConstantExpression {
                             Span = Next().Span,
                             Value = false
                         });
                     } else {
-                        return WithCommentAndWhitespace(new NameExpression("False") { Span = Next().Span });
+                        return WithTrailingWhitespace(new NameExpression("False") { Span = Next().Span });
                     }
 
                 case TokenKind.LiteralDecimal:
@@ -1842,11 +1842,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     text = _tokenization.GetTokenText(Next());
                     if (!TryParseNumber(text, Current.Kind, out value)) {
                         ReportError("invalid number", Current.Span);
-                        return WithCommentAndWhitespace(new ErrorExpression {
+                        return WithTrailingWhitespace(new ErrorExpression {
                             Span = Current.Span
                         }); 
                     }
-                    return WithCommentAndWhitespace(new ConstantExpression {
+                    return WithTrailingWhitespace(new ConstantExpression {
                         Span = Current.Span,
                         Value = value
                     });
@@ -1855,13 +1855,13 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     if (_version.Is2x()) {
                         ReportError("unexpected token '.'");
                     }
-                    return WithCommentAndWhitespace(new ConstantExpression {
+                    return WithTrailingWhitespace(new ConstantExpression {
                         Span = Next().Span,
                         Value = Ellipsis.Value
                     });
 
                 default:
-                    return WithCommentAndWhitespace(new ErrorExpression {
+                    return WithTrailingWhitespace(new ErrorExpression {
                         Span = Peek.Span
                     });
             }
@@ -2011,7 +2011,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 }
                 Read(closing);
 
-                var expr = WithCommentAndWhitespace(new ConstantExpression {
+                var expr = WithTrailingWhitespace(new ConstantExpression {
                     Value = isBytes ?
                         new ByteString(_tokenization.Encoding.GetBytes(fullText.ToString()), fullText.ToString()) :
                         (object)fullText.ToString(),
@@ -2022,7 +2022,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 parts.Add(expr);
             }
 
-            return WithCommentAndWhitespace(new StringExpression {
+            return WithTrailingWhitespace(new StringExpression {
                 Parts = parts,
                 Span = new SourceSpan(start, Current.Span.End)
             });
@@ -2163,7 +2163,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var start = Read(TokenKind.LeftBracket).Start;
 
             if (PeekNonWhitespace.Is(TokenKind.RightBracket)) {
-                return WithCommentAndWhitespace(new ListExpression {
+                return WithTrailingWhitespace(new ListExpression {
                     BeforeNode = ReadWhitespace(),
                     Span = new SourceSpan(start, Read(TokenKind.RightBracket).End)
                 });
@@ -2171,7 +2171,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             var expr = ParseSingleExpression(allowSlice: false, allowGenerator: false);
             if (PeekNonWhitespace.Is(TokenKind.KeywordFor)) {
-                return WithCommentAndWhitespace(new ListComprehension {
+                return WithTrailingWhitespace(new ListComprehension {
                     Item = expr,
                     Iterators = ReadComprehension(),
                     Span = new SourceSpan(start, Read(TokenKind.RightBracket).End)
@@ -2188,20 +2188,20 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 if (item.IsExpressionEmpty && !item.HasComma) {
                     break;
                 }
-                list.AddItem(WithCommentAndWhitespace(item));
+                list.AddItem(WithTrailingWhitespace(item));
                 expr = ParseSingleExpression(allowGenerator: false, allowSlice: true);
             }
 
             Read(TokenKind.RightBracket);
             list.Span = new SourceSpan(start, Current.Span.End);
-            return WithCommentAndWhitespace(list);
+            return WithTrailingWhitespace(list);
         }
 
         private Expression ParseDictOrSetLiteralOrComprehension() {
             var start = Read(TokenKind.LeftBrace).Start;
 
             if (PeekNonWhitespace.Is(TokenKind.RightBrace)) {
-                return WithCommentAndWhitespace(new DictionaryExpression {
+                return WithTrailingWhitespace(new DictionaryExpression {
                     BeforeNode = ReadWhitespace(),
                     Span = new SourceSpan(start, Read(TokenKind.RightBrace).End)
                 });
@@ -2216,7 +2216,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             Read(TokenKind.RightBrace);
             expr.Span = new SourceSpan(start, Current.Span.End);
-            return WithCommentAndWhitespace(expr);
+            return WithTrailingWhitespace(expr);
         }
 
         private Expression ParseDictLiteralOrComprehension(Expression expr) {
@@ -2250,7 +2250,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 if (item.IsExpressionEmpty && !item.HasComma) {
                     break;
                 }
-                dict.AddItem(WithCommentAndWhitespace(item));
+                dict.AddItem(WithTrailingWhitespace(item));
 
                 var prevStart = expr.Span.Start;
                 expr = ParseSingleExpression(allowGenerator: false, allowSlice: true);
@@ -2290,7 +2290,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 if (item.IsExpressionEmpty && !item.HasComma) {
                     break;
                 }
-                set.AddItem(WithCommentAndWhitespace(item));
+                set.AddItem(WithTrailingWhitespace(item));
                 expr = ParseSingleExpression(allowGenerator: false, allowSlice: true);
             }
 
@@ -2380,27 +2380,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             }
         }
 
-        //private CommentExpression ReadComment(bool allowEmptyComment) {
-        //    if (PeekNonWhitespace.Is(TokenCategory.Comment)) {
-        //        var before = ReadWhitespace();
-        //        var start = Read(TokenKind.Comment).Start;
-        //        while (PeekNonWhitespace.Is(TokenKind.Comment)) {
-        //            Next();
-        //        }
-        //        return new CommentExpression {
-        //            BeforeNode = before,
-        //            Span = new SourceSpan(start, Current.Span.End),
-        //            AfterNode = ReadWhitespace()
-        //        };
-        //    } else if (allowEmptyComment && Peek.Is(TokenKind.Whitespace)) {
-        //        return new CommentExpression {
-        //            BeforeNode = ReadWhitespace(),
-        //            Span = new SourceSpan(Current.Span.End, 0)
-        //        };
-        //    }
-        //    return null;
-        //}
-
         private SourceSpan ReadNewLine() {
             if (Peek.Is(TokenKind.NewLine)) {
                 return Next().Span;
@@ -2408,9 +2387,11 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return SourceSpan.None;
         }
 
-        private T WithCommentAndWhitespace<T>(T target) where T : Node {
-            //MaybeReadComment(target);
-            target.AfterNode = ReadWhitespace();
+        private T WithTrailingWhitespace<T>(T target) where T : Node {
+            var ws = ReadWhitespace();
+            if (ws.Length > target.AfterNode.Length) {
+                target.AfterNode = ws;
+            }
             return target;
         }
 
@@ -2444,7 +2425,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     ne = NameExpression.Empty(start + 1);
                     ne.Freeze();
                     names.Add(ne);
-                    ne = WithCommentAndWhitespace(NameExpression.Empty(start + 2));
+                    ne = WithTrailingWhitespace(NameExpression.Empty(start + 2));
                     ne.Freeze();
                     names.Add(ne);
                     continue;
@@ -2453,7 +2434,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 if (p.Is(TokenKind.Dot)) {
                     var ws = ReadWhitespace();
                     var start = Next().Span.Start;
-                    var ne = WithCommentAndWhitespace(NameExpression.Empty(start, ws));
+                    var ne = WithTrailingWhitespace(NameExpression.Empty(start, ws));
                     ne.Freeze();
                     names.Add(ne);
                     continue;
@@ -2468,7 +2449,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                     break;
                 }
             }
-            return WithCommentAndWhitespace(new DottedName {
+            return WithTrailingWhitespace(new DottedName {
                 BeforeNode = beforeNode,
                 Names = names,
                 Span = new SourceSpan((names.ElementAtOrDefault(0)?.Span.Start ?? beforeNode.End), Current.Span.End)
@@ -2524,7 +2505,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 prefix = null;
             }
 
-            var expr = WithCommentAndWhitespace(new NameExpression(name, prefix) {
+            var expr = WithTrailingWhitespace(new NameExpression(name, prefix) {
                 BeforeNode = ReadWhitespace(),
                 Span = Next().Span,
             });

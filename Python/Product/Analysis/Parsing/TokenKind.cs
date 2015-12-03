@@ -221,5 +221,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         public static bool Is(this Token token, TokenCategory category) {
             return token.Kind.GetCategory() == category;
         }
+
+        public static bool IsAny(this Token token, params TokenCategory[] categories) {
+            return categories.Contains(token.Kind.GetCategory());
+        }
     }
 }

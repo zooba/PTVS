@@ -18,3 +18,8 @@ else: pass
 def f(): pass
 
 zip_ = lambda * args: list(zip(*args))
+
+for x, in [(1,), (2,), (3,)]:
+    result.append(x)
+
+"#d00" if clear == NORMAL else"#fca"

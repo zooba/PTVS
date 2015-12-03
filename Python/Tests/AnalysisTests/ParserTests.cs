@@ -1038,11 +1038,7 @@ namespace AnalysisTests {
                             CheckAsExpression(Fob, Oar),
                             CheckAsExpression(Baz, Quox)
                         ), CheckSuite(Pass)),
-                        CheckWithStmt(expr => {
-                            Assert.IsInstanceOfType(expr, typeof(AsExpression));
-                            Fob(((AsExpression)expr).Expression);
-                            Assert.AreEqual("oar.spam", ((AsExpression)expr).Name);
-                        }, CheckSuite(Pass))
+                        CheckWithStmt(expr => CheckMemberExpr(Oar, "fob"), CheckSuite(Pass))
                     )
                 );
             }
@@ -1227,7 +1223,7 @@ namespace AnalysisTests {
                     new ErrorInfo("'yield from' requires 3.3 or later", 120, 12, 5, 130, 12, 15),
                     new ErrorInfo("invalid syntax", 120, 12, 5, 130, 12, 15),
                     new ErrorInfo("'yield from' requires 3.3 or later", 148, 15, 5, 158, 15, 15),
-                    new ErrorInfo("invalid syntax", 160, 15, 17, 166, 15, 23)
+                    new ErrorInfo("invalid syntax", 160, 15, 17, 166, 16, 1)
                 );
             }
 
@@ -1235,7 +1231,7 @@ namespace AnalysisTests {
                 ParseErrors("YieldFromStmtIllegal.py", version,
                     new ErrorInfo("'yield from' outside of generator", 0, 1, 1, 10, 1, 11),
                     new ErrorInfo("invalid syntax", 120, 12, 5, 130, 12, 15),
-                    new ErrorInfo("invalid syntax", 160, 15, 17, 166, 15, 23)
+                    new ErrorInfo("invalid syntax", 160, 15, 17, 166, 16, 1)
                 );
             }
         }
@@ -1510,11 +1506,8 @@ namespace AnalysisTests {
                     new ErrorInfo("Missing parentheses in call to 'print'", 22, 3, 7, 24, 3, 9),
                     new ErrorInfo("Missing parentheses in call to 'print'", 32, 4, 7, 36, 4, 11),
                     new ErrorInfo("Missing parentheses in call to 'print'", 44, 5, 7, 50, 5, 13),
-                    new ErrorInfo("Missing parentheses in call to 'print'", 58, 6, 7, 69, 6, 18),
-                    new ErrorInfo("Missing parentheses in call to 'print'", 77, 7, 7, 89, 7, 19),
-                    new ErrorInfo("Missing parentheses in call to 'print'", 97, 8, 7, 102, 8, 12),
                     new ErrorInfo("Missing parentheses in call to 'print'", 110, 9, 7, 116, 9, 13),
-                    new ErrorInfo("Missing parentheses in call to 'print'", 124, 10, 7, 133, 10, 16)
+                    new ErrorInfo("invalid syntax", 124, 10, 7, 133, 10, 16)
                 );
             }
         }
