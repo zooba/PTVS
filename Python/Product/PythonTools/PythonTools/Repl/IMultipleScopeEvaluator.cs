@@ -16,6 +16,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.InteractiveWindow;
 
 namespace Microsoft.PythonTools.Repl {
@@ -23,19 +25,17 @@ namespace Microsoft.PythonTools.Repl {
         /// <summary>
         /// Sets the current scope to the given name.
         /// </summary>
-        void SetScope(string scopeName);
+        Task SetScopeAsync(string scopeName, CancellationToken cancellationToken);
 
         /// <summary>
         /// Gets the list of scopes which can be changed to.
         /// </summary>
-        IEnumerable<string> GetAvailableScopes();
+        Task<IReadOnlyCollection<string>> GetAvailableScopesAsync(CancellationToken cancellationToken);
 
         /// <summary>
         /// Gets the current scope name.
         /// </summary>
-        string CurrentScopeName {
-            get;
-        }
+        string CurrentScopeName { get; }
 
         /// <summary>
         /// Event is fired when the list of available scopes changes.

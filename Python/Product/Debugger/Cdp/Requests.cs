@@ -138,4 +138,15 @@ namespace Microsoft.PythonTools.Cdp {
 
         }
     }
+
+    public class SetModuleRequest : Request {
+        public SetModuleRequest(string module) : base("setModule") {
+            Module = module;
+        }
+
+        public string Module {
+            get { return (string)Arguments["module"]; }
+            set { Arguments["module"] = value; }
+        }
+    }
 }

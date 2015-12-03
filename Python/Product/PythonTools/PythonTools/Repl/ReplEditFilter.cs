@@ -17,29 +17,26 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Forms;
-using Microsoft.PythonTools.Intellisense;
+using System.Threading;
+using Microsoft.PythonTools.Parsing;
+using Microsoft.PythonTools.Project;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.ComponentModelHost;
+using Microsoft.VisualStudio.Editor;
 using Microsoft.VisualStudio.InteractiveWindow;
 using Microsoft.VisualStudio.OLE.Interop;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudioTools;
 using IServiceProvider = System.IServiceProvider;
-using Clipboard = System.Windows.Forms.Clipboard;
-using Microsoft.VisualStudio.Editor;
-using Microsoft.VisualStudio.Shell;
-using Microsoft.PythonTools.Project;
-using Microsoft.PythonTools.Parsing;
-using System.IO;
+using Task = System.Threading.Tasks.Task;
 
 namespace Microsoft.PythonTools.Repl {
     class ReplEditFilter : IOleCommandTarget {
@@ -264,9 +261,13 @@ namespace Microsoft.PythonTools.Repl {
 
         private async void AvailableScopesChanged(object sender, EventArgs e) {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
+            
             var mse = _interactive.Evaluator as IMultipleScopeEvaluator;
-            _currentScopes = (mse?.GetAvailableScopes() ?? Enumerable.Empty<string>()).ToArray();
+            if (mse != null) {
+                _currentScopes = (await mse.GetAvailableScopesAsync(CancellationToken.None) ?? Enumerable.Empty<string>()).ToArray();
+            } else {
+                _currentScopes = new string[0];
+            }
         }
 
         private void MultipleScopeSupportChanged(object sender, EventArgs e) {
@@ -286,7 +287,7 @@ namespace Microsoft.PythonTools.Repl {
 
             // setting the current value
             if (newValue != IntPtr.Zero) {
-                SetCurrentScope((string)Marshal.GetObjectForNativeVariant(newValue));
+                SetCurrentScope((string)Marshal.GetObjectForNativeVariant(newValue)).DoNotWait();
             }
         }
 
@@ -347,9 +348,9 @@ namespace Microsoft.PythonTools.Repl {
             }
         }
 
-        internal void SetCurrentScope(string newItem) {
+        internal async Task SetCurrentScope(string newItem) {
             string activeCode = _interactive.CurrentLanguageBuffer.CurrentSnapshot.GetText();
-            (_interactive.Evaluator as IMultipleScopeEvaluator)?.SetScope(newItem);
+            await (_interactive.Evaluator as IMultipleScopeEvaluator)?.SetScopeAsync(newItem, CancellationToken.None);
             _interactive.InsertCode(activeCode);
         }
 

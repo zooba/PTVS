@@ -56,7 +56,7 @@ else:
 try:
     from tokenize import open as srcopen
     def read_code(filename):
-        with srcopen(filename, 'r') as f:
+        with srcopen(filename) as f:
             return f.read() + '\n'
 except ImportError:
     try:
@@ -101,26 +101,30 @@ def exec_code(code, file, global_variables):
     '''
     original_main = sys.modules.get('__main__')
 
-    global_variables = dict(global_variables)
-    mod_name = global_variables.setdefault('__name__', '<run_path>')
+    gv = dict(global_variables)
+    mod_name = gv.setdefault('__name__', '<run_path>')
     mod = sys.modules[mod_name] = imp.new_module(mod_name)
-    mod.__dict__.update(global_variables)
-    global_variables = mod.__dict__
-    global_variables.setdefault('__file__', file)
+    mod.__dict__.update(gv)
+    gv = mod.__dict__
+    gv.setdefault('__file__', file)
     if sys.version_info[0] >= 3 or sys.version_info[1] >= 6:
-        global_variables.setdefault('__package__', mod_name.rpartition('.')[0])
+        gv.setdefault('__package__', mod_name.rpartition('.')[0])
     if sys.version_info[0] >= 3:
         if sys.version_info[1] >= 2:
-            global_variables.setdefault('__cached__', None)
+            gv.setdefault('__cached__', None)
         if sys.version_info[1] >= 3:
             try:
-                global_variables.setdefault('__loader__', original_main.__loader__)
+                gv.setdefault('__loader__', original_main.__loader__)
             except AttributeError:
                 pass
 
+    original_keys = set(gv)
     sys.path[0] = os.path.split(file)[0]
     code_obj = compile(code, file, 'exec')
-    exec(code_obj, global_variables)
+    exec(code_obj, gv)
+    for k in gv:
+        if k not in original_keys:
+            global_variables[k] = gv[k]
 
 def exec_file(file, global_variables):
     '''Executes the provided script as if it were the original script provided

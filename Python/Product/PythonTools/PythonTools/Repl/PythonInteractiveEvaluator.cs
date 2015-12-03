@@ -63,16 +63,12 @@ namespace Microsoft.PythonTools.Repl {
         private PythonInteractiveOptions _options;
         private VsProjectAnalyzer _analyzer;
 
-        private bool _enableMultipleScopes;
-        //private IReadOnlyList<string> _availableScopes;
-
         private bool _isDisposed;
 
         public PythonInteractiveEvaluator(IServiceProvider serviceProvider) {
             _serviceProvider = serviceProvider;
             _deferredOutput = new StringBuilder();
             EnvironmentVariables = new Dictionary<string, string>();
-            _enableMultipleScopes = true;
         }
 
         protected void Dispose(bool disposing) {
@@ -160,11 +156,7 @@ namespace Microsoft.PythonTools.Repl {
 
         public bool IsExecuting => (_thread?.IsExecuting ?? false);
 
-        public string CurrentScopeName {
-            get {
-                return (_thread?.IsConnected ?? false) ? _thread.CurrentScope : "<disconnected>";
-            }
-        }
+        public virtual string CurrentScopeName => _thread?.CurrentScope ?? "<disconnected>";
 
         public IInteractiveWindow CurrentWindow {
             get {
@@ -212,23 +204,19 @@ namespace Microsoft.PythonTools.Repl {
             window.TextView.Options.SetOptionValue(InteractiveWindowOptions.SmartUpDown, UseSmartHistoryKeys);
         }
 
-        public bool EnableMultipleScopes {
-            get { return _enableMultipleScopes; }
-            set {
-                if (_enableMultipleScopes != value) {
-                    _enableMultipleScopes = value;
-                    MultipleScopeSupportChanged?.Invoke(this, EventArgs.Empty);
-                }
-            }
+        public virtual bool EnableMultipleScopes => false;
+
+        protected void OnAvailableScopesChanged() {
+            AvailableScopesChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        protected void OnMultipleScopeSupportChanged() {
+            MultipleScopeSupportChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public event EventHandler<EventArgs> AvailableScopesChanged;
-        public event EventHandler<EventArgs> MultipleScopeSupportChanged;
 
-        private async void Thread_AvailableScopesChanged(object sender, EventArgs e) {
-            //_availableScopes = (await ((CommandProcessorThread)sender).GetAvailableUserScopesAsync(10000))?.ToArray();
-            AvailableScopesChanged?.Invoke(this, EventArgs.Empty);
-        }
+        public event EventHandler<EventArgs> MultipleScopeSupportChanged;
 
         public IEnumerable<KeyValuePair<string, bool>> GetAvailableScopesAndKind() {
             //var t = _thread?.GetAvailableScopesAndKindAsync(1000);
@@ -284,6 +272,9 @@ namespace Microsoft.PythonTools.Repl {
                     thread.Dispose();
                     return newerThread;
                 }
+                if (thread == null) {
+                    throw new InvalidOperationException(SR.GetString(SR.ReplNotStarted));
+                }
 
                 var scriptsPath = ScriptsPath;
                 if (string.IsNullOrEmpty(scriptsPath)) {
@@ -303,7 +294,6 @@ namespace Microsoft.PythonTools.Repl {
                     }
                 }
 
-                thread.AvailableScopesChanged += Thread_AvailableScopesChanged;
                 return thread;
             });
         }
@@ -467,12 +457,12 @@ namespace Microsoft.PythonTools.Repl {
             return "'" + item.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
         }
 
-        public IEnumerable<string> GetAvailableScopes() {
-            return Enumerable.Empty<string>();  //_availableScopes ?? Enumerable.Empty<string>();
+        public virtual async Task<IReadOnlyCollection<string>> GetAvailableScopesAsync(CancellationToken cancellationToken) {
+            return await _thread?.GetModulesAsync(cancellationToken);
         }
 
-        public void SetScope(string scopeName) {
-            //_thread?.SetScope(scopeName);
+        public virtual Task SetScopeAsync(string scopeName, CancellationToken cancellationToken) {
+            return _thread?.SetModuleAsync(scopeName, cancellationToken);
         }
 
         public string GetPrompt() {
@@ -555,7 +545,7 @@ namespace Microsoft.PythonTools.Repl {
         }
 
         internal Task InvokeAsync(Action action) {
-            return ((System.Windows.UIElement)_window).Dispatcher.InvokeAsync(action).Task;
+            return ((System.Windows.UIElement)_window.TextView).Dispatcher.InvokeAsync(action).Task;
         }
 
         internal void WriteFrameworkElement(System.Windows.UIElement control, System.Windows.Size desiredSize) {

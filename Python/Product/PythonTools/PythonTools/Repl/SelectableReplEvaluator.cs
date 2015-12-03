@@ -17,6 +17,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Editor.Core;
@@ -28,6 +29,7 @@ using Microsoft.VisualStudio.InteractiveWindow.Shell;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Utilities;
 using Microsoft.VisualStudioTools;
+using Task = System.Threading.Tasks.Task;
 
 namespace Microsoft.PythonTools.Repl {
     [InteractiveWindowRole("Execution")]
@@ -233,12 +235,13 @@ namespace Microsoft.PythonTools.Repl {
             AvailableScopesChanged?.Invoke(this, e);
         }
 
-        public void SetScope(string scopeName) {
-            (_evaluator as IMultipleScopeEvaluator)?.SetScope(scopeName);
+        public Task SetScopeAsync(string scopeName, CancellationToken cancellationToken) {
+            return (_evaluator as IMultipleScopeEvaluator)?.SetScopeAsync(scopeName, cancellationToken);
         }
 
-        public IEnumerable<string> GetAvailableScopes() {
-            return (_evaluator as IMultipleScopeEvaluator)?.GetAvailableScopes() ?? Enumerable.Empty<string>();
+        public async Task<IReadOnlyCollection<string>> GetAvailableScopesAsync(CancellationToken cancellationToken) {
+            return await (_evaluator as IMultipleScopeEvaluator)?.GetAvailableScopesAsync(cancellationToken) ??
+                new string[0];
         }
 
         #endregion

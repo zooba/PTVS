@@ -16,13 +16,11 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.ExceptionServices;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Debugger;
 using Microsoft.PythonTools.Debugger.DebugEngine;
@@ -176,10 +174,10 @@ namespace Microsoft.PythonTools.Repl {
         public void Dispose() {
         }
 
-        public IEnumerable<string> GetAvailableScopes() {
+        public async Task<IReadOnlyCollection<string>> GetAvailableScopesAsync(CancellationToken cancellationToken) {
             string[] fixedScopes = new string[] { "<CurrentFrame>" };
             if (_activeEvaluator != null) {
-                return fixedScopes.Concat(_activeEvaluator.GetAvailableScopes());
+                return fixedScopes.Concat(await _activeEvaluator.GetAvailableScopesAsync(cancellationToken)).ToArray();
             } else {
                 return new string[0];
             }
@@ -188,9 +186,9 @@ namespace Microsoft.PythonTools.Repl {
         public event EventHandler<EventArgs> AvailableScopesChanged;
         public event EventHandler<EventArgs> MultipleScopeSupportChanged;
 
-        public void SetScope(string scopeName) {
+        public async Task SetScopeAsync(string scopeName, CancellationToken cancellationToken) {
             if (_activeEvaluator != null) {
-                _activeEvaluator.SetScope(scopeName);
+                await _activeEvaluator.SetScopeAsync(scopeName, cancellationToken);
             } else {
             }
         }
@@ -604,6 +602,8 @@ namespace Microsoft.PythonTools.Repl {
                 SwitchThread(activeThread, false);
             }
         }
+
+        public override bool EnableMultipleScopes => true;
 
         internal IList<PythonThread> GetThreads() {
             return _process.GetThreads();

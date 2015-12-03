@@ -23,6 +23,11 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Markup;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Cdp;
 using Microsoft.PythonTools.Interpreter;
@@ -97,7 +102,8 @@ namespace Microsoft.PythonTools.Repl {
                 }
                 process = Process.Start(processInfo);
                 if (process.WaitForExit(100)) {
-                    throw new Win32Exception(process.ExitCode);
+                    var message = process.StandardError.ReadToEnd();
+                    throw new Win32Exception(process.ExitCode, message);
                 }
             } catch (Win32Exception e) {
                 if (e.NativeErrorCode == Microsoft.VisualStudioTools.Project.NativeMethods.ERROR_FILE_NOT_FOUND) {
@@ -125,16 +131,20 @@ namespace Microsoft.PythonTools.Repl {
 
             private readonly Dictionary<int, TaskCompletionSource<Response>> _completions;
 
+            private const string GetModulesCode = "import sys; ','.join(sorted(sys.modules))";
+
             //private Action _deferredExecute;
 
             //private OverloadDoc[] _overloads;
             //private Dictionary<string, string> _fileToModuleName;
             //private Dictionary<string, bool> _allModules;
             private StringBuilder _preConnectionOutput;
-            private string _currentScope = "__main__";
             //private MemberResults _memberResults;
 
             public CommandProcessorThread(PythonInteractiveEvaluator evaluator, Process process) {
+#if DEBUG
+                AllErrors = true;
+#endif
                 _process = process;
                 _eval = evaluator;
                 _preConnectionOutput = new StringBuilder();
@@ -173,13 +183,7 @@ namespace Microsoft.PythonTools.Repl {
                 OutputEvent oe;
 
                 if ((oe = OutputEvent.TryCreate(e.Event)) != null) {
-                    if (oe.Category == "stderr") {
-                        _eval.WriteError(oe.Output, addNewline: false);
-                    } else if (oe.Category == "stdout") {
-                        _eval.WriteOutput(oe.Output, addNewline: false);
-                    } else {
-                        _eval.WriteError(oe.Category + ": " + oe.Output, addNewline: false);
-                    }
+                    HandleOutput(oe.Category, oe.Output);
                 } else if (e.Event.EventName == "readStdin") {
                     var reader = _eval.CurrentWindow.ReadStandardInput();
                     if (reader != null) {
@@ -187,6 +191,41 @@ namespace Microsoft.PythonTools.Repl {
                         await _connection.SendRequestAsync(new StandardInputRequest {
                             Text = line
                         }, CancellationToken.None);
+                    }
+                } else if (e.Event.EventName == "prompts") {
+                    object ps1, ps2;
+                    if (e.Event.RawBody.TryGetValue("ps1", out ps1)) {
+                        PrimaryPrompt = ps1 as string ?? ">>> ";
+                    }
+                    if (e.Event.RawBody.TryGetValue("ps2", out ps2)) {
+                        SecondaryPrompt = ps2 as string ?? "... ";
+                    }
+                }
+            }
+
+            private async void HandleOutput(string category, string output) {
+                try {
+                    if (category == "stderr") {
+                        _eval.WriteError(output, addNewline: false);
+                    } else if (category == "stdout") {
+                        _eval.WriteOutput(output, addNewline: false);
+                    } else if (category == "text/plain") {
+                        _eval.WriteOutput(output);
+                    } else if (category == "application/xaml+xml") {
+                        await DisplayXamlAsync(output);
+                        _eval.WriteOutput("");
+                    } else if (category == "image/png" ||
+                        category == "image/png" ||
+                        category == "image/jpg" || category == "image/jpeg") {
+                        await DisplayImageAsync(Convert.FromBase64String(output));
+                        _eval.WriteOutput("");
+                    } else {
+                        _eval.WriteError(category + ": " + output, addNewline: false);
+                    }
+                } catch (Exception ex) {
+                    _eval.WriteError(ex.Message);
+                    if (AllErrors) {
+                        _eval.WriteOutput(output ?? "(null)");
                     }
                 }
             }
@@ -214,12 +253,13 @@ namespace Microsoft.PythonTools.Repl {
             private async Task ConnectAsync() {
                 using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5))) {
                     await _connection.SendRequestAsync(new InitializeRequest(), cts.Token);
+                    CurrentScope = "__main__";
                 }
             }
 
             public bool IsConnected => _connecting?.Status == TaskStatus.RanToCompletion;
 
-            public string CurrentScope => _currentScope;
+            public string CurrentScope { get; set; }
 
             public bool IsProcessExpectedToExit { get; set; }
 
@@ -276,24 +316,6 @@ namespace Microsoft.PythonTools.Repl {
                 return false;
             }
 
-            //private void HandleReadLine() {
-            //    // perform the input on a new thread so that we don't block
-            //    // additional commands (such as output) from being processed by
-            //    // us (this is called on the output thread)
-            //    var window = _eval.CurrentWindow;
-            //    ThreadPool.QueueUserWorkItem(x => {
-            //        string input = window?.ReadStandardInput()?.ReadToEnd();
-            //        input = input != null ? UnfixNewLines(input) : "\n";
-            //        try {
-            //            using (new StreamLock(this, throwIfDisconnected: true)) {
-            //                _stream.Write(InputLineCommandBytes);
-            //                SendString(input);
-            //            }
-            //        } catch (IOException) {
-            //        }
-            //    });
-            //}
-
             //private void HandleDebuggerDetach() {
             //    _eval.OnDetach();
             //}
@@ -314,34 +336,7 @@ namespace Microsoft.PythonTools.Repl {
             //    byte[] buffer = new byte[len];
             //    _stream.ReadToFill(buffer);
 
-            //    _eval.InvokeAsync(() => {
-            //        try {
-            //            var fe = XamlReader.Load(new MemoryStream(buffer)) as FrameworkElement;
-            //            if (fe != null) {
-            //                _eval.WriteFrameworkElement(fe, fe.DesiredSize);
-            //            }
-            //        } catch (Exception ex) when (!ex.IsCriticalException()) {
-            //            _eval.WriteError(ex.ToString());
-            //            return;
-            //        }
-            //    }).DoNotWait();
             //}
-
-            //private void HandlePromptChanged() {
-            //    Debug.Assert(Monitor.IsEntered(_streamLock));
-
-            //    var prompt1 = _stream.ReadString();
-            //    var prompt2 = _stream.ReadString();
-            //    Trace.TraceInformation("New prompts: \"{0}\" \"{1}\"", prompt1, prompt2);
-
-            //    PrimaryPrompt = prompt1;
-            //    SecondaryPrompt = prompt2;
-            //}
-
-            public event EventHandler AvailableScopesChanged {
-                add { }
-                remove { }
-            }
 
             //private void HandleModulesChanged() {
             //    // modules changed
@@ -362,150 +357,74 @@ namespace Microsoft.PythonTools.Repl {
             //    }
             //}
 
-            //private void DisplayImage(byte[] bytes) {
-            //    _eval.InvokeAsync(() => {
-            //        var imageSrc = new BitmapImage();
-            //        try {
-            //            imageSrc.BeginInit();
-            //            imageSrc.StreamSource = new MemoryStream(bytes);
-            //            imageSrc.EndInit();
-            //        } catch (IOException) {
-            //            return;
-            //        }
+            private async Task DisplayXamlAsync(string xaml) {
+                await _eval.InvokeAsync(() => {
+                    var obj = XamlReader.Parse(xaml);
+                    var fe = obj as FrameworkElement;
+                    if (fe != null) {
+                        _eval.WriteFrameworkElement(fe, fe.DesiredSize);
+                    } else if (AllErrors && obj != null) {
+                        _eval.WriteError(obj.GetType().FullName);
+                        _eval.WriteError(xaml);
+                    }
+                });
+            }
 
-            //        var img = new Image {
-            //            Source = imageSrc,
-            //            Stretch = Stretch.Uniform,
-            //            StretchDirection = StretchDirection.Both
-            //        };
-            //        var control = new Border {
-            //            Child = img,
-            //            Background = Brushes.White
-            //        };
+            private async Task DisplayImageAsync(byte[] bytes) {
+                await _eval.InvokeAsync(() => {
+                    var imageSrc = new BitmapImage();
+                    try {
+                        imageSrc.BeginInit();
+                        imageSrc.StreamSource = new MemoryStream(bytes);
+                        imageSrc.EndInit();
+                    } catch (IOException) {
+                        return;
+                    }
 
-            //        _eval.WriteFrameworkElement(control, new Size(imageSrc.PixelWidth, imageSrc.PixelHeight));
-            //    });
-            //}
+                    var img = new Image {
+                        Source = imageSrc,
+                        Stretch = Stretch.Uniform,
+                        StretchDirection = StretchDirection.Both
+                    };
+                    var control = new Border {
+                        Child = img,
+                        Background = Brushes.White
+                    };
 
-            //private void HandleModuleList() {
-            //    Debug.Assert(Monitor.IsEntered(_streamLock));
+                    _eval.WriteFrameworkElement(control, new Size(imageSrc.PixelWidth, imageSrc.PixelHeight));
+                });
+            }
 
-            //    int moduleCount = _stream.ReadInt32();
-            //    var moduleNames = new Dictionary<string, string>();
-            //    var allModules = new Dictionary<string, bool>();
-            //    for (int i = 0; i < moduleCount; i++) {
-            //        string name = _stream.ReadString();
-            //        string filename = _stream.ReadString();
-            //        if (!String.IsNullOrWhiteSpace(filename)) {
-            //            moduleNames[filename] = name;
-            //            allModules[name] = true;
-            //        } else {
-            //            allModules[name] = false;
-            //        }
-            //    }
+            public async Task<IReadOnlyCollection<string>> GetModulesAsync(CancellationToken cancellationToken) {
+                await EnsureConnectedAsync();
 
-            //    _fileToModuleName = moduleNames;
-            //    _allModules = allModules;
-            //    _completionResultEvent.Set();
-            //}
+                var resp = await _connection.SendRequestAsync(new EvaluateRequest(GetModulesCode), cancellationToken);
+                if (!resp.Success) {
+                    _eval.WriteError(resp.Message);
+                    return null;
+                }
 
-            //private void HandleSigError() {
-            //    _completionResultEvent.Set();
-            //}
+                var er = EvaluateResponse.TryCreate(resp);
+                if (er == null) {
+                    return null;
+                }
 
-            //private void HandleSigResult() {
-            //    Debug.Assert(Monitor.IsEntered(_streamLock));
+                return (er.Result ?? er.Display?.LastOrDefault().Value ?? "")
+                    .Trim('"', '\'')
+                    .Split(',');
+            }
 
-            //    int overloadCount = _stream.ReadInt32();
-            //    OverloadDoc[] docs = new OverloadDoc[overloadCount];
-            //    for (int i = 0; i < overloadCount; i++) {
-            //        string doc = _stream.ReadString();
-            //        int paramCount = _stream.ReadInt32();
+            public async Task SetModuleAsync(string module, CancellationToken cancellationToken) {
+                await EnsureConnectedAsync();
 
-            //        ParameterResult[] parameters = new ParameterResult[paramCount];
-            //        for (int curParam = 0; curParam < paramCount; curParam++) {
-            //            string name = _stream.ReadString();
-            //            int equals = name.IndexOf('=');
-            //            if (equals < 0) {
-            //                parameters[curParam] = new ParameterResult(name);
-            //            } else {
-            //                parameters[curParam] = new ParameterResult(
-            //                    name.Remove(equals),
-            //                    null,
-            //                    null,
-            //                    // Even though it has a default, don't mark the
-            //                    // parameter as optional (for consistency with
-            //                    // signature help from the database)
-            //                    false,
-            //                    null,
-            //                    name.Substring(equals + 1)
-            //                );
-            //            }
-            //        }
-
-            //        docs[i] = new OverloadDoc(doc, parameters);
-            //    }
-            //    _overloads = docs;
-            //    _completionResultEvent.Set();
-            //}
-
-            //private void HandleMemberResult() {
-            //    Debug.Assert(Monitor.IsEntered(_streamLock));
-
-            //    string typeName = _stream.ReadString();
-            //    var instDict = ReadMemberDict();
-            //    var typeDict = ReadMemberDict();
-            //    _memberResults = new MemberResults(typeName, instDict, typeDict);
-
-            //    _completionResultEvent.Set();
-            //}
-
-            //private void HandleMemberResultError() {
-            //    _memberResults = null;
-            //    _completionResultEvent.Set();
-            //}
-
-            //private void HandleOutput() {
-            //    Debug.Assert(Monitor.IsEntered(_streamLock));
-
-            //    string data = _stream.ReadString();
-            //    if (data != null) {
-            //        Trace.TraceInformation("Data = \"{0}\"", FixNewLines(data).Replace("\r\n", "\\r\\n"));
-            //        using (new StreamUnlock(this)) {
-            //            _eval.WriteOutput(FixNewLines(data), addNewline: false);
-            //        }
-            //    }
-            //}
-
-            //private void HandleError() {
-            //    Debug.Assert(Monitor.IsEntered(_streamLock));
-
-            //    string data = _stream.ReadString();
-            //    Trace.TraceInformation("Data = \"{0}\"", FixNewLines(data).Replace("\r\n", "\\r\\n"));
-            //    using (new StreamUnlock(this)) {
-            //        _eval.WriteError(FixNewLines(data), addNewline: false);
-            //    }
-            //}
-
-            //private void HandleExecutionError() {
-            //    // ERRE command
-            //    lock (_completionLock) {
-            //        if (_completion != null) {
-            //            _completion.SetResult(ExecutionResult.Failure);
-            //            _completion = null;
-            //        }
-            //    }
-            //}
-
-            //private void HandleExecutionDone() {
-            //    // DONE command
-            //    lock (_completionLock) {
-            //        if (_completion != null) {
-            //            _completion.SetResult(ExecutionResult.Success);
-            //            _completion = null;
-            //        }
-            //    }
-            //}
+                var resp = await _connection.SendRequestAsync(new SetModuleRequest(module), cancellationToken);
+                if (resp.Success) {
+                    CurrentScope = module;
+                    _eval.WriteOutput(resp.Message);
+                } else {
+                    _eval.WriteError(resp.Message);
+                }
+            }
 
             private async Task<Response> ExecuteAsync(LaunchRequest request, CancellationToken cancellationToken) {
                 await EnsureConnectedAsync();
@@ -538,10 +457,13 @@ namespace Microsoft.PythonTools.Repl {
 
                 var er = EvaluateResponse.TryCreate(resp);
                 if (er != null) {
-                    foreach (var r in er.Reprs ?? new[] { er.Result }) {
-                        if (!string.IsNullOrEmpty(r)) {
-                            _eval.WriteOutput(r);
+                    var display = er.Display;
+                    if (display != null) {
+                        foreach (var d in display) {
+                            HandleOutput(d.Key, d.Value);
                         }
+                    } else if (!string.IsNullOrEmpty(er.Result)) {
+                        _eval.WriteOutput(er.Result);
                     }
                 }
             }
@@ -591,7 +513,8 @@ namespace Microsoft.PythonTools.Repl {
                         EnsureConnected(cts.Token);
 
                         response = _connection.SendRequest(new EvaluateRequest(text) {
-                            IncludeDocs = true
+                            IncludeDocs = true,
+                            IncludeCallSignature = true
                         }, cts.Token);
                     } catch (OperationCanceledException) {
                         if (AllErrors) {
@@ -613,7 +536,31 @@ namespace Microsoft.PythonTools.Repl {
                     return null;
                 }
 
-                return new[] { new OverloadDoc(er.Docs?.LastOrDefault(), new ParameterResult[0]) };
+                var sig = er.CallSignatures?.LastOrDefault();
+                ParameterResult[] parameters = null;
+                if (sig?.Any() ?? false) {
+                    parameters = sig.Select(CreateParameterResult).ToArray();
+                }
+
+                return new[] { new OverloadDoc(er.Docs?.LastOrDefault(), parameters ?? new ParameterResult[0]) };
+            }
+
+            private static ParameterResult CreateParameterResult(string name) {
+                string defaultValue = null;
+                string type = null;
+                int equals = name.IndexOf('=');
+                if (equals > 0) {
+                    int colon = name.IndexOf(':', equals);
+                    if (colon > 0) {
+                        defaultValue = name.Substring(equals + 1, colon - equals - 1);
+                        type = name.Substring(colon + 1);
+                    } else {
+                        defaultValue = name.Substring(equals + 1);
+                    }
+                    name = name.Remove(equals);
+                }
+
+                return new ParameterResult(name, null, type, !string.IsNullOrEmpty(defaultValue), null, defaultValue);
             }
 
             public IReadOnlyList<MemberResult> GetMemberNames(string text) {
@@ -758,47 +705,11 @@ namespace Microsoft.PythonTools.Repl {
                 }
             }
 
-            //private void SendString(string text) {
-            //    Debug.Assert(text != null, "text should not be null");
-            //    byte[] bytes = Encoding.UTF8.GetBytes(text);
-            //    _stream.WriteInt32(bytes.Length);
-            //    _stream.Write(bytes);
-            //}
-
-            //private Dictionary<string, string> ReadMemberDict() {
-            //    int memCount = _stream.ReadInt32();
-            //    var dict = new Dictionary<string, string>(memCount);
-            //    for (int i = 0; i < memCount; i++) {
-            //        string memName = _stream.ReadString();
-            //        string typeName = _stream.ReadString();
-            //        dict[memName] = typeName;
-            //    }
-
-            //    return dict;
-            //}
-
             public bool IsExecuting => false; // _completion != null && !_completion.Task.IsCompleted;
 
             public string PrimaryPrompt { get; internal set; }
 
             public string SecondaryPrompt { get; internal set; }
-
-
-            class MemberResults {
-                public readonly string TypeName;
-                public readonly Dictionary<string, string> InstanceMembers;
-                public readonly Dictionary<string, string> TypeMembers;
-
-                public MemberResults(
-                    string typeName,
-                    Dictionary<string, string> instMembers,
-                    Dictionary<string, string> typeMembers
-                ) {
-                    TypeName = typeName;
-                    InstanceMembers = instMembers;
-                    TypeMembers = typeMembers;
-                }
-            }
         }
     }
 }

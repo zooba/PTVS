@@ -17,6 +17,7 @@
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.InteractiveWindow;
 using Microsoft.VisualStudio.InteractiveWindow.Commands;
@@ -28,13 +29,24 @@ namespace Microsoft.PythonTools.Repl {
     [Export(typeof(IInteractiveWindowCommand))]
     [ContentType(PythonCoreConstants.ContentType)]
     class SwitchModuleCommand : IInteractiveWindowCommand {
-        public Task<ExecutionResult> Execute(IInteractiveWindow window, string arguments) {
+        public async Task<ExecutionResult> Execute(IInteractiveWindow window, string arguments) {
             var remoteEval = window.Evaluator as IMultipleScopeEvaluator;
             Debug.Assert(remoteEval != null, "Evaluator does not support switching scope");
             if (remoteEval != null) {
-                remoteEval.SetScope(arguments);
+                if (arguments.Trim() == "ls") {
+                    var mods = await remoteEval.GetAvailableScopesAsync(CancellationToken.None);
+                    if (mods != null) {
+                        foreach (var mod in mods) {
+                            window.WriteLine(mod);
+                        }
+                    }
+                } else if (string.IsNullOrWhiteSpace(arguments)) {
+                    window.WriteLine(remoteEval.CurrentScopeName);
+                } else {
+                    await remoteEval.SetScopeAsync(arguments.Trim(), CancellationToken.None);
+                }
             }
-            return ExecutionResult.Succeeded;
+            return ExecutionResult.Success;
         }
 
         public string Description {

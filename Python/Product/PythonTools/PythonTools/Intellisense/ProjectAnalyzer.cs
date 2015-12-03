@@ -1038,6 +1038,9 @@ namespace Microsoft.PythonTools.Intellisense {
                 if (liveSigs != null && liveSigs.Count > 0) {
                     return new SignatureAnalysis(text, paramIndex, GetLiveSignatures(text, liveSigs, paramIndex, applicableSpan, lastKeywordArg), lastKeywordArg);
                 }
+                if (dlrEval.LiveCompletionsOnly) {
+                    return new SignatureAnalysis(text, paramIndex, new ISignature[0]);
+                }
             }
             return null;
         }

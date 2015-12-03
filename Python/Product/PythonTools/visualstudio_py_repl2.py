@@ -24,23 +24,26 @@ import shlex
 import subprocess
 import sys
 import traceback
-import visualstudio_py_cdp
-import visualstudio_py_util
+import visualstudio_py_cdp as cdp
+import visualstudio_py_util as util
 
 from encodings import utf_8, ascii
 
 BUILTIN_MODULE_NAME = object.__module__
 FUTURE_BITS = 0x3e010   # code flags used to mark future bits
 
+PRIOR_RESULT_NAMES = ['___', '__', '_']
+
 class CaptureVariables(object):
-    def __init__(self, args, last_value):
+    def __init__(self, args, state):
         self.repr_len = int(args.get('maximumResultLength', 0))
-        self.reprs = []
         self.members = [] if args.get('includeMembers', False) else None
         self.call_sigs = [] if args.get('includeCallSignature', False) else None
-        self.docs = [] #if args.get('includeDocs', False) else None
+        self.docs = [] if args.get('includeDocs', False) else None
+        self.display = []
         self.last_repr = None
-        self.last_value = last_value
+        self.state = state
+        self.update_last_result = True
 
     def __enter__(self):
         self.old_displayhook = sys.displayhook
@@ -67,8 +70,15 @@ class CaptureVariables(object):
 
     @staticmethod
     def get_call_sig(v):
-        args, varargs, keywords, defaults = inspect.getargspec(v)
-        defaults = [None] * (len(args) - len(defaults)) + defaults
+        try:
+            args, varargs, keywords, defaults = inspect.getargspec(v)
+        except ValueError:
+            return ''
+
+        if defaults:
+            defaults = [None] * (len(args) - len(defaults)) + defaults
+        else:
+            defaults = [None] * len(args)
         
         spec = []
         for a, d in zip(args, defaults):
@@ -77,27 +87,44 @@ class CaptureVariables(object):
             else:
                 spec.append(a)
         if varargs:
-            spec.append('*' + varargs)
+            spec.append('*%s:tuple' % varargs)
         if keywords:
-            spec.append('**' + keywords)
+            spec.append('**%s:dict' % keywords)
 
         return spec
 
+    def get_repr(self, v):
+        try:
+            r = repr(v)
+        except Exception:
+            r = '<error getting repr>'
+        else:
+            if self.repr_len > 3 and len(repr) > self.repr_len:
+                r = r[:self.repr_len - 3] + '...'
+        return {'contentType': 'text/plain', 'value': r}
+
     def append(self, v):
-        self.last_value = v
+        if self.update_last_result:
+            ln = None
+            for n in PRIOR_RESULT_NAMES:
+                if ln:
+                    self.state[ln] = self.state.get(n)
+                ln = n
+            self.state['_'] = v
 
         if v is None:
-            self.reprs.append('')
+            self.display.append('')
         else:
-            try:
-                r = repr(v)
-            except Exception:
-                r = '<error getting repr>'
+            d = None
+            for dh in self.state.get('__displayhooks', []):
+                d = dh(v)
+                if d:
+                    break
+            if not d:
+                self.last_repr = d = self.get_repr(v)
             else:
-                if self.repr_len > 3 and len(repr) > self.repr_len:
-                    r = r[:self.repr_len - 3] + '...'
-            self.reprs.append(r)
-            self.last_repr = r
+                self.last_repr = self.get_repr(v)
+            self.display.append(d)
 
         if self.members is not None:
             try:
@@ -110,19 +137,19 @@ class CaptureVariables(object):
             try:
                 s = self.get_call_sig(v)
             except Exception:
-                s = None
+                s = ''
             self.call_sigs.append(s)
 
         if self.docs is not None:
             try:
                 d = getattr(v, '__doc__', None) or getattr(type(v), '__doc__', None)
             except Exception:
-                d = None
+                d = ''
             self.docs.append(d)
 
     def as_dict(self):
         d = {
-            'reprs': self.reprs
+            'display': self.display
         }
         if self.members is not None:
             d['members'] = self.members
@@ -132,26 +159,37 @@ class CaptureVariables(object):
             d['docs'] = self.docs
         return d
 
-class ReplCDP(visualstudio_py_cdp.CDP):
+class ReplCDP(cdp.CDP):
     def __init__(self, *args, **kwargs):
         super(ReplCDP, self).__init__(*args, **kwargs)
-        self.__state = {}
+        self.__state = self.__original_state = {}
         self.__code_flags = 0
         self.__variables = {}
+        self.__state['__output_special'] = self.__output_special
+        self.__state['__displayhooks'] = []
+
+    def evaluate_in_state(self, expr, if_exists=None):
+        if not if_exists or if_exists in self.__state:
+            code = compile(expr, '<string>', 'single', self.__code_flags)
+            self.__code_flags |= (code.co_flags & FUTURE_BITS)
+            exec(code, self.__state)
 
     def on_evaluate(self, request, args):
         expr = args['expression']
         frame_id = int(args.get('frameId', 0))
 
-        self.__evaluate(request, args, expr)
+        self.__evaluate(request, args, expr, update_last_result=False)
 
-    def __evaluate(self, request, args, expr):
-        with CaptureVariables(args, self.__state.get('_')) as results:
+    def __evaluate(self, request, args, expr, update_last_result=True):
+        with CaptureVariables(args, self.__state) as results:
+            if expr.strip() in PRIOR_RESULT_NAMES:
+                results.update_last_result = False
+            else:
+                results.update_last_result = update_last_result
+
             code = compile(expr, '<string>', 'single', self.__code_flags)
             self.__code_flags |= (code.co_flags & FUTURE_BITS)
             exec(code, self.__state)
-
-            self.__state['_'] = results.last_value
 
             self.send_response(
                 request,
@@ -159,6 +197,9 @@ class ReplCDP(visualstudio_py_cdp.CDP):
                 variablesReference=0,
                 **results.as_dict()
             )
+
+    def __output_special(self, value, mime_type):
+        self.send_event('output', category=mime_type, output=value)
 
     def on_launch(self, request, args):
         self.__variables.clear()
@@ -174,7 +215,7 @@ class ReplCDP(visualstudio_py_cdp.CDP):
             old_argv = sys.argv[:]
             try:
                 sys.argv[:] = [script] + shlex.split(extra_args)
-                visualstudio_py_util.exec_file(script, self.__state)
+                util.exec_file(script, self.__state)
             finally:
                 sys.argv[:] = old_argv
             self.send_response(request)
@@ -183,7 +224,7 @@ class ReplCDP(visualstudio_py_cdp.CDP):
             old_argv = sys.argv[:]
             try:
                 sys.argv[:] = [''] + shlex.split(extra_args)
-                visualstudio_py_util.exec_module(module, self.__state)
+                util.exec_module(module, self.__state)
             finally:
                 sys.argv[:] = old_argv
             self.send_response(request)
@@ -222,6 +263,33 @@ class ReplCDP(visualstudio_py_cdp.CDP):
             pass
         _add_line(args.get('text', ''))
         self.send_response(request)
+
+    def send_prompts(self, ps1, ps2):
+        self.send_event('prompts', ps1=ps1, ps2=ps2)
+
+    def on_setModule(self, request, args):
+        mod_name = args.get('module')
+        if not mod_name or mod_name == '__main__':
+            self.__state = self.__original_state
+            self.send_response(
+                request,
+                message='Now in __main__',
+            )
+            return
+        mod = sys.modules.get(mod_name)
+        if not mod or not hasattr(mod, '__dict__'):
+            self.send_response(
+                request,
+                success=False,
+                message='Cannot switch to %s' % mod_name
+            )
+            return
+
+        self.__state = mod.__dict__
+        self.send_response(
+            request,
+            message='Now in %s (%s)' % (mod_name, getattr(mod, '__file__', 'no file'))
+        )
 
 class _ReplOutput(object):
     """File-like object which redirects output to the REPL window."""
@@ -318,10 +386,10 @@ class _ReplInput(object):
     def next(self):
         return self.readline()
 
-class ReplSocketIO(ReplCDP, visualstudio_py_cdp.SocketIO):
+class ReplSocketIO(ReplCDP, cdp.SocketIO):
     pass
 
-class ReplStandardIO(ReplCDP, visualstudio_py_cdp.StandardIO):
+class ReplStandardIO(ReplCDP, cdp.StandardIO):
     pass
 
 def main(args):
@@ -336,9 +404,21 @@ def main(args):
         sys.stdout = _ReplOutput(io, "stdout", None)
         sys.stderr = _ReplOutput(io, "stderr", sys.stderr)
 
+    try:
+        ps1 = sys.ps1
+    except AttributeError:
+        ps1 = sys.ps1 = '>>> '
+    try:
+        ps2 = sys.ps2
+    except AttributeError:
+        ps2 = sys.ps2 = '... '
 
+    io.send_prompts(ps1, ps2)
     while not io.process_one_message():
-        pass
+        io.evaluate_in_state('__update_prompt()', '__update_prompt')
+        if sys.ps1 != ps1 or sys.ps2 != ps2:
+            ps1, ps2 = sys.ps1, sys.ps2
+            io.send_prompts(ps1, ps2)
 
 if __name__ == '__main__':
     try:

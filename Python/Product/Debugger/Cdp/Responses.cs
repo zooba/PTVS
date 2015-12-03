@@ -81,11 +81,7 @@ namespace Microsoft.PythonTools.Cdp {
             if (!_data.body.TryGetValue(key, out obj) || (list = obj as JArray) == null) {
                 return null;
             }
-            try {
-                return list.Values<T>().ToArray();
-            } catch (InvalidCastException) {
-                return null;
-            }
+            return list.Values<T>().ToArray();
         }
 
         protected internal class Data {
@@ -104,30 +100,49 @@ namespace Microsoft.PythonTools.Cdp {
 
         public string Result => RawBody["result"] as string;
 
-        public IReadOnlyList<string> Reprs => TryGetListFromBody<string>("reprs");
-
         public IReadOnlyList<IReadOnlyList<string>> Members {
             get {
-                object obj;
-                JArray listOfList;
-                if (!RawBody.TryGetValue("members", out obj) || (listOfList = obj as JArray) == null) {
+                var listOfList = TryGetFromBody<JArray>("members");
+                if (listOfList == null) {
                     return null;
                 }
-                try {
-                    return listOfList.Select(a => a.Values<string>().ToArray()).ToArray();
-                } catch (InvalidCastException) {
-                    return null;
-                }
+                return listOfList.Select(a => a.Values<string>().ToArray()).ToArray();
             }
         }
 
-        public IReadOnlyList<object> CallSignatures => TryGetFromBody<IReadOnlyList<object>>("callSignatures");
+        public IReadOnlyList<IReadOnlyList<string>> CallSignatures {
+            get {
+                var listOfList = TryGetFromBody<JArray>("callSignatures");
+                if (listOfList == null) {
+                    return null;
+                }
+                return listOfList
+                    .Select(a => a.HasValues ? a.Values<string>().ToArray() : new string[0])
+                    .ToArray();
+            }
+        }
 
         public IReadOnlyList<string> Docs => TryGetListFromBody<string>("docs");
 
+        public IReadOnlyList<KeyValuePair<string, string>> Display {
+            get {
+                var listOfList = TryGetFromBody<JArray>("display");
+                if (listOfList == null) {
+                    return null;
+                }
+                return listOfList
+                    .OfType<JObject>()
+                    .Select(a => new KeyValuePair<string, string>(
+                        a.GetValue("contentType")?.Value<string>() ?? "text/plain",
+                        a.GetValue("value")?.Value<string>() ?? ""
+                    ))
+                    .ToArray();
+            }
+        }
+
         public static EvaluateResponse TryCreate(Response from) {
             if (!from.Success ||
-                // If we launch with code, we can get an EvaluateResponse
+                // We can get an EvaluateResponse when launching code
                 (from.Command != "evaluate" && from.Command != "launch") ||
                 from.RawBody == null) {
                 return null;
