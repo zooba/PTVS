@@ -398,7 +398,9 @@ namespace Microsoft.PythonTools.Repl {
             public async Task<IReadOnlyCollection<string>> GetModulesAsync(CancellationToken cancellationToken) {
                 await EnsureConnectedAsync();
 
-                var resp = await _connection.SendRequestAsync(new EvaluateRequest(GetModulesCode), cancellationToken);
+                var resp = await _connection.SendRequestAsync(new EvaluateRequest(GetModulesCode) {
+                    ResultAsStr = true
+                }, cancellationToken);
                 if (!resp.Success) {
                     _eval.WriteError(resp.Message);
                     return null;
@@ -409,9 +411,7 @@ namespace Microsoft.PythonTools.Repl {
                     return null;
                 }
 
-                return (er.Result ?? er.Display?.LastOrDefault().Value ?? "")
-                    .Trim('"', '\'')
-                    .Split(',');
+                return (er.Result ?? er.Display?.LastOrDefault().Value ?? "").Split(',');
             }
 
             public async Task SetModuleAsync(string module, CancellationToken cancellationToken) {
@@ -568,9 +568,15 @@ namespace Microsoft.PythonTools.Repl {
                 using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1))) {
                     try {
                         EnsureConnected(cts.Token);
-                        response = _connection.SendRequest(new EvaluateRequest(text) {
-                            IncludeMembers = true
-                        }, cts.Token);
+                        if (string.IsNullOrEmpty(text)) {
+                            response = _connection.SendRequest(new EvaluateRequest("','.join(dir())") {
+                                ResultAsStr = true
+                            }, cts.Token);
+                        } else {
+                            response = _connection.SendRequest(new EvaluateRequest(text) {
+                                IncludeMembers = true
+                            }, cts.Token);
+                        }
                     } catch (OperationCanceledException) {
                         if (AllErrors) {
                             _eval.WriteError("Timed out getting member names");
@@ -589,6 +595,11 @@ namespace Microsoft.PythonTools.Repl {
                 EvaluateResponse er;
                 if ((er = EvaluateResponse.TryCreate(response)) == null) {
                     return null;
+                }
+
+                if (string.IsNullOrEmpty(text)) {
+                    // Result contains list of global names
+                    return (er.Result ?? "").Split(',').Select(CreateMemberResult).ToArray();
                 }
 
                 return er.Members?.LastOrDefault()?.Select(CreateMemberResult).ToArray();

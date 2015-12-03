@@ -117,6 +117,11 @@ namespace Microsoft.PythonTools.Cdp {
             set { Arguments["maximumResultLength"] = value; }
         }
 
+        public bool ResultAsStr {
+            get { return (bool)Arguments["resultAsStr"]; }
+            set { Arguments["resultAsStr"] = value; }
+        }
+
         public bool IncludeMembers {
             get { return (bool)Arguments["includeMembers"]; }
             set { Arguments["includeMembers"] = value; }

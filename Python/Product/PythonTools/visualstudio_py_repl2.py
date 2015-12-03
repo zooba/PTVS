@@ -36,6 +36,7 @@ PRIOR_RESULT_NAMES = ['___', '__', '_']
 
 class CaptureVariables(object):
     def __init__(self, args, state):
+        self.use_str = args.get('resultAsStr', False)
         self.repr_len = int(args.get('maximumResultLength', 0))
         self.members = [] if args.get('includeMembers', False) else None
         self.call_sigs = [] if args.get('includeCallSignature', False) else None
@@ -95,7 +96,7 @@ class CaptureVariables(object):
 
     def get_repr(self, v):
         try:
-            r = repr(v)
+            r = str(v) if self.use_str else repr(v)
         except Exception:
             r = '<error getting repr>'
         else:
@@ -121,9 +122,10 @@ class CaptureVariables(object):
                 if d:
                     break
             if not d:
-                self.last_repr = d = self.get_repr(v)
+                d = self.get_repr(v)
+                self.last_repr = d.get('value', d)
             else:
-                self.last_repr = self.get_repr(v)
+                self.last_repr = self.get_repr(v)['value']
             self.display.append(d)
 
         if self.members is not None:
