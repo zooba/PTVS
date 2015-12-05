@@ -37,9 +37,8 @@ try:
 except ImportError:
     ssl = None
 
-import ptvsd.visualstudio_py_debugger as vspd
-import ptvsd.visualstudio_py_repl as vspr
-from ptvsd.visualstudio_py_util import to_bytes, read_bytes, read_int, read_string, write_bytes, write_int, write_string
+import ptvsd.debugger as debugger
+from ptvsd.util import to_bytes, read_bytes, read_int, read_string, write_bytes, write_int, write_string
 
 
 # The server (i.e. the Python app) waits on a TCP port provided. Whenever anything connects to that port,
@@ -85,7 +84,7 @@ REPL = to_bytes('REPL')
 
 _attach_enabled = False
 _attached = threading.Event()
-vspd.DONT_DEBUG.append(os.path.normcase(__file__))
+debugger.DONT_DEBUG.append(os.path.normcase(__file__))
 
 
 class AttachAlreadyEnabledError(Exception):
@@ -160,7 +159,7 @@ def enable_attach(secret, address = ('0.0.0.0', DEFAULT_PORT), certfile = None, 
         raise AttachAlreadyEnabledError('ptvsd.enable_attach() has already been called in this process.')
     _attach_enabled = True
 
-    atexit.register(vspd.detach_process_and_notify_debugger)
+    atexit.register(debugger.detach_process_and_notify_debugger)
 
     server = socket.socket()
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -237,11 +236,11 @@ def enable_attach(secret, address = ('0.0.0.0', DEFAULT_PORT), certfile = None, 
                     client.recv(1)
 
                 elif response == ATCH:
-                    debug_options = vspd.parse_debug_options(read_string(client))
+                    debug_options = debugger.parse_debug_options(read_string(client))
                     if redirect_output:
                         debug_options.add('RedirectOutput')
 
-                    if vspd.DETACHED:
+                    if debugger.DETACHED:
                         write_bytes(client, ACPT)
                         try:
                             pid = os.getpid()
@@ -254,17 +253,17 @@ def enable_attach(secret, address = ('0.0.0.0', DEFAULT_PORT), certfile = None, 
                         write_int(client, minor)
                         write_int(client, micro)
 
-                        vspd.attach_process_from_socket(client, debug_options, report = True)
-                        vspd.mark_all_threads_for_break(vspd.STEPPING_ATTACH_BREAK)
+                        debugger.attach_process_from_socket(client, debug_options, report = True)
+                        debugger.mark_all_threads_for_break(debugger.STEPPING_ATTACH_BREAK)
                         _attached.set()
                         client = None
                     else:
                         write_bytes(client, RJCT)
 
                 elif response == REPL:
-                    if not vspd.DETACHED:
+                    if not debugger.DETACHED:
                         write_bytes(client, ACPT)
-                        vspd.connect_repl_using_socket(client)
+                        debugger.connect_repl_using_socket(client)
                         client = None
                     else:
                         write_bytes(client, RJCT)
@@ -287,7 +286,7 @@ def enable_attach(secret, address = ('0.0.0.0', DEFAULT_PORT), certfile = None, 
             break
         frames.append(f)
     frames.reverse()
-    cur_thread = vspd.new_thread()
+    cur_thread = debugger.new_thread()
     for f in frames:
         cur_thread.push_frame(f)
     def replace_trace_func():
@@ -295,7 +294,7 @@ def enable_attach(secret, address = ('0.0.0.0', DEFAULT_PORT), certfile = None, 
             f.f_trace = cur_thread.trace_func
     replace_trace_func()
     sys.settrace(cur_thread.trace_func)
-    vspd.intercept_threads(for_attach = True)
+    debugger.intercept_threads(for_attach = True)
 
 
 # Alias for convenience of users of pydevd
@@ -312,7 +311,7 @@ def wait_for_attach(timeout = None):
     timeout : float, optional
         The timeout for the operation in seconds (or fractions thereof).
     """
-    if vspd.DETACHED:
+    if debugger.DETACHED:
         _attached.clear()
         _attached.wait(timeout)
 
@@ -321,10 +320,10 @@ def break_into_debugger():
     """If a PTVS remote debugger is attached, pauses execution of all threads,
     and breaks into the debugger with current thread as active.
     """
-    if not vspd.DETACHED:
-        vspd.SEND_BREAK_COMPLETE = thread.get_ident()
-        vspd.mark_all_threads_for_break()
+    if not debugger.DETACHED:
+        debugger.SEND_BREAK_COMPLETE = thread.get_ident()
+        debugger.mark_all_threads_for_break()
 
 def is_attached():
     """Returns ``True`` if debugger is attached, ``False`` otherwise."""
-    return not vspd.DETACHED
+    return not debugger.DETACHED

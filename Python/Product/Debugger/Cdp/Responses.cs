@@ -75,6 +75,11 @@ namespace Microsoft.PythonTools.Cdp {
             return _data.body.TryGetValue(key, out obj) ? obj as T : null;
         }
 
+        protected int TryGetFromBody(string key, int defaultValue) {
+            object obj;
+            return (_data.body.TryGetValue(key, out obj) ? obj as int? : null) ?? defaultValue;
+        }
+
         protected IReadOnlyList<T> TryGetListFromBody<T>(string key) {
             object obj;
             JArray list;
@@ -100,42 +105,24 @@ namespace Microsoft.PythonTools.Cdp {
 
         public string Result => RawBody["result"] as string;
 
-        public IReadOnlyList<IReadOnlyList<string>> Members {
-            get {
-                var listOfList = TryGetFromBody<JArray>("members");
-                if (listOfList == null) {
-                    return null;
-                }
-                return listOfList.Select(a => a.Values<string>().ToArray()).ToArray();
-            }
+        public int VariablesReference => TryGetFromBody("variablesReference", 0);
+
+        private static KeyValuePair<string, string> AsPair(JToken token) {
+            return new KeyValuePair<string, string>(token.Value<string>("contentType"), token.Value<string>("value"));
         }
 
-        public IReadOnlyList<IReadOnlyList<string>> CallSignatures {
-            get {
-                var listOfList = TryGetFromBody<JArray>("callSignatures");
-                if (listOfList == null) {
-                    return null;
-                }
-                return listOfList
-                    .Select(a => a.HasValues ? a.Values<string>().ToArray() : new string[0])
-                    .ToArray();
-            }
+        public string GetFinalDisplay(string contentType) {
+            return TryGetFromBody<JArray>("display")
+                ?.LastOrDefault()
+                ?.Select(AsPair)
+                .FirstOrDefault(kv => kv.Key == contentType)
+                .Value;
         }
 
-        public IReadOnlyList<string> Docs => TryGetListFromBody<string>("docs");
-
-        public IReadOnlyList<KeyValuePair<string, string>> Display {
+        public IReadOnlyList<IReadOnlyCollection<KeyValuePair<string, string>>> Display {
             get {
-                var listOfList = TryGetFromBody<JArray>("display");
-                if (listOfList == null) {
-                    return null;
-                }
-                return listOfList
-                    .OfType<JObject>()
-                    .Select(a => new KeyValuePair<string, string>(
-                        a.GetValue("contentType")?.Value<string>() ?? "text/plain",
-                        a.GetValue("value")?.Value<string>() ?? ""
-                    ))
+                return TryGetFromBody<JArray>("display")
+                    ?.Select(a => a.Select(AsPair).ToArray())
                     .ToArray();
             }
         }
@@ -151,6 +138,97 @@ namespace Microsoft.PythonTools.Cdp {
                 return null;
             }
             return new EvaluateResponse(from);
+        }
+    }
+
+    public struct ScopeInfo {
+        public string Name;
+        public int VariablesReference;
+        public bool Expensive;
+    }
+
+    public sealed class ScopesResponse : Response {
+        private ScopesResponse(Response from) : base(from) { }
+
+        public IReadOnlyCollection<ScopeInfo> Scopes {
+            get {
+                var list = TryGetFromBody<JArray>("scopes");
+                if (list == null) {
+                    return null;
+                }
+                return list.Select(j => new ScopeInfo {
+                    Name = j.Value<string>("name"),
+                    VariablesReference = j.Value<int>("variablesReference"),
+                    Expensive = j.Value<bool>("expensive")
+                }).ToArray();
+            }
+        }
+
+        public static ScopesResponse TryCreate(Response from) {
+            if (!from.Success || from.Command != "scopes" || from.RawBody == null) {
+                return null;
+            }
+            if (!from.RawBody.ContainsKey("scopes")) {
+                return null;
+            }
+
+            return new ScopesResponse(from);
+        }
+    }
+
+    public struct VariableInfo {
+        public string Name;
+        public string Value;
+        public string Type;
+        public int VariablesReference;
+    }
+
+    public sealed class VariablesResponse : Response {
+        private VariablesResponse(Response from) : base(from) { }
+
+        public IReadOnlyCollection<VariableInfo> Variables {
+            get {
+                var list = TryGetFromBody<JArray>("variables");
+                if (list == null) {
+                    return null;
+                }
+                return list.Select(j => new VariableInfo {
+                    Name = j.Value<string>("name"),
+                    Value = j.Value<string>("value"),
+                    Type = j.Value<string>("type"),
+                    VariablesReference = j.Value<int>("variablesReference")
+                }).ToArray();
+            }
+        }
+
+        public static VariablesResponse TryCreate(Response from) {
+            if (!from.Success || from.Command != "variables" || from.RawBody == null) {
+                return null;
+            }
+            if (!from.RawBody.ContainsKey("variables")) {
+                return null;
+            }
+
+            return new VariablesResponse(from);
+        }
+    }
+
+
+
+    public sealed class SourceResponse : Response {
+        private SourceResponse(Response from) : base(from) { }
+
+        public string Content => RawBody["content"] as string;
+
+        public static SourceResponse TryCreate(Response from) {
+            if (!from.Success || from.Command != "source" || from.RawBody == null) {
+                return null;
+            }
+            if (!from.RawBody.ContainsKey("content")) {
+                return null;
+            }
+
+            return new SourceResponse(from);
         }
     }
 }

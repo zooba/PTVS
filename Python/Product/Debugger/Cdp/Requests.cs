@@ -112,35 +112,39 @@ namespace Microsoft.PythonTools.Cdp {
             set { Arguments["frameId"] = value; }
         }
 
-        public int MaximumResultLength {
-            get { return (int)Arguments["maximumResultLength"]; }
-            set { Arguments["maximumResultLength"] = value; }
+        public int MaximumLength {
+            get { return (int)Arguments["maximumLength"]; }
+            set { Arguments["maximumLength"] = value; }
         }
 
-        public bool ResultAsStr {
-            get { return (bool)Arguments["resultAsStr"]; }
-            set { Arguments["resultAsStr"] = value; }
+        public bool AllowHooks {
+            get { return (bool)Arguments["allowHooks"]; }
+            set { Arguments["allowHooks"] = value; }
+        }
+    }
+
+    public class ScopesRequest : Request {
+        public ScopesRequest() : base("scopes") {
         }
 
-        public bool IncludeMembers {
-            get { return (bool)Arguments["includeMembers"]; }
-            set { Arguments["includeMembers"] = value; }
-        }
-
-        public bool IncludeCallSignature {
-            get { return (bool)Arguments["includeCallSignature"]; }
-            set { Arguments["includeCallSignature"] = value; }
-        }
-
-        public bool IncludeDocs {
-            get { return (bool)Arguments["includeDocs"]; }
-            set { Arguments["includeDocs"] = value; }
+        public int FrameId {
+            get { return (int)Arguments["frameId"]; }
+            set { Arguments["frameId"] = value; }
         }
     }
 
     public class VariablesRequest : Request {
         public VariablesRequest(int variableId) : base("variables") {
+        }
 
+        public int VariablesReference {
+            get { return (int)Arguments["variablesReference"]; }
+            set { Arguments["variablesReference"] = value; }
+        }
+
+        public int MaximumLength {
+            get { return (int)Arguments["maximumLength"]; }
+            set { Arguments["maximumLength"] = value; }
         }
     }
 
@@ -152,6 +156,16 @@ namespace Microsoft.PythonTools.Cdp {
         public string Module {
             get { return (string)Arguments["module"]; }
             set { Arguments["module"] = value; }
+        }
+    }
+
+    public class SourceRequest : Request {
+        public SourceRequest() : base("source") {
+        }
+
+        public int SourceReference {
+            get { return (int)Arguments["sourceReference"]; }
+            set { Arguments["sourceReference"] = value; }
         }
     }
 }

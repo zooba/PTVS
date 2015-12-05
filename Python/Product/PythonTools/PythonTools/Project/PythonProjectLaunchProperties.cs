@@ -34,6 +34,7 @@ namespace Microsoft.PythonTools.Project {
         private readonly string _interpreterArguments;
         private readonly bool? _isWindowsApplication;
         private readonly bool? _isNativeDebugging;
+        private readonly string _searchPathVariableName;
 
         public static IPythonProjectLaunchProperties Create(IPythonProject2 project) {
             return Create(project, project.Site, null);
@@ -59,7 +60,7 @@ namespace Microsoft.PythonTools.Project {
             // Backwards compatibility shim to handle project implementations
             // that omit IPythonProjectLaunchProperties.
 
-            string arguments, workingDir;
+            string arguments, workingDir, searchPathVariableName;
             Dictionary<string, string> environment, environmentWithPaths;
             properties = properties ?? (project as IProjectLaunchProperties);
             if (properties != null) {
@@ -67,13 +68,22 @@ namespace Microsoft.PythonTools.Project {
                 workingDir = properties.GetWorkingDirectory();
                 environment = new Dictionary<string, string>(properties.GetEnvironment(false));
                 environmentWithPaths = new Dictionary<string, string>(properties.GetEnvironment(true));
+                // Guess a default, but if a new key appeared in the environment
+                // use that instead. Enumeration is out of order anyway, so the
+                // best we can do is to grab the first new one we see.
+                searchPathVariableName = "PYTHONPATH";
+                foreach (var key in environmentWithPaths.Keys.Except(environment.Keys)) {
+                    searchPathVariableName = key;
+                    break;
+                }
             } else {
                 arguments = project.GetProperty(CommonConstants.CommandLineArguments);
                 workingDir = project.GetWorkingDirectory();
 
                 environment = ParseEnvironment(project.GetProperty(PythonConstants.EnvironmentSetting));
                 environmentWithPaths = new Dictionary<string, string>(environment);
-                AddSearchPaths(environmentWithPaths, project, site);
+                searchPathVariableName = project.GetProjectAnalyzer().InterpreterFactory.Configuration.PathEnvironmentVariable;
+                AddSearchPaths(environmentWithPaths, searchPathVariableName, project, site);
             }
 
             string strValue;
@@ -117,7 +127,8 @@ namespace Microsoft.PythonTools.Project {
                 interpreterPath,
                 interpreterArguments,
                 isWindowsApplication,
-                isNativeDebugging
+                isNativeDebugging,
+                searchPathVariableName
             );
         }
 
@@ -191,7 +202,7 @@ namespace Microsoft.PythonTools.Project {
             var highPython = highPriority as IPythonProjectLaunchProperties;
             var lowPython = lowPriority as IPythonProjectLaunchProperties;
 
-            string interpreterPath = null, interpreterArgs = null;
+            string interpreterPath = null, interpreterArgs = null, searchPathVariableName = null;
             bool? isWindowsApp = null, isNativeDebug = null;
 
             if (highPython != null) {
@@ -199,6 +210,7 @@ namespace Microsoft.PythonTools.Project {
                 interpreterArgs = highPython.GetInterpreterArguments();
                 isWindowsApp = highPython.GetIsWindowsApplication();
                 isNativeDebug = highPython.GetIsNativeDebuggingEnabled();
+                searchPathVariableName = highPython.GetSearchPathEnvironmentVariable();
             }
             if (lowPython != null) {
                 if (string.IsNullOrEmpty(interpreterPath)) {
@@ -213,6 +225,9 @@ namespace Microsoft.PythonTools.Project {
                 if (isNativeDebug == null) {
                     isNativeDebug = lowPython.GetIsNativeDebuggingEnabled();
                 }
+                if (string.IsNullOrEmpty(searchPathVariableName)) {
+                    searchPathVariableName = lowPython.GetSearchPathEnvironmentVariable();
+                }
             }
 
             return new PythonProjectLaunchProperties(
@@ -223,7 +238,8 @@ namespace Microsoft.PythonTools.Project {
                 interpreterPath,
                 interpreterArgs,
                 isWindowsApp,
-                isNativeDebug
+                isNativeDebug,
+                searchPathVariableName
             );
         }
 
@@ -235,7 +251,8 @@ namespace Microsoft.PythonTools.Project {
             string interpreterPath,
             string interpreterArguments,
             bool? isWindowsApplication,
-            bool? isNativeDebugging
+            bool? isNativeDebugging,
+            string searchPathVariableName
         ) {
             _arguments = arguments;
             _workingDir = workingDir;
@@ -245,6 +262,7 @@ namespace Microsoft.PythonTools.Project {
             _interpreterArguments = interpreterArguments;
             _isWindowsApplication = isWindowsApplication;
             _isNativeDebugging = isNativeDebugging;
+            _searchPathVariableName = searchPathVariableName;
         }
 
 
@@ -303,31 +321,31 @@ namespace Microsoft.PythonTools.Project {
 
         internal static void AddSearchPaths(
             Dictionary<string, string> env,
+            string searchPathVariableName,
             IPythonProject project,
             IServiceProvider provider = null
         ) {
-            var pathEnv = project.GetProjectAnalyzer().InterpreterFactory.Configuration.PathEnvironmentVariable;
-            if (string.IsNullOrEmpty(pathEnv)) {
+            if (string.IsNullOrEmpty(searchPathVariableName)) {
                 return;
             }
 
             var paths = new List<string>();
             
             string path;
-            if (env.TryGetValue(pathEnv, out path)) {
+            if (env.TryGetValue(searchPathVariableName, out path)) {
                 paths.AddRange(path.Split(Path.PathSeparator));
             }
 
             paths.AddRange(EnumerateSearchPaths(project));
 
             if (provider != null && !provider.GetPythonToolsService().GeneralOptions.ClearGlobalPythonPath) {
-                paths.AddRange((Environment.GetEnvironmentVariable(pathEnv) ?? "")
+                paths.AddRange((Environment.GetEnvironmentVariable(searchPathVariableName) ?? "")
                     .Split(Path.PathSeparator)
                     .Where(p => !paths.Contains(p))
                     .ToList());
             }
 
-            env[pathEnv] = string.Join(
+            env[searchPathVariableName] = string.Join(
                 Path.PathSeparator.ToString(),
                 paths
             );
@@ -398,6 +416,10 @@ namespace Microsoft.PythonTools.Project {
 
         public string GetInterpreterArguments() {
             return _interpreterArguments;
+        }
+
+        public string GetSearchPathEnvironmentVariable() {
+            return _searchPathVariableName;
         }
     }
 }

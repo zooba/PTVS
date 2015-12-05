@@ -133,7 +133,10 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors Condition="'$(TreatWarningsAsErrors)' == ''">true</TreatWarningsAsErrors>
-    <!-- Suppress warning about multiply defined AssemblyVersionInfo -->
+    <!-- Suppress warning about:
+         436 - multiply defined AssemblyVersionInfo
+        1998 - async functions with no awaits
+    -->
     <NoWarn>436;1998</NoWarn>
     <RunCodeAnalysis>$(RunFXCop)</RunCodeAnalysis>
     <SignAssembly Condition="$(SignAssembly) == ''">true</SignAssembly>

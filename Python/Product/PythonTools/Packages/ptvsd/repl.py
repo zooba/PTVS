@@ -19,14 +19,15 @@ from __future__ import division, with_statement, absolute_import
 __author__ = "Microsoft Corporation <ptvshelp@microsoft.com>"
 __version__ = "3.0.0.0"
 
-import inspect
 import shlex
 import subprocess
 import sys
 import traceback
-import visualstudio_py_cdp as cdp
-import visualstudio_py_util as util
+import ptvsd.cdp as cdp
+import ptvsd.util as util
+import ptvsd.variablecache as variablecache
 
+from contextlib import contextmanager
 from encodings import utf_8, ascii
 
 BUILTIN_MODULE_NAME = object.__module__
@@ -34,184 +35,93 @@ FUTURE_BITS = 0x3e010   # code flags used to mark future bits
 
 PRIOR_RESULT_NAMES = ['___', '__', '_']
 
-class CaptureVariables(object):
-    def __init__(self, args, state):
-        self.use_str = args.get('resultAsStr', False)
-        self.repr_len = int(args.get('maximumResultLength', 0))
-        self.members = [] if args.get('includeMembers', False) else None
-        self.call_sigs = [] if args.get('includeCallSignature', False) else None
-        self.docs = [] if args.get('includeDocs', False) else None
-        self.display = []
-        self.last_repr = None
-        self.state = state
-        self.update_last_result = True
-
-    def __enter__(self):
-        self.old_displayhook = sys.displayhook
-        sys.displayhook = self.append
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        sys.displayhook = self.old_displayhook
-
-    @staticmethod
-    def get_members(v):
-        spec = []
-        for n, o in inspect.getmembers(v):
-            try:
-                t = type(o)
-                if t.__module__ != BUILTIN_MODULE_NAME:
-                    n = '%s : %s.%s' % (n, t.__module__, t.__name__)
-                else:
-                    n = '%s : %s' % (n, t.__name__)
-            except Exception:
-                pass
-            spec.append(n)
-        return spec
-
-    @staticmethod
-    def get_call_sig(v):
-        try:
-            args, varargs, keywords, defaults = inspect.getargspec(v)
-        except ValueError:
-            return ''
-
-        if defaults:
-            defaults = [None] * (len(args) - len(defaults)) + defaults
-        else:
-            defaults = [None] * len(args)
-        
-        spec = []
-        for a, d in zip(args, defaults):
-            if d:
-                spec.append('%s=%s' % (a, d))
-            else:
-                spec.append(a)
-        if varargs:
-            spec.append('*%s:tuple' % varargs)
-        if keywords:
-            spec.append('**%s:dict' % keywords)
-
-        return spec
-
-    def get_repr(self, v):
-        try:
-            r = str(v) if self.use_str else repr(v)
-        except Exception:
-            r = '<error getting repr>'
-        else:
-            if self.repr_len > 3 and len(repr) > self.repr_len:
-                r = r[:self.repr_len - 3] + '...'
-        return {'contentType': 'text/plain', 'value': r}
-
-    def append(self, v):
-        if self.update_last_result:
-            ln = None
-            for n in PRIOR_RESULT_NAMES:
-                if ln:
-                    self.state[ln] = self.state.get(n)
-                ln = n
-            self.state['_'] = v
-
-        if v is None:
-            self.display.append('')
-        else:
-            d = None
-            for dh in self.state.get('__displayhooks', []):
-                d = dh(v)
-                if d:
-                    break
-            if not d:
-                d = self.get_repr(v)
-                self.last_repr = d.get('value', d)
-            else:
-                self.last_repr = self.get_repr(v)['value']
-            self.display.append(d)
-
-        if self.members is not None:
-            try:
-                m = self.get_members(v)
-            except Exception:
-                m = []
-            self.members.append(m)
-
-        if self.call_sigs is not None:
-            try:
-                s = self.get_call_sig(v)
-            except Exception:
-                s = ''
-            self.call_sigs.append(s)
-
-        if self.docs is not None:
-            try:
-                d = getattr(v, '__doc__', None) or getattr(type(v), '__doc__', None)
-            except Exception:
-                d = ''
-            self.docs.append(d)
-
-    def as_dict(self):
-        d = {
-            'display': self.display
-        }
-        if self.members is not None:
-            d['members'] = self.members
-        if self.call_sigs is not None:
-            d['callSignatures'] = self.call_sigs
-        if self.docs is not None:
-            d['docs'] = self.docs
-        return d
 
 class ReplCDP(cdp.CDP):
     def __init__(self, *args, **kwargs):
         super(ReplCDP, self).__init__(*args, **kwargs)
         self.__state = self.__original_state = {}
         self.__code_flags = 0
-        self.__variables = {}
+        self.__variables = variablecache.VariableCache()
+        self.__sources = []
         self.__state['__output_special'] = self.__output_special
-        self.__state['__displayhooks'] = []
+        self.__state['__displayhooks'] = self.__displayhooks = []
 
     def evaluate_in_state(self, expr, if_exists=None):
         if not if_exists or if_exists in self.__state:
             code = compile(expr, '<string>', 'single', self.__code_flags)
             self.__code_flags |= (code.co_flags & FUTURE_BITS)
             exec(code, self.__state)
+            self.__variables.capture_from_state(self.__state, self.__displayhooks)
 
     def on_evaluate(self, request, args):
         expr = args['expression']
         frame_id = int(args.get('frameId', 0))
 
-        self.__evaluate(request, args, expr, update_last_result=False)
+        captured = []
+        with self.__variables.capture_from_displayhook(
+            on_result=captured.append,
+            max_len=int(args.get('maximumLength', 0)),
+            hooks=self.__displayhooks if args.get('allowHooks', False) else None,
+        ):
+            self.evaluate_in_state(expr)
 
-    def __evaluate(self, request, args, expr, update_last_result=True):
-        with CaptureVariables(args, self.__state) as results:
-            if expr.strip() in PRIOR_RESULT_NAMES:
-                results.update_last_result = False
-            else:
-                results.update_last_result = update_last_result
-
-            code = compile(expr, '<string>', 'single', self.__code_flags)
-            self.__code_flags |= (code.co_flags & FUTURE_BITS)
-            exec(code, self.__state)
-
+        if captured:
             self.send_response(
                 request,
-                result=results.last_repr,
-                variablesReference=0,
-                **results.as_dict()
+                **captured[-1].info
             )
+        else:
+            self.send_response(request)
 
-    def __output_special(self, value, mime_type):
-        self.send_event('output', category=mime_type, output=value)
+    def __output_special(self, raw_value, value_dict):
+        content_type = value_dict.get('contentType', 'console')
+        try:
+            value = value_dict['value']
+        except LookupError:
+            value = repr(value_dict)
+        self.send_event('output', category=content_type, output=value)
+
+    def __send_capture_to_output(self, info):
+        try:
+            entry = info.info['display'][0]
+            content_type = entry['contentType']
+            content = entry['value']
+        except LookupError:
+            content_type = 'text/plain'
+            content = info.info.get('value', repr(value))
+        self.send_event('output', category=content_type, output=content)
 
     def on_launch(self, request, args):
-        self.__variables.clear()
         code = args.get('code')
         script = args.get('scriptPath')
         module = args.get('moduleName')
         process = args.get('processPath')
         extra_args = args.get('extraArguments') or ''
+
+        self.__variables.clear_cache()
+
         if code:
-            self.__evaluate(request, args, code)
+            with self.__variables.capture_from_displayhook(
+                on_result=self.__send_capture_to_output,
+                hooks=self.__original_state.get('__displayhooks'),
+                max_len=int(args.get('maximumLength', 0)),
+            ):
+                self.evaluate_in_state(code)
+
+            if self.__variables.last_capture is not None:
+                ln = None
+                for n in PRIOR_RESULT_NAMES:
+                    if ln:
+                        self.__state[ln] = self.__state.get(n)
+                    ln = n
+                self.__state['_'] = self.__variables.last_capture.value
+
+                self.send_response(
+                    request,
+                    **self.__variables.last_capture.info
+                )
+            else:
+                self.send_response(request)
 
         elif script:
             old_argv = sys.argv[:]
@@ -291,6 +201,39 @@ class ReplCDP(cdp.CDP):
         self.send_response(
             request,
             message='Now in %s (%s)' % (mod_name, getattr(mod, '__file__', 'no file'))
+        )
+
+    def on_variables(self, request, args):
+        variable_id = int(args.get('variablesReference', -1))
+        if variable_id < 0:
+            # Get all variables
+            self.send_response(
+                request,
+                variables=list(self.__variables.get_state())
+            )
+        elif variable_id == 0:
+            self.send_response(request)
+        else:
+            try:
+                variables = self.__variables.get_members_info(
+                    variable_id,
+                    hooks=[],
+                    max_len=int(args.get('maximumLength', 0)),
+                )
+            except LookupError:
+                self.send_response(request, success=False)
+
+            self.send_response(
+                request,
+                variables=variables
+            )
+
+    def on_scopes(self, request, args):
+        frame_id = int(args.get('frameId', -1))
+        global_scope = dict(name='Globals', variablesReference=-1, expensive=False)
+        self.send_response(
+            request,
+            scopes = [global_scope]
         )
 
 class _ReplOutput(object):
@@ -401,6 +344,8 @@ def main(args):
         sys.stdout = _ReplOutput(io, "stdout", sys.stdout)
         sys.stderr = _ReplOutput(io, "stderr", sys.stderr)
     except (ValueError, LookupError):
+        io = None
+    if not io:
         io = ReplStandardIO(sys.stdin, sys.stdout)
         sys.stdin = _ReplInput(io)
         sys.stdout = _ReplOutput(io, "stdout", None)

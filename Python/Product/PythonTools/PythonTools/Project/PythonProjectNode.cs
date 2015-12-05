@@ -2525,7 +2525,7 @@ namespace Microsoft.PythonTools.Project {
             var res = PythonProjectLaunchProperties.ParseEnvironment(GetProjectProperty(PythonConstants.EnvironmentSetting));
 
             if (includeSearchPaths) {
-                PythonProjectLaunchProperties.AddSearchPaths(res, this, Site);
+                PythonProjectLaunchProperties.AddSearchPaths(res, GetSearchPathEnvironmentVariable(), this, Site);
             }
 
             return res;
@@ -2562,6 +2562,10 @@ namespace Microsoft.PythonTools.Project {
             var str = GetProjectProperty(PythonConstants.EnableNativeCodeDebugging);
             bool isNativeDebug;
             return bool.TryParse(str, out isNativeDebug) ? (bool?)isNativeDebug : null;
+        }
+
+        public string GetSearchPathEnvironmentVariable() {
+            return GetInterpreterFactory()?.Configuration.PathEnvironmentVariable ?? "PYTHONPATH";
         }
     }
 }

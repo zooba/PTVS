@@ -87,12 +87,21 @@ namespace Microsoft.PythonTools.Repl {
                 }
             }
 
+            var ptvsdPath = PythonToolsInstallPath.GetDirectory("Packages");
+            string pythonPath;
+            if (processInfo.Environment.TryGetValue(PythonPathName, out pythonPath) && !string.IsNullOrEmpty(pythonPath)) {
+                processInfo.Environment[PythonPathName] = pythonPath + ";" + ptvsdPath;
+            } else {
+                processInfo.Environment[PythonPathName] = ptvsdPath;
+            }
+
             var args = new List<string>();
             if (!string.IsNullOrWhiteSpace(InterpreterArguments)) {
                 args.Add(InterpreterArguments);
             }
 
-            args.Add(ProcessOutput.QuoteSingleArgument(PythonToolsInstallPath.GetFile("visualstudio_py_repl2.py")));
+
+            args.Add(ProcessOutput.QuoteSingleArgument(PythonToolsInstallPath.GetFile("Packages\\ptvsd\\repl.py")));
             processInfo.Arguments = string.Join(" ", args);
 
             Process process;
@@ -398,9 +407,7 @@ namespace Microsoft.PythonTools.Repl {
             public async Task<IReadOnlyCollection<string>> GetModulesAsync(CancellationToken cancellationToken) {
                 await EnsureConnectedAsync();
 
-                var resp = await _connection.SendRequestAsync(new EvaluateRequest(GetModulesCode) {
-                    ResultAsStr = true
-                }, cancellationToken);
+                var resp = await _connection.SendRequestAsync(new EvaluateRequest(GetModulesCode), cancellationToken);
                 if (!resp.Success) {
                     _eval.WriteError(resp.Message);
                     return null;
@@ -411,7 +418,7 @@ namespace Microsoft.PythonTools.Repl {
                     return null;
                 }
 
-                return (er.Result ?? er.Display?.LastOrDefault().Value ?? "").Split(',');
+                return er.GetFinalDisplay("text/plain")?.Split(',');
             }
 
             public async Task SetModuleAsync(string module, CancellationToken cancellationToken) {
@@ -459,8 +466,11 @@ namespace Microsoft.PythonTools.Repl {
                 if (er != null) {
                     var display = er.Display;
                     if (display != null) {
-                        foreach (var d in display) {
-                            HandleOutput(d.Key, d.Value);
+                        foreach (var disp in display) {
+                            var d = disp.FirstOrDefault();
+                            if (!string.IsNullOrEmpty(d.Key)) {
+                                HandleOutput(d.Key, d.Value);
+                            }
                         }
                     } else if (!string.IsNullOrEmpty(er.Result)) {
                         _eval.WriteOutput(er.Result);
@@ -506,7 +516,8 @@ namespace Microsoft.PythonTools.Repl {
             //}
 
             public IReadOnlyList<OverloadDoc> GetSignatureDocumentation(string text) {
-                Response response;
+                return null;
+                /*Response response;
 
                 using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(0.5))) {
                     try {
@@ -543,6 +554,7 @@ namespace Microsoft.PythonTools.Repl {
                 }
 
                 return new[] { new OverloadDoc(er.Docs?.LastOrDefault(), parameters ?? new ParameterResult[0]) };
+                */
             }
 
             private static ParameterResult CreateParameterResult(string name) {
@@ -563,26 +575,27 @@ namespace Microsoft.PythonTools.Repl {
                 return new ParameterResult(name, null, type, !string.IsNullOrEmpty(defaultValue), null, defaultValue);
             }
 
-            public IReadOnlyList<MemberResult> GetMemberNames(string text) {
-                Response response;
-                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1))) {
-                    try {
-                        EnsureConnected(cts.Token);
-                        if (string.IsNullOrEmpty(text)) {
-                            response = _connection.SendRequest(new EvaluateRequest("','.join(dir())") {
-                                ResultAsStr = true
-                            }, cts.Token);
-                        } else {
-                            response = _connection.SendRequest(new EvaluateRequest(text) {
-                                IncludeMembers = true
-                            }, cts.Token);
-                        }
-                    } catch (OperationCanceledException) {
-                        if (AllErrors) {
-                            _eval.WriteError("Timed out getting member names");
-                        }
-                        return null;
+            private static CancellationToken After1s {
+                get {
+                    if (System.Diagnostics.Debugger.IsAttached) {
+                        return CancellationToken.None;
                     }
+                    var cts = new CancellationTokenSource(1000);
+                    return cts.Token;
+                }
+            }
+
+            private IReadOnlyList<MemberResult> GetAllNames() {
+                Response response;
+                var cancel = After1s;
+                try {
+                    EnsureConnected(cancel);
+                    response = _connection.SendRequest(new VariablesRequest(-1), cancel);
+                } catch (OperationCanceledException) {
+                    if (AllErrors) {
+                        _eval.WriteError("Timed out getting member names");
+                    }
+                    return null;
                 }
 
                 if (!response.Success) {
@@ -592,26 +605,63 @@ namespace Microsoft.PythonTools.Repl {
                     return null;
                 }
 
-                EvaluateResponse er;
-                if ((er = EvaluateResponse.TryCreate(response)) == null) {
+                var vr = VariablesResponse.TryCreate(response);
+                if (vr == null) {
                     return null;
                 }
 
-                if (string.IsNullOrEmpty(text)) {
-                    // Result contains list of global names
-                    return (er.Result ?? "").Split(',').Select(CreateMemberResult).ToArray();
-                }
-
-                return er.Members?.LastOrDefault()?.Select(CreateMemberResult).ToArray();
+                return vr.Variables.Select(vi => CreateMemberResult(vi.Name, vi.Type)).ToArray();
             }
 
-            private static MemberResult CreateMemberResult(string name) {
-                int colon = name.IndexOf(':');
-                if (colon < 0) {
+            public IReadOnlyList<MemberResult> GetMemberNames(string text) {
+                if (string.IsNullOrEmpty(text)) {
+                    return GetAllNames();
+                }
+
+                Response response;
+                EvaluateResponse er;
+                var cancel = After1s;
+                try {
+                    EnsureConnected(cancel);
+                    response = _connection.SendRequest(new EvaluateRequest(text), cancel);
+                    if ((er = EvaluateResponse.TryCreate(response)) == null) {
+                        return null;
+                    }
+                    response = _connection.SendRequest(new VariablesRequest(er.VariablesReference), cancel);
+                } catch (OperationCanceledException) {
+                    if (AllErrors) {
+                        _eval.WriteError("Timed out getting member names");
+                    }
+                    return null;
+                }
+
+                if (!response.Success) {
+                    if (AllErrors) {
+                        _eval.WriteError(response.Message);
+                    }
+                    return null;
+                }
+
+                var vr = VariablesResponse.TryCreate(response);
+                if (vr == null) {
+                    return null;
+                }
+
+                return vr.Variables?.Select(n => CreateMemberResult(n.Name, n.Type)).ToArray();
+            }
+
+            private static MemberResult CreateMemberResult(string name, string typeName) {
+                if (string.IsNullOrEmpty(typeName)) {
+                    int colon = name.IndexOf(':');
+                    if (colon > 0) {
+                        typeName = name.Substring(colon + 1).Trim();
+                        name = name.Remove(colon).Trim();
+                    }
+                }
+
+                if (string.IsNullOrEmpty(typeName)) {
                     return new MemberResult(name, PythonMemberType.Field);
                 }
-                var typeName = name.Substring(colon + 1).Trim();
-                name = name.Remove(colon).Trim();
 
                 switch (typeName) {
                     case "method-wrapper":

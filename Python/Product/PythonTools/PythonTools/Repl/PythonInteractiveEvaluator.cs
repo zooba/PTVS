@@ -69,6 +69,7 @@ namespace Microsoft.PythonTools.Repl {
             _serviceProvider = serviceProvider;
             _deferredOutput = new StringBuilder();
             EnvironmentVariables = new Dictionary<string, string>();
+            PythonPathName = "PYTHONPATH";
         }
 
         protected void Dispose(bool disposing) {
@@ -103,6 +104,7 @@ namespace Microsoft.PythonTools.Repl {
         public string InterpreterArguments {get; set; }
         public string WorkingDirectory { get; set; }
         public IDictionary<string, string> EnvironmentVariables { get; set; }
+        public string PythonPathName { get; set; }
         public string ScriptsPath { get; set; }
 
         public bool UseSmartHistoryKeys { get; set; }
@@ -325,6 +327,7 @@ namespace Microsoft.PythonTools.Repl {
             LanguageVersion = version;
             WorkingDirectory = props.GetWorkingDirectory();
             EnvironmentVariables = props.GetEnvironment(true);
+            PythonPathName = props.GetSearchPathEnvironmentVariable();
             ScriptsPath = GetScriptsPath(pyProj.ProjectHome, "Scripts");
         }
 

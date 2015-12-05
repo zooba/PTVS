@@ -59,7 +59,8 @@ namespace IronPythonTests {
         [TestMethod, Priority(1)]
         public void IronPythonModuleName() {
             var replEval = new PythonInteractiveEvaluator(PythonToolsTestUtilities.CreateMockServiceProvider()) {
-                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath
+                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath,
+                PythonPathName = IronPythonInterpreter.Configuration.PathEnvironmentVariable
             };
             var replWindow = new MockReplWindow(replEval);
             replEval._Initialize(replWindow).Wait();
@@ -74,7 +75,8 @@ namespace IronPythonTests {
         [TestMethod, Priority(1)]
         public void IronPythonSignatures() {
             var replEval = new PythonInteractiveEvaluator(PythonToolsTestUtilities.CreateMockServiceProvider()) {
-                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath
+                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath,
+                PythonPathName = IronPythonInterpreter.Configuration.PathEnvironmentVariable
             };
             var replWindow = new MockReplWindow(replEval);
             replEval._Initialize(replWindow).Wait();
@@ -95,7 +97,8 @@ namespace IronPythonTests {
         public void IronPythonCommentInput() {
             // http://pytools.codeplex.com/workitem/649
             var replEval = new PythonInteractiveEvaluator(PythonToolsTestUtilities.CreateMockServiceProvider()) {
-                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath
+                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath,
+                PythonPathName = IronPythonInterpreter.Configuration.PathEnvironmentVariable
             };
             var replWindow = new MockReplWindow(replEval);
             replEval._Initialize(replWindow).Wait();
@@ -108,7 +111,8 @@ namespace IronPythonTests {
         public void ConsoleWriteLineTest() {
             // http://pytools.codeplex.com/workitem/649
             var replEval = new PythonInteractiveEvaluator(PythonToolsTestUtilities.CreateMockServiceProvider()) {
-                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath
+                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath,
+                PythonPathName = IronPythonInterpreter.Configuration.PathEnvironmentVariable
             };
             var replWindow = new MockReplWindow(replEval);
             replEval._Initialize(replWindow).Wait();
@@ -137,7 +141,8 @@ namespace IronPythonTests {
             // http://pytools.codeplex.com/workitem/661
             var fact = IronPythonInterpreter;
             var replEval = new PythonInteractiveEvaluator(PythonToolsTestUtilities.CreateMockServiceProvider()) {
-                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath
+                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath,
+                PythonPathName = IronPythonInterpreter.Configuration.PathEnvironmentVariable
             };
             var replWindow = new MockReplWindow(replEval);
             replEval._Initialize(replWindow).Wait();
@@ -174,7 +179,8 @@ namespace IronPythonTests {
         public void NoTraceFunction() {
             // http://pytools.codeplex.com/workitem/662
             var replEval = new PythonInteractiveEvaluator(PythonToolsTestUtilities.CreateMockServiceProvider()) {
-                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath
+                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath,
+                PythonPathName = IronPythonInterpreter.Configuration.PathEnvironmentVariable
             };
             var replWindow = new MockReplWindow(replEval);
             replEval._Initialize(replWindow).Wait();
@@ -196,7 +202,8 @@ namespace IronPythonTests {
         public void CommentFollowedByBlankLine() {
             // http://pytools.codeplex.com/workitem/659
             var replEval = new PythonInteractiveEvaluator(PythonToolsTestUtilities.CreateMockServiceProvider()) {
-                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath
+                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath,
+                PythonPathName = IronPythonInterpreter.Configuration.PathEnvironmentVariable
             };
             var replWindow = new MockReplWindow(replEval);
             replEval._Initialize(replWindow).Wait();
@@ -212,7 +219,8 @@ namespace IronPythonTests {
         public void AttachSupportMultiThreaded() {
             // http://pytools.codeplex.com/workitem/663
             var replEval = new PythonInteractiveEvaluator(PythonToolsTestUtilities.CreateMockServiceProvider()) {
-                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath
+                InterpreterPath = IronPythonInterpreter.Configuration.InterpreterPath,
+                PythonPathName = IronPythonInterpreter.Configuration.PathEnvironmentVariable
             };
             var replWindow = new MockReplWindow(replEval);
             replEval._Initialize(replWindow).Wait();

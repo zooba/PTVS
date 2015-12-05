@@ -41,5 +41,11 @@ namespace Microsoft.PythonTools.Project {
         /// True if mixed-mode debugging should be used.
         /// </summary>
         bool? GetIsNativeDebuggingEnabled();
+
+        /// <summary>
+        /// Gets the name of the search path environment variable. This is
+        /// typically "PYTHONPATH".
+        /// </summary>
+        string GetSearchPathEnvironmentVariable();
     }
 }

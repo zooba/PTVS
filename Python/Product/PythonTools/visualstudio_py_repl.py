@@ -1273,10 +1273,13 @@ if sys.platform == 'cli':
 
             if not args:
                 if type(value) is str or type(value) is System.Char:
-                    if self.is_stdout:
-                        self.backend.write_stdout(str(value).replace('\r\n', '\n'))
-                    else:
-                        self.backend.write_stderr(str(value).replace('\r\n', '\n'))
+                    try:
+                        if self.is_stdout:
+                            self.backend.write_stdout(str(value).replace('\r\n', '\n'))
+                        else:
+                            self.backend.write_stderr(str(value).replace('\r\n', '\n'))
+                    except Exception:
+                        pass
                 else:
                     super(DotNetOutput, self).Write.Overloads[object](value)
             else:
@@ -1288,10 +1291,13 @@ if sys.platform == 'cli':
 
             if not args:
                 if type(value) is str or type(value) is System.Char:
-                    if self.is_stdout:
-                        self.backend.write_stdout(str(value).replace('\r\n', '\n') + '\n')
-                    else:
-                        self.backend.write_stderr(str(value).replace('\r\n', '\n') + '\n')
+                    try:
+                        if self.is_stdout:
+                            self.backend.write_stdout(str(value).replace('\r\n', '\n') + '\n')
+                        else:
+                            self.backend.write_stderr(str(value).replace('\r\n', '\n') + '\n')
+                    except Exception:
+                        pass
                 else:
                     super(DotNetOutput, self).WriteLine.Overloads[object](value)
             else:

@@ -46,34 +46,28 @@ from codecs import BOM_UTF8
 try:
     # In the local attach scenario, visualstudio_py_util is injected into globals()
     # by PyDebugAttach before loading this module, and cannot be imported.
-    _vspu = visualstudio_py_util
+    util = visualstudio_py_util
 except:
-    try:
-        import visualstudio_py_util as _vspu
-    except ImportError:
-        import ptvsd.visualstudio_py_util as _vspu
+    import ptvsd.util as util
 
-to_bytes = _vspu.to_bytes
-exec_file = _vspu.exec_file
-exec_module = _vspu.exec_module
-exec_code = _vspu.exec_code
-read_bytes = _vspu.read_bytes
-read_int = _vspu.read_int
-read_string = _vspu.read_string
-write_bytes = _vspu.write_bytes
-write_int = _vspu.write_int
-write_string = _vspu.write_string
-safe_repr = _vspu.SafeRepr()
+to_bytes = util.to_bytes
+exec_file = util.exec_file
+exec_module = util.exec_module
+exec_code = util.exec_code
+read_bytes = util.read_bytes
+read_int = util.read_int
+read_string = util.read_string
+write_bytes = util.write_bytes
+write_int = util.write_int
+write_string = util.write_string
+safe_repr = util.SafeRepr()
 
 try:
     # In the local attach scenario, visualstudio_py_repl is injected into globals()
     # by PyDebugAttach before loading this module, and cannot be imported.
-    _vspr = visualstudio_py_repl
+    repl = visualstudio_py_repl
 except:
-    try:
-        import visualstudio_py_repl as _vspr
-    except ImportError:
-        import ptvsd.visualstudio_py_repl as _vspr
+    import ptvsd.repl as repl
 
 try:
     import stackless
@@ -137,7 +131,7 @@ class SynthesizedValue(object):
 
 # Specifies list of files not to debug. Can be extended by other modules
 # (the REPL does this for $attach support and not stepping into the REPL).
-DONT_DEBUG = [path.normcase(__file__), path.normcase(_vspu.__file__)]
+DONT_DEBUG = [path.normcase(__file__), path.normcase(util.__file__)]
 if sys.version_info >= (3, 3):
     DONT_DEBUG.append(path.normcase('<frozen importlib._bootstrap>'))
 if sys.version_info >= (3, 5):
@@ -1765,14 +1759,14 @@ class DebuggerLoop(object):
         _start_new_thread(self.connect_to_repl_backend, (port_num,))
 
     def connect_to_repl_backend(self, port_num):
-        DONT_DEBUG.append(path.normcase(_vspr.__file__))
-        self.repl_backend = _vspr.DebugReplBackend(self)
+        DONT_DEBUG.append(path.normcase(repl.__file__))
+        self.repl_backend = repl.DebugReplBackend(self)
         self.repl_backend.connect_from_debugger(port_num)
         self.repl_backend.execution_loop()
 
     def connect_to_repl_backend_using_socket(self, sock):
-        DONT_DEBUG.append(path.normcase(_vspr.__file__))
-        self.repl_backend = _vspr.DebugReplBackend(self)
+        DONT_DEBUG.append(path.normcase(repl.__file__))
+        self.repl_backend = repl.DebugReplBackend(self)
         self.repl_backend.connect_from_debugger_using_socket(sock)
         self.repl_backend.execution_loop()
 
