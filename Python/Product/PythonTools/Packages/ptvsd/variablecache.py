@@ -45,6 +45,20 @@ class CapturedValueInfo(object):
         self.info = info
         self.v_id = v_id
 
+    def as_dict(self, with_value=False, with_result=False, with_display=False):
+        r = dict(self.info)
+        if not with_value:
+            r.pop('value', None)
+            r.pop('str', None)
+        elif r.get('str') == r.get('value'):
+            r.pop('str', None)
+        if not with_result:
+            r.pop('result', None)
+        if not with_display:
+            r.pop('display', None)
+        r['variablesReference'] = self.v_id
+        return r
+
 def _make_info(value, hooks, max_len, name=None):
     v_repr = _repr(value, max_len)
     v_str = _str(value, max_len)
@@ -55,16 +69,16 @@ def _make_info(value, hooks, max_len, name=None):
         'str': v_str,
         'display': [{'contentType': 'text/plain', 'value': v_str}],
     }
-    if name:
-        res['name'] = name
     if hooks:
         res['display'] = [d for d in (h(value) for h in hooks) if d] + res['display']
+    if name:
+        res['name'] = name
     return res
 
-def _capture_value(value, on_result, capture, hooks, max_len):
-    info = _make_info(value, hooks, max_len)
-    info['variablesReferences'] = v_id = CAPTURE_BASE_INDEX + len(capture)
-    cvi = CapturedValueInfo(None, value, info, v_id)
+def _capture_value(value, on_result, capture, hooks, max_len, name=None):
+    info = _make_info(value, hooks, max_len, name)
+    info['variablesReference'] = v_id = CAPTURE_BASE_INDEX + len(capture)
+    cvi = CapturedValueInfo(name, value, info, v_id)
     capture.append(cvi)
 
     if on_result:
@@ -141,6 +155,7 @@ class VariableCache(object):
         self.state = {}
         self.id_state_map = {}
         self.capture = []
+        self.exclude_from_state = set(['__builtins__'])
 
         self.state_ids = itertools.count(start=1)
 
@@ -165,26 +180,27 @@ class VariableCache(object):
         return self.capture[-1] if self.capture else None
 
     def capture_from_state(self, state, hooks):
-        state = self.state
+        own_state = self.state
         id_state_map = self.id_state_map
-        new_state = dict(state)
 
-        removed = set(state) - set(new_state)
-        for key, value in new_state.items():
-            if key in state:
-                v_id = state[key][0]
+        removed = set(own_state) - set(state)
+        for key, value in state.items():
+            if key in self.exclude_from_state:
+                continue
+            if key in own_state:
+                v_id = own_state[key].v_id
             else:
                 v_id = next(self.state_ids)
-            state[key] = CapturedVariableInfo(
+            own_state[key] = CapturedValueInfo(
                 key,
                 value,
-                self.make_info(value, hooks),
+                _make_info(value, hooks, max_len=0, name=key),
                 v_id,
             )
             id_state_map[v_id] = key
 
         for key in removed:
-            cvi = state.pop(key, None)
+            cvi = own_state.pop(key, None)
             if cvi:
                 id_state_map.pop(cvi.v_id, None)
 
@@ -192,37 +208,36 @@ class VariableCache(object):
         self.capture.clear()
         #self.state.clear()
 
-    def get_state(self):
+    def get_state(self, with_result=False, with_value=True, with_display=False):
         for cvi in self.state.values():
-            yield cvi.info
+            yield cvi.as_dict(with_result=with_result, with_value=with_value, with_display=with_display)
 
     def get_value(self, v_id):
         if v_id >= CAPTURE_BASE_INDEX:
             v_id -= CAPTURE_BASE_INDEX
             return self.capture[v_id].value
 
-        name = self.id_name_map[v_id]
+        name = self.id_state_map[v_id]
         return self.state[name].value
 
-    def get_info(self, v_id):
+    def get_info(self, v_id, with_result=False, with_value=True, with_display=False):
         if v_id >= CAPTURE_BASE_INDEX:
             v_id -= CAPTURE_BASE_INDEX
-            return self.capture[v_id].info
+            return self.capture[v_id].as_dict(with_result=with_result, with_value=with_value, with_display=with_display)
 
-        name = self.id_name_map[v_id]
-        return self.state[name].info
+        name = self.id_state_map[v_id]
+        return self.state[name].as_dict(with_result=with_result, with_value=with_value, with_display=with_display)
 
     def get_members_info(self, v_id, hooks, max_len):
         try:
             value = self.get_value(v_id)
             members = inspect.getmembers(value)
         except (LookupError, ValueError):
-            raise
             return []
         variables = []
         for n, v in members:
-            variables.add(_make_info(v, None, max_len))
-        return variables
+            _capture_value(v, variables.append, self.capture, None, max_len, n)
+        return [cvi.as_dict(with_value=True) for cvi in variables]
 
     def get_members(self, v_id_or_name):
         spec = []

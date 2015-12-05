@@ -209,12 +209,13 @@ class ReplCDP(cdp.CDP):
             # Get all variables
             self.send_response(
                 request,
-                variables=list(self.__variables.get_state())
+                variables=sorted(self.__variables.get_state(), key=lambda d: d['name'])
             )
         elif variable_id == 0:
             self.send_response(request)
         else:
             try:
+                variable = self.__variables.get_info(variable_id)
                 variables = self.__variables.get_members_info(
                     variable_id,
                     hooks=[],
@@ -225,7 +226,8 @@ class ReplCDP(cdp.CDP):
 
             self.send_response(
                 request,
-                variables=variables
+                variables=variables,
+                **variable
             )
 
     def on_scopes(self, request, args):

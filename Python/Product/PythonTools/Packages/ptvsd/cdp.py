@@ -25,7 +25,20 @@ import sys
 import itertools
 import traceback
 
-_TRACE = True
+_TRACE = None
+
+def _str_or_call(m):
+    try:
+        callable = m.__call__
+    except AttributeError:
+        return str(m)
+    else:
+        return str(callable())
+
+def _trace(*msg):
+    if _TRACE:
+        _TRACE(''.join(_str_or_call(m) for m in msg) + '\n')
+
 
 NEWLINE_BYTES = '\n'.encode('ascii')
 
@@ -65,8 +78,7 @@ class CDP(object):
             except IndexError:
                 return self.__exit
 
-        if _TRACE:
-            sys.__stderr__.write(str(msg) + '\n')
+        _trace('Received ', msg)
 
         try:
             if msg['type'] == 'request':
@@ -77,13 +89,17 @@ class CDP(object):
                 self.on_event(msg)
             else:
                 self.on_invalid_request(msg, {})
-        except:
+        except AssertionError:
+            raise
+        except Exception:
+            _trace('Error ', traceback.format_exc)
             self.send_event(
                 'output',
                 category='internal error',
                 output=traceback.format_exc()
             )
 
+        _trace('self.__exit is ', self.__exit)
         return self.__exit
 
     def on_request(self, request):
@@ -93,8 +109,11 @@ class CDP(object):
         args = request.get('arguments', {})
         target = getattr(self, 'on_' + cmd, self.on_invalid_request)
         try:
+            _trace('Calling ', repr(target))
             target(request, args)
-        except:
+        except AssertionError:
+            raise
+        except Exception:
             self.send_response(
                 request,
                 success=False,
