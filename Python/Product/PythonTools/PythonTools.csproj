@@ -887,6 +887,11 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
+    <None Include="Packages\ptvsd\tests\cdp_helper.py" />
+    <None Include="Packages\ptvsd\tests\test_cdp.py" />
+    <None Include="Packages\ptvsd\tests\test_repl.py" />
+    <None Include="Packages\ptvsd\tests\__init__.py" />
+    <None Include="Packages\ptvsd\tests\__main__.py" />
     <None Include="Theme\contrast.vstheme" />
     <None Include="NoSurveyNewsFeed.html" />
     <None Include="NoInterpreters.html" />
