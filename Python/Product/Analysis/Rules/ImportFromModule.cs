@@ -36,10 +36,10 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             _importName = importName;
         }
 
-        protected override async Task<Dictionary<string, AnalysisSet>> ApplyWorkerAsync(
+        protected override async Task<Dictionary<string, IAnalysisSet>> ApplyWorkerAsync(
             PythonLanguageService analyzer,
             AnalysisState state,
-            IReadOnlyDictionary<string, AnalysisSet> priorResults,
+            IReadOnlyDictionary<string, IAnalysisSet> priorResults,
             CancellationToken cancellationToken
         ) {
             if (string.IsNullOrEmpty(_moduleMoniker)) {
@@ -61,19 +61,19 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             return null;
         }
 
-        private async Task<Dictionary<string, AnalysisSet>> GetImportsAsync(
+        private async Task<Dictionary<string, IAnalysisSet>> GetImportsAsync(
             PythonLanguageService analyzer,
             AnalysisState state,
             AnalysisState importState,
-            IReadOnlyDictionary<string, AnalysisSet> priorResults,
+            IReadOnlyDictionary<string, IAnalysisSet> priorResults,
             CancellationToken cancellationToken
         ) {
             if (importState.Version <= _lastVersion) {
                 return null;
             }
 
-            var results = new Dictionary<string, AnalysisSet>();
-            var n = string.IsNullOrEmpty(_importName) ? ModuleInfo.VariableName : _importName;
+            var results = new Dictionary<string, IAnalysisSet>();
+            var n = string.IsNullOrEmpty(_importName) ? ModuleValue.VariableName : _importName;
             if (n == "*") {
                 IReadOnlyDictionary<string, Variable> vars = null;
                 await importState.GetVariablesAndRulesAsync((v, _) => { vars = v; }, cancellationToken);
@@ -89,19 +89,19 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             return results;
         }
 
-        private async Task<Dictionary<string, AnalysisSet>> GetCrossContextImportsAsync(
+        private async Task<Dictionary<string, IAnalysisSet>> GetCrossContextImportsAsync(
             PythonLanguageService analyzer,
             AnalysisState state,
             AnalysisState importState,
-            IReadOnlyDictionary<string, AnalysisSet> priorResults,
+            IReadOnlyDictionary<string, IAnalysisSet> priorResults,
             CancellationToken cancellationToken
         ) {
             if (importState.Version <= _lastVersion) {
                 return null;
             }
 
-            var results = new Dictionary<string, AnalysisSet>();
-            var n = string.IsNullOrEmpty(_importName) ? ModuleInfo.VariableName : _importName;
+            var results = new Dictionary<string, IAnalysisSet>();
+            var n = string.IsNullOrEmpty(_importName) ? ModuleValue.VariableName : _importName;
             if (n == "*") {
                 IReadOnlyDictionary<string, Variable> vars = null;
                 await importState.GetVariablesAndRulesAsync((v, _) => { vars = v; }, cancellationToken);

@@ -19,32 +19,130 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Values;
+using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis {
-    public abstract class AnalysisValue {
+    public abstract class AnalysisValue : IAnalysisValue, IAnalysisSet {
         public static readonly AnalysisValue Empty = new EmptyAnalysisValue();
 
-        private readonly AnalysisValue _type;
+        protected static readonly IReadOnlyCollection<string> EmptyNames = new string[0];
 
-        public AnalysisValue(AnalysisValue type) {
-            _type = type;
+        private readonly VariableKey _key;
+
+        public AnalysisValue(VariableKey key) {
+            _key = key;
         }
 
-        public AnalysisValue Type => _type ?? Empty;
+        public VariableKey Key => _key;
 
-        public abstract string ToAnnotation(IAnalysisState state);
+        public override int GetHashCode() {
+            return _key.GetHashCode();
+        }
 
-        public virtual AnalysisValue GetAttribute(VariableKey self, string attribute) {
-            return Empty;
+        public override bool Equals(object obj) {
+            var other = obj as AnalysisValue;
+            return other != null && _key == other._key;
+        }
+
+        public virtual Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
+            return Task.FromResult(string.Empty);
+        }
+
+        public virtual Task<IAnalysisSet> GetAttribute(
+            string attribute,
+            CancellationToken cancellationToken
+        ) {
+            if (Key.IsEmpty) {
+                return Task.FromResult(AnalysisSet.Empty);
+            }
+            var attr = Key + ("." + attribute);
+            var res = attr.GetTypes(Key.State);
+            if (res != null) {
+                return Task.FromResult(res);
+            }
+            return attr.GetTypesAsync(cancellationToken);
+        }
+
+        public virtual Task<IReadOnlyCollection<string>> GetAttributeNames(CancellationToken cancellationToken) {
+            return Task.FromResult(EmptyNames);
+        }
+
+        public virtual async Task<IAnalysisSet> Call(
+            IReadOnlyList<VariableKey> args,
+            IReadOnlyDictionary<string, VariableKey> keywordArgs,
+            CancellationToken cancellationToken
+        ) {
+            if (Key.IsEmpty) {
+                return AnalysisSet.Empty;
+            }
+            var call = await GetAttribute("__call__", cancellationToken);
+            if (call != null) {
+                return await call.Except(this).Call(args, keywordArgs, cancellationToken);
+            }
+            // TODO: Report uncallable object
+            //await _key.State.ReportErrorAsync();
+            return AnalysisSet.Empty;
+        }
+
+        long IAnalysisSet.Version => 0;
+        int IAnalysisSet.Count => 1;
+        int ICollection<AnalysisValue>.Count => 1;
+        int IReadOnlyCollection<AnalysisValue>.Count => 1;
+
+        bool ICollection<AnalysisValue>.IsReadOnly => true;
+
+        void ICollection<AnalysisValue>.Add(AnalysisValue item) {
+            throw new NotSupportedException("Collection is read only");
+        }
+
+        void ICollection<AnalysisValue>.Clear() {
+            throw new NotSupportedException("Collection is read only");
+        }
+
+        bool ICollection<AnalysisValue>.Contains(AnalysisValue item) {
+            return this == item;
+        }
+
+        void ICollection<AnalysisValue>.CopyTo(AnalysisValue[] array, int arrayIndex) {
+            array[arrayIndex] = this;
+        }
+
+        bool ICollection<AnalysisValue>.Remove(AnalysisValue item) {
+            throw new NotSupportedException("Collection is read only");
+        }
+
+        IEnumerator<AnalysisValue> IEnumerable<AnalysisValue>.GetEnumerator() {
+            yield return this;
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() {
+            return ((IEnumerable<AnalysisValue>)this).GetEnumerator();
+        }
+
+        IAnalysisSet IAnalysisSet.Clone(bool asReadOnly) {
+            if (asReadOnly) {
+                return this;
+            }
+            var set = new AnalysisSet(1);
+            set.Add(this);
+            return set;
+        }
+
+        void IAnalysisSet.AddRange(IEnumerable<AnalysisValue> values) {
+            throw new NotSupportedException("Collection is read only");
+        }
+
+        bool IAnalysisSet.SetEquals(IAnalysisSet other) {
+            return other != null && other.Count == 1 &&
+                (other as AnalysisValue ?? other.Single()) == this;
         }
 
         private class EmptyAnalysisValue : AnalysisValue {
-            public EmptyAnalysisValue() : base(null) { }
-
-            public override string ToAnnotation(IAnalysisState state) => string.Empty;
+            public EmptyAnalysisValue() : base(VariableKey.Empty) { }
         }
     }
 }

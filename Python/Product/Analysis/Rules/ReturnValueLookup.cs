@@ -37,10 +37,10 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             _function = function;
         }
 
-        protected override async Task<Dictionary<string, AnalysisSet>> ApplyWorkerAsync(
+        protected override async Task<Dictionary<string, IAnalysisSet>> ApplyWorkerAsync(
             PythonLanguageService analyzer,
             AnalysisState state,
-            IReadOnlyDictionary<string, AnalysisSet> priorResults,
+            IReadOnlyDictionary<string, IAnalysisSet> priorResults,
             CancellationToken cancellationToken
         ) {
             var callables = _function.GetTypes(state) ?? await _function.GetTypesAsync(cancellationToken);
@@ -50,14 +50,13 @@ namespace Microsoft.PythonTools.Analysis.Rules {
 
             var vars = state.GetVariables();
             var values = new AnalysisSet();
-            foreach (var func in callables.OfType<FunctionInfo>()) {
-                var returnKey = new VariableKey(state, func.Key + "#$r");
+            foreach (var func in callables.OfType<FunctionValue>()) {
+                var returnKey = func.Key + "#$r";
                 var types = returnKey.GetTypes(state) ?? await returnKey.GetTypesAsync(cancellationToken);
                 foreach (var t in types.MaybeEnumerate()) {
-                    var p = t as ParameterInfo;
+                    var p = t as ParameterValue;
                     if (p != null) {
-                        var pKey = _function + ("#" + p.KeySuffix);
-                        var pTypes = pKey.GetTypes(state) ?? await pKey.GetTypesAsync(cancellationToken);
+                        var pTypes = p.Key.GetTypes(state) ?? await p.Key.GetTypesAsync(cancellationToken);
                         if (pTypes != null) {
                             values.AddRange(pTypes);
                         }
@@ -71,7 +70,7 @@ namespace Microsoft.PythonTools.Analysis.Rules {
                 
             }
 
-            var result = new Dictionary<string, AnalysisSet>();
+            var result = new Dictionary<string, IAnalysisSet>();
             bool anyChanged = false;
             foreach (var target in Targets) {
                 result[target] = values;

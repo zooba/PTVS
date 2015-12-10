@@ -18,31 +18,31 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    class ParameterInfo : AnalysisValue {
+    class ParameterValue : AnalysisValue {
         private readonly ParameterKind _kind;
         private readonly int _index;
 
-        private static readonly Dictionary<int, ParameterInfo> _normalCache = new Dictionary<int, ParameterInfo>();
-
-        public static ParameterInfo Create(int index) {
-            ParameterInfo r;
-            lock (_normalCache) {
-                if (!_normalCache.TryGetValue(index, out r)) {
-                    _normalCache[index] = r = new ParameterInfo(ParameterKind.Normal, index);
-                }
+        private static VariableKey GetKey(VariableKey callable, ParameterKind kind, int index) {
+            switch (kind) {
+                case ParameterKind.List:
+                    return callable + "$*";
+                case ParameterKind.Dictionary:
+                    return callable + "$**";
+                case ParameterKind.KeywordOnly:
+                    throw new InvalidOperationException("cannot create ParameterValue for keyword parameter");
+                default:
+                    return callable + string.Format("${0}", index);
             }
-            return r;
         }
 
-        public static readonly ParameterInfo ListParameter = new ParameterInfo(ParameterKind.List, -1);
-        public static readonly ParameterInfo DictParameter = new ParameterInfo(ParameterKind.Dictionary, -1);
-
-        public ParameterInfo(ParameterKind kind, int index) : base(null) {
+        public ParameterValue(VariableKey callable, ParameterKind kind, int index) :
+            base(GetKey(callable, kind, index)) {
             _kind = kind;
             _index = index;
         }
@@ -50,23 +50,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
         public ParameterKind Kind => _kind;
         public int Index => _index;
 
-        public string KeySuffix {
-            get {
-                if (_kind == ParameterKind.List) {
-                    return "$*";
-                } else if (_kind == ParameterKind.Dictionary) {
-                    return "$**";
-                } else {
-                    return string.Format("${0}", _index);
-                }
-            }
-        }
-
-        public VariableKey CreateKey(IAnalysisState state, string functionKey, string suffix = "") {
-            return new VariableKey(state, functionKey + suffix + KeySuffix);
-        }
-
-        public override string ToAnnotation(IAnalysisState state) {
+        public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             if (_kind == ParameterKind.List) {
                 return "Parameter[*]";
             } else if (_kind == ParameterKind.Dictionary) {

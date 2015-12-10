@@ -26,7 +26,7 @@ using Microsoft.PythonTools.Analysis.Values;
 
 namespace Microsoft.PythonTools.Analysis {
     abstract class AnalysisRule {
-        private Dictionary<string, AnalysisSet> _results;
+        private Dictionary<string, IAnalysisSet> _results;
         private object _targets;
 
         private static readonly IReadOnlyCollection<string> EmptyNames = new string[0];
@@ -62,13 +62,13 @@ namespace Microsoft.PythonTools.Analysis {
 
         protected bool AreSame(
             string target,
-            IReadOnlyDictionary<string, AnalysisSet> priorResults,
-            AnalysisSet newResults
+            IReadOnlyDictionary<string, IAnalysisSet> priorResults,
+            IAnalysisSet newResults
         ) {
             if (priorResults == null) {
                 return false;
             }
-            AnalysisSet oldResults;
+            IAnalysisSet oldResults;
             if (!priorResults.TryGetValue(target, out oldResults)) {
                 return false;
             }
@@ -80,12 +80,12 @@ namespace Microsoft.PythonTools.Analysis {
             return results?.Keys ?? EmptyNames;
         }
 
-        public AnalysisSet GetTypes(string name) {
+        public IAnalysisSet GetTypes(string name) {
             var results = Volatile.Read(ref _results);
             if (results == null) {
                 return AnalysisSet.Empty;
             }
-            AnalysisSet v;
+            IAnalysisSet v;
             return results.TryGetValue(name, out v) ? v : AnalysisSet.Empty;
         }
 
@@ -103,14 +103,19 @@ namespace Microsoft.PythonTools.Analysis {
             return false;
         }
 
-        protected abstract Task<Dictionary<string, AnalysisSet>> ApplyWorkerAsync(
+        protected abstract Task<Dictionary<string, IAnalysisSet>> ApplyWorkerAsync(
             PythonLanguageService analyzer, 
             AnalysisState state,
-            IReadOnlyDictionary<string, AnalysisSet> priorResults,
+            IReadOnlyDictionary<string, IAnalysisSet> priorResults,
             CancellationToken cancellationToken
         );
 
-        internal virtual void Dump(TextWriter output, IAnalysisState state, string indent = "") {
+        internal virtual async Task Dump(
+            TextWriter output,
+            IAnalysisState state,
+            string indent,
+            CancellationToken cancellationToken
+        ) {
             output.WriteLine("{0}{1}", indent, this);
             if (_results != null) {
                 foreach (var v in _results.OrderBy(kv => kv.Key)) {
@@ -118,7 +123,7 @@ namespace Microsoft.PythonTools.Analysis {
                         "{0}  {1}: {2}",
                         indent,
                         v.Key,
-                        string.Join(", ", v.Value.Select(av => av.ToAnnotation(state)))
+                        await v.Value.ToAnnotationAsync(cancellationToken)
                     );
                 }
             }

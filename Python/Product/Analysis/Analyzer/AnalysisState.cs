@@ -26,6 +26,7 @@ using Microsoft.PythonTools.Analysis.Values;
 using System.Threading;
 using System.IO;
 using Microsoft.PythonTools.Common.Infrastructure;
+using Microsoft.PythonTools.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     class AnalysisState : IAnalysisState {
@@ -92,7 +93,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         private void NotifyUpdated() {
             Interlocked.Exchange(ref _updated, null)?.SetResult(null);
-            _context.NotifyDocumentAnalysisChanged(_document);
+            _context?.NotifyDocumentAnalysisChanged(_document);
             Interlocked.Increment(ref _version);
 
             if (Volatile.Read(ref _upToDate) == null) {
@@ -100,17 +101,31 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        internal Task WaitForUpdateAsync(CancellationToken cancellationToken) {
+        internal async Task WaitForUpdateAsync(CancellationToken cancellationToken) {
             var updated = Volatile.Read(ref _updated);
             if (updated == null) {
                 var tcs = new TaskCompletionSource<object>();
                 updated = Interlocked.CompareExchange(ref _updated, tcs, null) ?? tcs;
             }
 
-            var cancelTcs = new TaskCompletionSource<object>();
-            updated.Task.ContinueWith(t => cancelTcs.TrySetResult(null));
-            cancellationToken.Register(() => cancelTcs.TrySetCanceled());
-            return cancelTcs.Task;
+            if (cancellationToken.CanBeCanceled) {
+                // Don't cancel updated, since others may be listening for it.
+                // So create a new task and abort that one.
+                var cancelTcs = new TaskCompletionSource<object>();
+                updated.Task.ContinueWith(t => {
+                    try {
+                        cancelTcs.TrySetResult(null);
+                    } catch (ObjectDisposedException) {
+                    } catch (NullReferenceException) {
+                    }
+                }).DoNotWait();
+                using (cancellationToken.Register(() => cancelTcs.TrySetCanceled())) {
+                    await cancelTcs.Task;
+                }
+                cancelTcs = null;
+            } else {
+                await updated.Task;
+            }
         }
 
         internal void NotifyUpToDate() {
@@ -135,6 +150,16 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return tokenization;
             }
 
+            if (_thread == null) {
+                while (true) {
+                    var t = _tokenization;
+                    if (t != null) {
+                        return t;
+                    }
+                    await Task.Yield();
+                }
+            }
+
             return await _thread.Post(async () => {
                 while (true) {
                     var t = _tokenization;
@@ -154,6 +179,16 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             var ast = _ast;
             if (ast != null) {
                 return ast;
+            }
+
+            if (_thread == null) {
+                while (true) {
+                    var a = _ast;
+                    if (a != null) {
+                        return a;
+                    }
+                    await WaitForUpdateAsync(cancellationToken);
+                }
             }
 
             return await _thread.Post(async () => {
@@ -186,13 +221,26 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return;
             }
 
-            await _thread.Post(async () => {
-                var t = Tuple.Create(_variables, _rules);
-                while (t.Item1 == null || t.Item2 == null) {
+            if (_thread == null) {
+                var v = _variables;
+                var r = _rules;
+                while (v == null || r == null) {
                     await WaitForUpdateAsync(cancellationToken);
-                    t = Tuple.Create(_variables, _rules);
+                    v = _variables;
+                    r = _rules;
                 }
-                action?.Invoke(t.Item1, t.Item2);
+                action?.Invoke(v, r);
+            }
+
+            await _thread.Post(async () => {
+                var v = _variables;
+                var r = _rules;
+                while (v == null || r == null) {
+                    await WaitForUpdateAsync(cancellationToken);
+                    v = _variables;
+                    r = _rules;
+                }
+                action?.Invoke(v, r);
             });
         }
 
@@ -216,16 +264,24 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             var ast = _ast;
             var variables = _variables;
             if (ast == null || variables == null) {
-                var aAndV = await _thread.Post(async () => {
-                    var t = Tuple.Create(_ast, _variables);
-                    while (t.Item1 == null || t.Item2 == null) {
+                if (_thread == null) {
+                    while (ast == null || variables == null) {
                         await WaitForUpdateAsync(cancellationToken);
-                        t = Tuple.Create(_ast, _variables);
+                        ast = _ast;
+                        variables = _variables;
                     }
-                    return t;
-                });
-                ast = aAndV.Item1;
-                variables = aAndV.Item2;
+                } else {
+                    var aAndV = await _thread.Post(async () => {
+                        var t = Tuple.Create(_ast, _variables);
+                        while (t.Item1 == null || t.Item2 == null) {
+                            await WaitForUpdateAsync(cancellationToken);
+                            t = Tuple.Create(_ast, _variables);
+                        }
+                        return t;
+                    });
+                    ast = aAndV.Item1;
+                    variables = aAndV.Item2;
+                }
             }
 
             return FindScopeFromLocationWalker
@@ -234,7 +290,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 .FirstOrDefault(variables.ContainsKey) ?? name;
         }
 
-        public async Task<AnalysisSet> GetTypesAsync(
+        public async Task<IAnalysisSet> GetTypesAsync(
             string name,
             CancellationToken cancellationToken
         ) {
@@ -254,28 +310,46 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return result ?? AnalysisSet.Empty;
         }
 
-        public Task DumpAsync(TextWriter output) {
-            return _thread.Post(async () => {
-                output.WriteLine("Analysis Dump: {0}", _document.Moniker);
-                output.WriteLine("  Version: {0}, Futures: {1}", Features.Version, Features.Future);
-                output.WriteLine("  State Version: {0}", Version);
-                if (_variables != null) {
-                    output.WriteLine("Variables");
-                    foreach (var v in _variables.OrderBy(kv => kv.Key)) {
-                        output.WriteLine("  {0} = {1}", v.Key, v.Value.ToAnnotationString(this));
-                    }
-                    output.WriteLine();
+        private async Task DumpOnThreadAsync(TextWriter output, CancellationToken cancellationToken) {
+            output.WriteLine("Analysis Dump: {0}", _document.Moniker);
+            output.WriteLine("  Version: {0}, Futures: {1}", Features.Version, Features.Future);
+            output.WriteLine("  State Version: {0}", Version);
+            if (_variables != null) {
+                output.WriteLine("Variables");
+                foreach (var v in _variables.OrderBy(kv => kv.Key)) {
+                    output.WriteLine(
+                        "  {0} = {1}",
+                        v.Key,
+                        await v.Value.ToAnnotationStringAsync(cancellationToken)
+                    );
                 }
-                if (_rules != null) {
-                    output.WriteLine("Rules");
-                    foreach (var r in _rules) {
-                        r.Dump(output, this, "  ");
-                    }
-                    output.WriteLine();
-                }
-                output.WriteLine("End of dump ({0} variables, {1} rules)", _variables?.Count ?? 0, _rules?.Count ?? 0);
                 output.WriteLine();
-            });
+            }
+            if (_rules != null) {
+                output.WriteLine("Rules");
+                foreach (var r in _rules) {
+                    await r.Dump(output, this, "  ", cancellationToken);
+                }
+                output.WriteLine();
+            }
+            output.WriteLine("End of dump ({0} variables, {1} rules)", _variables?.Count ?? 0, _rules?.Count ?? 0);
+            output.WriteLine();
+        }
+
+        public Task DumpAsync(TextWriter output, CancellationToken cancellationToken) {
+            if (_thread == null) {
+                return DumpOnThreadAsync(output, cancellationToken);
+            }
+            return _thread.Post(() => DumpOnThreadAsync(output, cancellationToken));
+        }
+
+        public async Task<bool> ReportErrorAsync(
+            string code,
+            string text,
+            SourceLocation location,
+            CancellationToken cancellationToken
+        ) {
+            return false;
         }
     }
 }

@@ -32,7 +32,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         LanguageFeatures Features { get; }
 
-        Task DumpAsync(TextWriter output);
+        Task DumpAsync(TextWriter output, CancellationToken cancellationToken);
 
         Task WaitForUpToDateAsync(CancellationToken cancellationToken);
 
@@ -40,7 +40,14 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         Task<Tokenization> GetTokenizationAsync(CancellationToken cancellationToken);
         Task<PythonAst> GetAstAsync(CancellationToken cancellationToken);
         Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken);
-        Task<AnalysisSet> GetTypesAsync(string name, CancellationToken cancellationToken);
+        Task<IAnalysisSet> GetTypesAsync(string name, CancellationToken cancellationToken);
         Task<string> GetFullNameAsync(string name, SourceLocation location, CancellationToken cancellationToken);
+
+        Task<bool> ReportErrorAsync(
+            string code,
+            string text,
+            SourceLocation location,
+            CancellationToken cancellationToken
+        );
     }
 }

@@ -28,6 +28,24 @@ namespace Microsoft.PythonTools.Analysis {
         string Moniker { get; }
     }
 
+    public sealed class SourcelessDocument : ISourceDocument {
+        private readonly string _moniker;
+
+        public SourcelessDocument(string moniker) {
+            _moniker = moniker;
+        }
+
+        public string Moniker => _moniker;
+
+        public async Task ReadAndGetCookieAsync(Action<Stream, object> action, CancellationToken cancellationToken) {
+            action(null, null);
+        }
+
+        public Task<Stream> ReadAsync(CancellationToken cancellationToken) {
+            return Task.FromResult(Stream.Null);
+        }
+    }
+
     public sealed class StringLiteralDocument : ISourceDocument {
         private string _document;
         private readonly string _moniker;

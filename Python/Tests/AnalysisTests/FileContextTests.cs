@@ -187,12 +187,12 @@ namespace AnalysisTests {
                     new[] { "__init__", "__enter__" }
                 );
                 var walk = await service.GetModuleMemberTypesAsync(null, moniker, "walk", Cancel5s);
-                Assert.IsInstanceOfType(walk.Single(), typeof(FunctionInfo));
+                Assert.IsInstanceOfType(walk.Single(), typeof(FunctionValue));
 
                 moniker = service.ResolveImport("collections", "");
                 imports = await service.GetModuleMembersAsync(null, moniker, null, Cancel5s);
                 var Counter = await service.GetModuleMemberTypesAsync(null, moniker, "Counter", Cancel5s);
-                Assert.IsInstanceOfType(Counter.Single(), typeof(ClassInfo));
+                Assert.IsInstanceOfType(Counter.Single(), typeof(ClassValue));
 
                 // TODO: Reimplement class members
                 //imports = await service.GetModuleMembersAsync(null, moniker, "Counter", Cancel5s);

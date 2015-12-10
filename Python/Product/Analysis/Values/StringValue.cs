@@ -18,32 +18,29 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
-using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    public class ClassInfo : AnalysisValue {
-        private readonly ClassDefinition _node;
-        private readonly InstanceInfo _instance;
+    class StringValue : TypeValue {
+        private readonly bool _isUnicode;
 
-        public ClassInfo(ClassDefinition node) : base(BuiltinTypes.Type) {
-            _node = node;
-            _instance = new InstanceInfo(this);
+        public StringValue(VariableKey baseKey, bool isUnicode) :
+            base(baseKey + "." + GetName(baseKey, isUnicode), GetName(baseKey, isUnicode)) {
+            _isUnicode = isUnicode;
         }
 
-        public override bool Equals(object obj) {
-            return (obj as ClassInfo)?._node == _node;
+        private static string GetName(VariableKey key, bool isUnicode) {
+            if (key.IsEmpty || key.State.Features.IsUnicodeCalledStr) {
+                return isUnicode ? "str" : "bytes";
+            } else {
+                return isUnicode ? "unicode" : "str";
+            }
         }
 
-        public override int GetHashCode() {
-            return 389357 ^ _node.GetHashCode();
-        }
-
-        public InstanceInfo Instance => _instance;
-
-        public override string ToAnnotation(IAnalysisState state) {
-            return _node.Name;
+        public override async Task<string> ToInstanceAnnotationAsync(CancellationToken cancellationToken) {
+            return GetName(Key, _isUnicode);
         }
     }
 }

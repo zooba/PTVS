@@ -18,10 +18,23 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    class NumberInfo : TypeInfo {
-        public NumberInfo(string name) : base(name) { }
+    class NumericValue : TypeValue {
+        private readonly Dictionary<string, BuiltinFunctionInfo> _members;
+
+        public NumericValue(VariableKey key, string name) : base(key, name) {
+            _members = new Dictionary<string, BuiltinFunctionInfo>();
+        }
+
+        public override Task<IAnalysisSet> GetAttribute(string attribute, CancellationToken cancellationToken) {
+            BuiltinFunctionInfo member;
+            if (_members.TryGetValue(attribute, out member)) {
+                return Task.FromResult<IAnalysisSet>(member);
+            }
+            return base.GetAttribute(attribute, cancellationToken);
+        }
     }
 }

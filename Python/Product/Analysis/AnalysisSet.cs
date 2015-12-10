@@ -20,7 +20,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
-using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis {
     /// <summary>
@@ -42,14 +41,14 @@ namespace Microsoft.PythonTools.Analysis {
     /// </summary>
     [DebuggerDisplay(DebugViewProxy.DisplayString), DebuggerTypeProxy(typeof(DebugViewProxy))]
     [Serializable]
-    public sealed class AnalysisSet : ICollection<AnalysisValue>, IReadOnlyCollection<AnalysisValue> {
+    sealed class AnalysisSet : IAnalysisSet {
         [NonSerialized]
         private Bucket[] _buckets;
         private int _count;
         private readonly IEqualityComparer<AnalysisValue> _comparer;
         private long _version;
 
-        public static readonly AnalysisSet Empty = new AnalysisSet();
+        public static readonly IAnalysisSet Empty = new AnalysisSet();
 
         // Flags merged into _version
         private const long Mask = 0x7000000000000000;
@@ -63,8 +62,7 @@ namespace Microsoft.PythonTools.Analysis {
         // Marker object used to indicate we have a removed value
         private class Removed : AnalysisValue {
             public static readonly Removed Value = new Removed();
-            private Removed() : base(null) { }
-            public override string ToAnnotation(IAnalysisState state) => null;
+            private Removed() : base(VariableKey.Empty) { }
         }
 
         /// <summary>
@@ -98,6 +96,21 @@ namespace Microsoft.PythonTools.Analysis {
 
         public AnalysisSet(IEnumerable<AnalysisValue> enumerable) : this() {
             AddRange(enumerable);
+        }
+
+        public IAnalysisSet Trim() {
+            var buckets = _buckets;
+            AnalysisValue single = null;
+            foreach (var b in buckets) {
+                if (b.Key != null && b.Key != Removed.Value) {
+                    if (single == null) {
+                        single = b.Key;
+                    } else {
+                        return this;
+                    }
+                }
+            }
+            return single ?? Empty;
         }
 
         public IEqualityComparer<AnalysisValue> Comparer => _comparer;
@@ -190,7 +203,7 @@ namespace Microsoft.PythonTools.Analysis {
             return true;
         }
 
-        public AnalysisSet Clone(bool asReadOnly = false) {
+        public IAnalysisSet Clone(bool asReadOnly = false) {
             var buckets = _buckets;
             var count = _count;
             var version = _version;
@@ -206,7 +219,7 @@ namespace Microsoft.PythonTools.Analysis {
             return res;
         }
 
-        public bool SetEquals(AnalysisSet other) {
+        public bool SetEquals(IAnalysisSet other) {
             if (ReferenceEquals(this, other)) {
                 return true;
             }

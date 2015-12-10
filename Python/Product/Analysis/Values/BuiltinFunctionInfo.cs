@@ -18,35 +18,34 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     class BuiltinFunctionInfo : AnalysisValue {
-        public delegate IReadOnlyList<AnalysisValue> CallDelegate(
-            IReadOnlyList<IReadOnlyList<AnalysisValue>> args,
-            IReadOnlyDictionary<string, IReadOnlyList<AnalysisValue>> keywordArgs,
-            Func<string, IReadOnlyList<AnalysisValue>> getVariable
+        public delegate Task<AnalysisSet> CallDelegate(
+            IReadOnlyList<VariableKey> args,
+            IReadOnlyDictionary<string, VariableKey> keywordArgs
         );
 
         private readonly string _annotation;
         private readonly CallDelegate _onCall;
 
-        public BuiltinFunctionInfo(string annotation, CallDelegate onCall) : base(BuiltinTypes.Function) {
+        public BuiltinFunctionInfo(string annotation, CallDelegate onCall) : base(VariableKey.Empty) {
             _annotation = annotation;
             _onCall = onCall;
         }
 
-        public override string ToAnnotation(IAnalysisState state) {
-            return _annotation;
+        public override Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
+            return Task.FromResult(_annotation);
         }
 
-        public IReadOnlyList<AnalysisValue> Call(
-            IReadOnlyList<IReadOnlyList<AnalysisValue>> args,
-            IReadOnlyDictionary<string, IReadOnlyList<AnalysisValue>> keywordArgs,
-            Func<string, IReadOnlyList<AnalysisValue>> getVariable
+        public Task<AnalysisSet> Call(
+            IReadOnlyList<VariableKey> args,
+            IReadOnlyDictionary<string, VariableKey> keywordArgs
         ) {
-            return _onCall(args, keywordArgs, getVariable);
+            return _onCall(args, keywordArgs);
         }
     }
 }

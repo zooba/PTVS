@@ -140,25 +140,38 @@ def g():
         public async Task AssignCallResult() {
             var state = await @"def f(): return 1
 def g(a): return a
+def h(): return x
 
 x = f()
 y = g(1)
-z = g('abc')".AnalyzeAsync(Configuration);
+z = g('abc')
+w = h()
+x = z".AnalyzeAsync(Configuration);
             await state.AssertAnnotationsAsync("f@0#$r", "int");
-            await state.AssertAnnotationsAsync("x", "int");
+            await state.AssertAnnotationsAsync("x", "int", "str");
             await state.AssertAnnotationsAsync("g@19#$r", "Parameter[0]");
             await state.AssertAnnotationsAsync("y", "int");
             await state.AssertAnnotationsAsync("z", "str");
+            await state.AssertAnnotationsAsync("w", "int", "str");
             // TODO: Make annotation include parameter and return types
             await state.AssertAnnotationsAsync("f", "Callable");
             await state.AssertAnnotationsAsync("g", "Callable");
+            await state.AssertAnnotationsAsync("h", "Callable");
+        }
+
+        [TestMethod, Priority(0)]
+        public async Task BuiltinFunctions() {
+            var state = await @"
+".AnalyzeAsync(Configuration);
         }
     }
 
     static class AnalysisTestsHelpers {
         public static async Task AssertAnnotationsAsync(this IAnalysisState state, string key, params string[] annotations) {
-            var values = await state.GetTypesAsync(key, CancellationTokens.After5s);
-            var types = new HashSet<string>(values.MaybeEnumerate().Select(v => v.ToAnnotation(state)));
+            var cancel = CancellationTokens.After5s;
+            var values = await state.GetTypesAsync(key, cancel);
+            var types = new HashSet<string>();
+            foreach (var v in values) { types.Add(await v.ToAnnotationAsync(cancel)); }
             if (annotations.Any()) {
                 Assert.IsTrue(types.Any(), "No types returned for " + key);
                 var expected = new HashSet<string>(annotations);
@@ -171,8 +184,8 @@ z = g('abc')".AnalyzeAsync(Configuration);
                 if (expectedNotFound.Any()) {
                     message = string.Format(
                         "Did not find {{{0}}}{2}{2}",
-                        string.Join(", ", expectedNotFound.OrderBy(s => s)),
-                        string.Join(", ", types.OrderBy(s => s)),
+                        string.Join(", ", expectedNotFound.Ordered()),
+                        string.Join(", ", types.Ordered()),
                         Environment.NewLine
                     );
                 }
@@ -180,7 +193,7 @@ z = g('abc')".AnalyzeAsync(Configuration);
                 if (foundNotExpected.Any()) {
                     message = string.Format(
                         "{1}Did not expect {{{0}}}{2}{2}",
-                        string.Join(", ", foundNotExpected.OrderBy(s => s)),
+                        string.Join(", ", foundNotExpected.Ordered()),
                         message ?? "",
                         Environment.NewLine
                     );
@@ -190,7 +203,7 @@ z = g('abc')".AnalyzeAsync(Configuration);
                     message = string.Format(
                         "{3}{0} included {{{1}}}.{3}{3}{2}",
                         key,
-                        string.Join(", ", types.OrderBy(s => s)),
+                        string.Join(", ", types.Ordered()),
                         message,
                         Environment.NewLine
                     );
@@ -200,7 +213,7 @@ z = g('abc')".AnalyzeAsync(Configuration);
                 Assert.IsFalse(types.Any(), string.Format(
                     "Expected no types{2}{0} included {{{1}}}",
                     key,
-                    string.Join(", ", types.OrderBy(s => s)),
+                    string.Join(", ", types.Ordered()),
                     Environment.NewLine
                 ));
             }
@@ -250,7 +263,7 @@ z = g('abc')".AnalyzeAsync(Configuration);
 
             var state = analyzer.GetAnalysisState(context, document.Moniker, false);
             await state.WaitForUpToDateAsync(cancellationToken);
-            await state.DumpAsync(Console.Out);
+            await state.DumpAsync(Console.Out, cancellationToken);
             return state;
         }
     }

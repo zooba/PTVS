@@ -26,6 +26,7 @@ using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer.Tasks;
 using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
+using Microsoft.PythonTools.Analysis.Values;
 using Microsoft.PythonTools.Common.Infrastructure;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Interpreter;
@@ -35,8 +36,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private readonly PythonLanguageServiceProvider _provider;
         private readonly Task _loadInterpreter;
         private readonly InterpreterConfiguration _config;
+        private readonly LanguageFeatures _features;
         private readonly CancellationTokenSource _disposing;
         private int _users;
+        private BuiltinsModuleState _builtinsModule;
 
         private readonly Dictionary<PythonFileContext, AnalysisThread> _contexts;
         private readonly List<KeyValuePair<string, string[]>> _searchPaths;
@@ -57,6 +60,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
             _disposing = new CancellationTokenSource();
             _config = config;
+            _features = new LanguageFeatures(_config.Version, FutureOptions.None);
 
             _contexts = new Dictionary<PythonFileContext, AnalysisThread>();
             _searchPaths = new List<KeyValuePair<string, string[]>>();
@@ -139,6 +143,15 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         public InterpreterConfiguration Configuration {
             get { return _config; }
+        }
+
+        internal BuiltinsModule BuiltinsModule {
+            get {
+                if (_builtinsModule == null) {
+                    _builtinsModule = new BuiltinsModuleState(this);
+                }
+                return _builtinsModule.Module;
+            }
         }
 
         public void AddSearchPath(string searchPath, string prefix) {
@@ -463,7 +476,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 .ToArray();
         }
 
-        public async Task<AnalysisSet> GetModuleMemberTypesAsync(
+        public async Task<IAnalysisSet> GetModuleMemberTypesAsync(
             PythonFileContext context,
             string moniker,
             string name,
@@ -476,7 +489,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             );
         }
 
-        public async Task<AnalysisSet> GetModuleMemberTypesAsync(
+        public async Task<IAnalysisSet> GetModuleMemberTypesAsync(
             IAnalysisState state,
             string name,
             CancellationToken cancellationToken
@@ -484,7 +497,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return await state.GetTypesAsync(name, cancellationToken);
         }
 
-        public async Task<AnalysisSet> GetVariableTypesAsync(
+        public async Task<IAnalysisSet> GetVariableTypesAsync(
             PythonFileContext context,
             string moniker,
             string name,
@@ -499,7 +512,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             );
         }
 
-        public async Task<AnalysisSet> GetVariableTypesAsync(
+        public async Task<IAnalysisSet> GetVariableTypesAsync(
             IAnalysisState state,
             string name,
             SourceLocation location,

@@ -23,38 +23,21 @@ using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    public class FunctionInfo : AnalysisValue {
+    public class FunctionValue : CallableValue {
         private readonly FunctionDefinition _node;
-        private readonly string _fullName, _key;
+        private readonly string _fullName;
 
-        public FunctionInfo(FunctionDefinition node, string fullName) : base(BuiltinTypes.Function) {
+        public FunctionValue(VariableKey key, FunctionDefinition node, string fullName) : base(key) {
             _node = node;
             _fullName = fullName;
-            _key = string.Format("{0}@{1}", fullName, node.Span.Start.Index);
         }
 
-        public string Key => _key;
-
         public override bool Equals(object obj) {
-            return (obj as FunctionInfo)?._node == _node;
+            return (obj as FunctionValue)?._node == _node;
         }
 
         public override int GetHashCode() {
             return 261563 ^ _node.GetHashCode();
-        }
-
-        public override string ToAnnotation(IAnalysisState state) {
-            
-            return "Callable";
-        }
-
-        public IReadOnlyList<AnalysisValue> Call(
-            VariableKey self,
-            IReadOnlyList<IReadOnlyList<AnalysisValue>> args,
-            IReadOnlyDictionary<string, IReadOnlyList<AnalysisValue>> keywordArgs,
-            Func<string, IReadOnlyList<AnalysisValue>> getVariable
-        ) {
-            return null;
         }
     }
 }

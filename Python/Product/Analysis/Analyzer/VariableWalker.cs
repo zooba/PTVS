@@ -31,6 +31,7 @@ using Microsoft.PythonTools.Infrastructure;
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     class VariableWalker : ScopeTrackingWalker {
         private readonly PythonLanguageService _analyzer;
+        private readonly BuiltinsModule _builtins;
         private readonly AnalysisState _state;
         private readonly Dictionary<string, Variable> _vars;
         private readonly List<AnalysisRule> _rules;
@@ -47,6 +48,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         ) {
             _analyzer = analyzer;
             _state = state;
+            _builtins = _analyzer.BuiltinsModule;
             _vars = new Dictionary<string, Variable>();
             _rules = new List<AnalysisRule>();
 
@@ -84,23 +86,40 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        private string Add(NameExpression name, AnalysisValue value) {
-            return Add((name.Prefix ?? "") + name.Name, value);
-        }
-
-        private string Add(string key, AnalysisValue value) {
-            key = CurrentScopeWithSuffix + key;
-
+        private void Add(VariableKey key, AnalysisValue value) {
             Variable v;
-            if (!_vars.TryGetValue(key, out v)) {
-                _vars[key] = v = new Variable(_state, key);
+            if (!_vars.TryGetValue(key.Key, out v)) {
+                _vars[key.Key] = v = new Variable(_state, key.Key);
             }
 
             if (value != null) {
                 v.AddType(value);
             }
+        }
 
-            return key;
+        private T Add<T>(NameExpression name, Func<VariableKey, T> createValue) where T : AnalysisValue {
+            return Add((name.Prefix ?? "") + name.Name, createValue);
+        }
+
+        private string Add(NameExpression name, AnalysisValue value) {
+            return Add((name.Prefix ?? "") + name.Name, value);
+        }
+
+        private T Add<T>(string key, Func<VariableKey, T> createValue) where T : AnalysisValue {
+            var vk = new VariableKey(_state, CurrentScopeWithSuffix + key);
+
+            var value = createValue(vk);
+            Add(vk, value);
+
+            return value;
+        }
+
+        private string Add(string key, AnalysisValue value) {
+            var vk = new VariableKey(_state, CurrentScopeWithSuffix + key);
+
+            Add(vk, value);
+
+            return vk.Key;
         }
 
         private void Add(AnalysisRule rule) {
@@ -116,21 +135,20 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             if (expr.Value == null) {
-                return BuiltinTypes.None;
+                return _builtins.None;
             } else if (expr.Value == (object)true || expr.Value == (object)false) {
-                return BuiltinTypes.Bool.Instance;
+                return _builtins.Bool.Instance;
             } else if (expr.Value is int) {
-                return BuiltinTypes.Int.Instance;
+                return _builtins.Int.Instance;
             } else if (expr.Value is BigInteger) {
-                return _analyzer.Configuration.Version.Is3x() ?
-                    BuiltinTypes.Int.Instance :
-                    BuiltinTypes.Long.Instance;
+                // builtins handles the 3 vs 2 difference
+                return _builtins.Long.Instance;
             } else if (expr.Value is double) {
-                return BuiltinTypes.Float.Instance;
+                return _builtins.Float.Instance;
             } else if (expr.Value is ByteString) {
-                return BuiltinTypes.Bytes.Instance;
+                return _builtins.Bytes.Instance;
             } else if (expr.Value is string) {
-                return BuiltinTypes.String.Instance;
+                return _builtins.Str.Instance;
             }
             return null;
         }
@@ -266,7 +284,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         public override bool Walk(ClassDefinition node) {
-            Add(node.Name, new ClassInfo(node));
+            Add(node.Name, key => new ClassValue(key, node));
 
             if (Defer(node)) {
                 foreach (var d in node.Decorators.MaybeEnumerate()) {
@@ -282,9 +300,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         public override bool Walk(FunctionDefinition node) {
-            var fullName = Add(node.Name, null);
-            var fi = new FunctionInfo(node, fullName);
-            Add(node.Name, fi);
+            var key = string.Format("{0}@{1}", node.Name, node.Span.Start.Index);
+            var fi = Add(key, k => new FunctionValue(k, node, CurrentScopeWithSuffix + node.Name));
 
             if (Defer(node)) {
                 foreach (var d in node.Decorators.MaybeEnumerate()) {
@@ -299,24 +316,21 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     defaults.Add(null);
                 }
 
-                EnterScope(fi.Key, "#");
+                EnterScope(fi.Key.Key, "#");
                 int parameterNumber = 0;
                 var defaultsEnum = defaults.GetEnumerator();
                 foreach (var p in (node.Parameters?.Parameters).MaybeEnumerate()) {
-                    ParameterInfo pi;
-                    string pKey;
-                    if (p.Kind == ParameterKind.List) {
-                        pi = ParameterInfo.ListParameter;
-                    } else if (p.Kind == ParameterKind.Dictionary) {
-                        pi = ParameterInfo.DictParameter;
-                    } else if (p.Kind == ParameterKind.KeywordOnly) {
-                        pi = null;
-                    } else {
-                        pi = ParameterInfo.Create(parameterNumber++);
-                    }
-                    pKey = Add(p.Name, pi);
-                    if (pi != null) {
-                        Add(pi.KeySuffix, null);
+                    // Add the local variable for the parameter
+                    var pv = Add(p.Name, v => {
+                        if (p.Kind != ParameterKind.KeywordOnly) {
+                            return new ParameterValue(fi.Key, p.Kind, parameterNumber++);
+                        }
+                        return null;
+                    });
+
+                    if (pv != null) {
+                        // Add the positional field for the parameter
+                        Add(pv.Key, null);
                     }
                     if (defaultsEnum.MoveNext()) {
                         Add(p.Name, defaultsEnum.Current);
@@ -324,7 +338,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 }
 
                 node.Body?.Walk(this);
-                LeaveScope(fi.Key, "#");
+                LeaveScope(fi.Key.Key, "#");
             }
 
             return false;
@@ -347,7 +361,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 var asName = ImportStatement.GetAsName(n);
                 var mi = _analyzer.ResolveImport(importName, "");
                 Add(asName, null);
-                Add(new Rules.ImportFromModule(mi, ModuleInfo.VariableName, asName));
+                Add(new Rules.ImportFromModule(mi, ModuleValue.VariableName, asName));
             }
 
             return false;

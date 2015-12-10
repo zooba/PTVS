@@ -48,6 +48,19 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         /// Generators that raise StopIteration should be translated to a runtime error
         /// </summary>
         GeneratorStop = 0x0020,
+
+        /// <summary>
+        /// Indicates that no information about futures is available
+        /// </summary>
+        Invalid = 0x7FFFFFFF
     }
 
+    static class FutureOptionsExtensions {
+        public static FutureOptions ThrowIfInvalid(this FutureOptions source) {
+            if (source == FutureOptions.Invalid) {
+                throw new InvalidOperationException("cannot determine state in this context");
+            }
+            return source;
+        }
+    }
 }

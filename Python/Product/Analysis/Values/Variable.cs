@@ -17,25 +17,24 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    sealed class Variable {
-        private readonly AnalysisState _state;
-        private readonly string _key;
+    public sealed class Variable {
+        private readonly VariableKey _key;
         private readonly AnalysisSet _types;
 
         internal Variable(AnalysisState state, string key) {
-            _state = state;
-            _key = key;
+            _key = new VariableKey(state, key);
             _types = new AnalysisSet();
         }
 
-        public IAnalysisState State => _state;
-        public VariableKey Key => new VariableKey(_state, _key);
+        public VariableKey Key => _key;
         public long Version => _types.Version;
 
-        public AnalysisSet Types => _types.Clone(true);
+        public IAnalysisSet Types => _types.Clone(true);
 
         internal void AddType(AnalysisValue type) {
             if (type == null) {
@@ -46,8 +45,13 @@ namespace Microsoft.PythonTools.Analysis.Values {
             }
         }
 
-        public string ToAnnotationString(IAnalysisState state) {
-            return string.Format("{{{0}}}", string.Join(", ", _types.Select(k => k.ToAnnotation(state))));
+        public async Task<string> ToAnnotationStringAsync(CancellationToken cancellationToken) {
+            var types = _types;
+            var names = new List<string>(types.Count);
+            foreach (var t in types) {
+                names.Add(await t.ToAnnotationAsync(cancellationToken));
+            }
+            return string.Format("{{{0}}}", string.Join(", ", names));
         }
     }
 }

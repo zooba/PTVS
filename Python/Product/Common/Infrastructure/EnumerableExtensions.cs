@@ -33,5 +33,19 @@ namespace Microsoft.PythonTools.Common.Infrastructure {
         public static IEnumerable<T> SelectMany<T>(this IEnumerable<IEnumerable<T>> source) {
             return source.SelectMany(Identity);
         }
+
+        public static IEnumerable<T> Ordered<T>(this IEnumerable<T> source) {
+            return source.OrderBy(Identity);
+        }
+
+        public static IEnumerable<T> Except<T>(this IEnumerable<T> source, T value) {
+            return source.Where(v => {
+                try {
+                    return !v.Equals(value);
+                } catch (NullReferenceException) {
+                    return false;
+                }
+            });
+        }
     }
 }

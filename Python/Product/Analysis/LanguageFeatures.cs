@@ -34,7 +34,7 @@ namespace Microsoft.PythonTools.Analysis {
         }
 
         public bool HasAnnotations => _version >= PythonLanguageVersion.V30;
-        public bool HasAs => _version >= PythonLanguageVersion.V26 || _future.HasFlag(FutureOptions.WithStatement);
+        public bool HasAs => _future.ThrowIfInvalid().HasFlag(FutureOptions.WithStatement) || _version >= PythonLanguageVersion.V26;
         public bool HasAsyncAwait => _version >= PythonLanguageVersion.V35;
         public bool HasBareStarParameter => _version.Is3x();
         public bool HasBytesPrefix => _version >= PythonLanguageVersion.V26;
@@ -44,20 +44,23 @@ namespace Microsoft.PythonTools.Analysis {
         public bool HasExecStatement => _version.Is2x();
         public bool HasGeneralUnpacking => _version >= PythonLanguageVersion.V35;
         public bool HasGeneratorReturn => _version >= PythonLanguageVersion.V33;
+        public bool HasLong => _version.Is2x();
         public bool HasNonlocal => _version.Is3x();
-        public bool HasPrintFunction => _version.Is3x() || _future.HasFlag(FutureOptions.PrintFunction);
+        public bool HasPrintFunction => _future.ThrowIfInvalid().HasFlag(FutureOptions.PrintFunction) || _version.Is3x();
         public bool HasRawBytesPrefix => _version >= PythonLanguageVersion.V33;
         public bool HasReprLiterals => _version.Is2x();
         public bool HasSetLiterals => _version >= PythonLanguageVersion.V27;
         public bool HasStarUnpacking => _version.Is3x();
         public bool HasSublistParameters => _version.Is2x();
-        public bool HasTrueDivision => _version.Is3x() || _future.HasFlag(FutureOptions.TrueDivision);
+        public bool HasTrueDivision => _future.ThrowIfInvalid().HasFlag(FutureOptions.TrueDivision) || _version.Is3x();
         public bool HasTupleAsComprehensionTarget => _version.Is2x();
-        public bool HasUnicodeLiterals => _version.Is3x() || _future.HasFlag(FutureOptions.UnicodeLiterals);
+        public bool HasUnicodeLiterals => _future.ThrowIfInvalid().HasFlag(FutureOptions.UnicodeLiterals) || _version.Is3x();
         public bool HasUnicodePrefix => _version < PythonLanguageVersion.V30 || _version >= PythonLanguageVersion.V33;
-        public bool HasWith => _version >= PythonLanguageVersion.V26 || _future.HasFlag(FutureOptions.WithStatement);
+        public bool HasWith => _future.ThrowIfInvalid().HasFlag(FutureOptions.WithStatement) || _version >= PythonLanguageVersion.V26;
         public bool HasYieldFrom => _version >= PythonLanguageVersion.V33;
 
         public bool IsUnicodeCalledStr => _version.Is3x();
+
+        public string BuiltinsName => _version.Is3x() ? "builtins" : "__builtin__";
     }
 }

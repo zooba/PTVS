@@ -18,23 +18,28 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    class TypeInfo : AnalysisValue {
+    class TypeValue : AnalysisValue {
         private readonly string _name;
-        private readonly InstanceInfo _instance;
+        private readonly InstanceValue _instance;
 
-        public TypeInfo(string name) : base(BuiltinTypes.Type) {
+        public TypeValue(VariableKey key, string name) : base(key) {
             _name = name;
-            _instance = new InstanceInfo(this);
+            _instance = new InstanceValue(Key);
         }
 
         public AnalysisValue Instance => _instance;
 
-        public override string ToAnnotation(IAnalysisState state) => "type";
+        public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
+            return "type";
+        }
 
-        public virtual string ToInstanceAnnotation(IAnalysisState state) => _name;
+        public virtual async Task<string> ToInstanceAnnotationAsync(CancellationToken cancellationToken) {
+            return _name;
+        }
     }
 }
