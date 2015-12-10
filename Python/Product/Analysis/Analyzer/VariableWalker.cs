@@ -339,6 +339,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
                 node.Body?.Walk(this);
                 LeaveScope(fi.Key.Key, "#");
+
+                // TODO: Generate decorator calls
+                Add(new Rules.NameLookup(fi.Key, Add(node.Name, null)));
             }
 
             return false;

@@ -60,6 +60,11 @@ namespace Microsoft.PythonTools.Analysis.Rules {
                         if (pTypes != null) {
                             values.AddRange(pTypes);
                         }
+                        var pKey = p.GetCallKey(_function);
+                        pTypes = pKey.GetTypes(state) ?? await pKey.GetTypesAsync(cancellationToken);
+                        if (pTypes != null) {
+                            values.AddRange(pTypes);
+                        }
                     } else {
                         values.Add(t);
                     }

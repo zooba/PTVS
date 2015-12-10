@@ -28,16 +28,16 @@ namespace Microsoft.PythonTools.Analysis.Values {
         private readonly ParameterKind _kind;
         private readonly int _index;
 
-        private static VariableKey GetKey(VariableKey callable, ParameterKind kind, int index) {
+        private static VariableKey GetKey(VariableKey callable, ParameterKind kind, int index, string suffix = "") {
             switch (kind) {
                 case ParameterKind.List:
-                    return callable + "$*";
+                    return callable + suffix + "$*";
                 case ParameterKind.Dictionary:
-                    return callable + "$**";
+                    return callable + suffix + "$**";
                 case ParameterKind.KeywordOnly:
                     throw new InvalidOperationException("cannot create ParameterValue for keyword parameter");
                 default:
-                    return callable + string.Format("${0}", index);
+                    return callable + suffix + string.Format("${0}", index);
             }
         }
 
@@ -49,6 +49,10 @@ namespace Microsoft.PythonTools.Analysis.Values {
 
         public ParameterKind Kind => _kind;
         public int Index => _index;
+
+        public VariableKey GetCallKey(VariableKey callSite) {
+            return GetKey(callSite, _kind, _index, "#");
+        }
 
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             if (_kind == ParameterKind.List) {
