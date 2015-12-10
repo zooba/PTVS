@@ -68,17 +68,13 @@ namespace Microsoft.PythonTools.Analysis {
             return Task.FromResult(EmptyNames);
         }
 
-        public virtual async Task<IAnalysisSet> Call(
-            IAnalysisState caller,
-            VariableKey callSite,
-            CancellationToken cancellationToken
-        ) {
+        public virtual async Task<IAnalysisSet> Call(CallSiteKey callSite, CancellationToken cancellationToken) {
             if (Key.IsEmpty) {
                 return AnalysisSet.Empty;
             }
-            var call = await GetAttribute(caller, "__call__", cancellationToken);
+            var call = await GetAttribute(callSite.State, "__call__", cancellationToken);
             if (call != null) {
-                return await call.Except(this).Call(caller, callSite, cancellationToken);
+                return await call.Except(this).Call(callSite, cancellationToken);
             }
             // TODO: Report uncallable object
             //await _key.State.ReportErrorAsync();

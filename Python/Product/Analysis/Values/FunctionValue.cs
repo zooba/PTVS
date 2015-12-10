@@ -34,26 +34,14 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _fullName = fullName;
         }
 
-        public override async Task<IAnalysisSet> Call(
-            IAnalysisState caller,
-            VariableKey callSite,
-            CancellationToken cancellationToken
-        ) {
+        public override async Task<IAnalysisSet> Call(CallSiteKey callSite, CancellationToken cancellationToken) {
             var values = new AnalysisSet();
             var returnKey = Key + "#$r";
-            var types = returnKey.GetTypes(caller) ?? await returnKey.GetTypesAsync(cancellationToken);
+            var types = returnKey.GetTypes(callSite.State) ?? await returnKey.GetTypesAsync(cancellationToken);
             foreach (var t in types.MaybeEnumerate()) {
                 var p = t as ParameterValue;
                 if (p != null) {
-                    var pTypes = p.Key.GetTypes(caller) ?? await p.Key.GetTypesAsync(cancellationToken);
-                    if (pTypes != null) {
-                        values.AddRange(pTypes);
-                    }
-                    var pKey = p.GetCallKey(callSite);
-                    pTypes = pKey.GetTypes(caller) ?? await pKey.GetTypesAsync(cancellationToken);
-                    if (pTypes != null) {
-                        values.AddRange(pTypes);
-                    }
+                    values.AddRange(await callSite.GetArgValue(p, cancellationToken));
                 } else {
                     values.Add(t);
                 }

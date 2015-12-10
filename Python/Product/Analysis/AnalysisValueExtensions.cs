@@ -64,13 +64,12 @@ namespace Microsoft.PythonTools.Analysis {
 
         public static async Task<IAnalysisSet> Call(
             this IEnumerable<AnalysisValue> values,
-            IAnalysisState caller,
-            VariableKey callSite,
+            CallSiteKey callSite,
             CancellationToken cancellationToken
         ) {
             IAnalysisSet result = null;
             foreach (var t in values) {
-                Add(ref result, await t.Call(caller, callSite, cancellationToken));
+                Add(ref result, await t.Call(callSite, cancellationToken));
             }
             return result;
         }

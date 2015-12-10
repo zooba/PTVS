@@ -166,6 +166,9 @@ x = z".AnalyzeAsync(Configuration);
                 yield return "any bool";
                 yield return "ascii str";
                 yield return "bin str";
+                yield return "callable bool";
+                yield return "compile code";
+                yield return "delattr None";
             }
         }
 

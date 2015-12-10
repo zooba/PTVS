@@ -27,13 +27,13 @@ using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Rules {
     class ReturnValueLookup : AnalysisRule {
-        private readonly VariableKey _function;
+        private readonly CallSiteKey _function;
 
-        public ReturnValueLookup(VariableKey function, string target) : base(target) {
+        public ReturnValueLookup(CallSiteKey function, string target) : base(target) {
             _function = function;
         }
 
-        public ReturnValueLookup(VariableKey function, IEnumerable<string> targets) : base(targets) {
+        public ReturnValueLookup(CallSiteKey function, IEnumerable<string> targets) : base(targets) {
             _function = function;
         }
 
@@ -43,13 +43,13 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             IReadOnlyDictionary<string, IAnalysisSet> priorResults,
             CancellationToken cancellationToken
         ) {
-            var callables = _function.GetTypes(state) ?? await _function.GetTypesAsync(cancellationToken);
+            var callables = await _function.GetCallableAsync(cancellationToken);
             if (callables == null) {
                 return null;
             }
 
             var vars = state.GetVariables();
-            var values = await callables.Call(state, _function, cancellationToken);
+            var values = await callables.Call(_function, cancellationToken);
 
             var result = new Dictionary<string, IAnalysisSet>();
             bool anyChanged = false;

@@ -65,7 +65,16 @@ namespace Microsoft.PythonTools.Analysis {
         }
 
         public override string ToString() {
-            return new DebugViewProxy(this).ToString();
+            var bits = State?.Document?.Moniker?.Split('\\') ?? Enumerable.Empty<string>();
+            var stateName = bits.LastOrDefault() ?? "<unknown>";
+            foreach (var bit in bits.Reverse().Skip(1)) {
+                if (stateName.Length + 1 + bit.Length > 40) {
+                    stateName = "...\\" + stateName;
+                    break;
+                }
+                stateName = bit + "\\" + stateName;
+            }
+            return string.Format("{0} in {1}", Key, stateName);
         }
 
         public Task<IAnalysisSet> GetTypesAsync(CancellationToken cancellationToken) {
@@ -98,27 +107,13 @@ namespace Microsoft.PythonTools.Analysis {
             public DebugViewProxy(VariableKey source) {
                 State = source.State;
                 Key = source.Key;
-                var bits = (State?.Document?.Moniker ?? "(null)").Split('\\');
-                ShortStatePath = bits.Last();
-                foreach (var bit in bits.Reverse().Skip(1)) {
-                    if (ShortStatePath.Length + bit.Length + 1 > 50) {
-                        ShortStatePath = "...\\" + ShortStatePath;
-                        break;
-                    }
-                    ShortStatePath = bit + "\\" + ShortStatePath;
-                }
+                Source = State?.Document?.Moniker;
                 // Passing source.State to this is a bit of a nasty hack, but
                 // since it's only used while debugging it should be fine.
                 Types = source.GetTypes(source.State)?.ToArray();
             }
 
-            public override string ToString() {
-                return string.Format("{0} in {1}", Key, ShortStatePath);
-            }
-
-            [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-            public string ShortStatePath;
-
+            public readonly string Source;
             public readonly IAnalysisState State;
             public readonly string Key;
 

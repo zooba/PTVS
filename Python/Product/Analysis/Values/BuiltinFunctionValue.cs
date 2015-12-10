@@ -22,11 +22,7 @@ using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     class BuiltinFunctionValue : CallableValue {
-        public delegate Task<IAnalysisSet> CallDelegate(
-            IAnalysisState caller,
-            VariableKey callSite,
-            CancellationToken cancellationToken
-        );
+        public delegate Task<IAnalysisSet> CallDelegate(CallSiteKey callSite, CancellationToken cancellationToken);
 
         private readonly string _annotation;
         private readonly CallDelegate _onCall;
@@ -40,35 +36,8 @@ namespace Microsoft.PythonTools.Analysis.Values {
             return Task.FromResult(_annotation);
         }
 
-        public override Task<IAnalysisSet> Call(
-            IAnalysisState caller,
-            VariableKey callSite,
-            CancellationToken cancellationToken
-        ) {
-            return _onCall(caller, callSite, cancellationToken);
-        }
-
-        public static async Task<IAnalysisSet> GetArgValue(
-            IAnalysisState caller,
-            VariableKey callSite,
-            int index,
-            string name,
-            CancellationToken cancellationToken
-        ) {
-            VariableKey pKey;
-            IAnalysisSet values;
-            if (index >= 0) {
-                pKey = callSite + string.Format("#$p{0}", index);
-                values = pKey.GetTypes(caller) ?? await pKey.GetTypesAsync(cancellationToken);
-                if (values != null && values.Any()) {
-                    return values;
-                }
-            }
-            if (!string.IsNullOrEmpty(name)) {
-                pKey = callSite + ("#" + name);
-                return pKey.GetTypes(caller) ?? await pKey.GetTypesAsync(cancellationToken);
-            }
-            return AnalysisSet.Empty;
+        public override Task<IAnalysisSet> Call(CallSiteKey callSite, CancellationToken cancellationToken) {
+            return _onCall(callSite, cancellationToken);
         }
     }
 }

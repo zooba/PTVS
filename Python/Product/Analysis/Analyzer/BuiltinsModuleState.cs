@@ -51,11 +51,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return Task.FromResult<Tokenization>(null);
         }
 
-        public Task<IAnalysisSet> GetTypesAsync(string name, CancellationToken cancellationToken) {
+        public async Task<IAnalysisSet> GetTypesAsync(string name, CancellationToken cancellationToken) {
             if (!name.StartsWith(_namePrefix)) {
                 return null;
             }
-            return _builtinsModule.GetAttribute(this, name.Substring(_namePrefix.Length), cancellationToken);
+            return _builtinsModule.GetAttribute(name.Substring(_namePrefix.Length), false);
         }
 
         public Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken) {

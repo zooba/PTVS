@@ -40,7 +40,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
                     }
                 } else {
                     foreach (var value in group) {
-                        annotations.Add(await ((TypeValue)value).ToAnnotationAsync(cancellationToken));
+                        annotations.Add(await value.ToAnnotationAsync(cancellationToken));
                     }
                 }
             }

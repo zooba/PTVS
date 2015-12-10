@@ -176,7 +176,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return true;
             }
 
-            var builtin = _builtins.GetAttribute(expr.Name);
+            var builtin = _builtins.GetAttribute(expr.Name, true);
             if (builtin != null) {
                 foreach (var t in targets) {
                     if (!_vars.TryGetValue(t, out variable)) {
@@ -222,7 +222,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 }
             }
             Assign(string.Format("{0}#$r", callKey), null);
-            Add(new Rules.ReturnValueLookup(new VariableKey(_state, callKey), targets));
+            Add(new Rules.ReturnValueLookup(new CallSiteKey(_state, callKey), targets));
             return true;
         }
 

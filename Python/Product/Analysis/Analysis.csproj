@@ -73,6 +73,7 @@
     <Compile Include="Analyzer\Tasks\QueueItem.cs" />
     <Compile Include="Analyzer\Tasks\UpdateVariables.cs" />
     <Compile Include="Analyzer\VariableWalker.cs" />
+    <Compile Include="CallSiteKey.cs" />
     <Compile Include="DictionaryPrefixWrapper.cs" />
     <Compile Include="FileSourceDocument.cs" />
     <Compile Include="IAnalysisSet.cs" />

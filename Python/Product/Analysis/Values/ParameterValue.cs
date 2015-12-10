@@ -15,16 +15,12 @@
 // permissions and limitations under the License.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    class ParameterValue : AnalysisValue {
+    public class ParameterValue : AnalysisValue {
         private readonly ParameterKind _kind;
         private readonly int _index;
 
@@ -49,10 +45,6 @@ namespace Microsoft.PythonTools.Analysis.Values {
 
         public ParameterKind Kind => _kind;
         public int Index => _index;
-
-        public VariableKey GetCallKey(VariableKey callSite) {
-            return GetKey(callSite, _kind, _index, "#");
-        }
 
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             if (_kind == ParameterKind.List) {
