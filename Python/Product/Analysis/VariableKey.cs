@@ -23,6 +23,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Values;
+using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis {
     [DebuggerTypeProxy(typeof(DebugViewProxy))]
@@ -85,7 +86,7 @@ namespace Microsoft.PythonTools.Analysis {
                 if (state.GetVariables().TryGetValue(key, out variable)) {
                     return variable
                         .Types
-                        .Concat(state.GetRules().SelectMany(r => r.GetTypes(key)))
+                        .Concat(state.GetRules().MaybeEnumerate().Select(r => r.GetTypes(key)).Where(r => r != null).SelectMany())
                         .Where(r => r != AnalysisValue.Empty)
                         .ToSet();
                 }

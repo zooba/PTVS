@@ -18,9 +18,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
+using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     public class FunctionValue : CallableValue {
@@ -32,12 +34,31 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _fullName = fullName;
         }
 
-        public override bool Equals(object obj) {
-            return (obj as FunctionValue)?._node == _node;
-        }
-
-        public override int GetHashCode() {
-            return 261563 ^ _node.GetHashCode();
+        public override async Task<IAnalysisSet> Call(
+            IAnalysisState caller,
+            VariableKey callSite,
+            CancellationToken cancellationToken
+        ) {
+            var values = new AnalysisSet();
+            var returnKey = Key + "#$r";
+            var types = returnKey.GetTypes(caller) ?? await returnKey.GetTypesAsync(cancellationToken);
+            foreach (var t in types.MaybeEnumerate()) {
+                var p = t as ParameterValue;
+                if (p != null) {
+                    var pTypes = p.Key.GetTypes(caller) ?? await p.Key.GetTypesAsync(cancellationToken);
+                    if (pTypes != null) {
+                        values.AddRange(pTypes);
+                    }
+                    var pKey = p.GetCallKey(callSite);
+                    pTypes = pKey.GetTypes(caller) ?? await pKey.GetTypesAsync(cancellationToken);
+                    if (pTypes != null) {
+                        values.AddRange(pTypes);
+                    }
+                } else {
+                    values.Add(t);
+                }
+            }
+            return values;
         }
     }
 }

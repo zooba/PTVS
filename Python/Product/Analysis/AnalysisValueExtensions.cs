@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis {
@@ -50,25 +51,26 @@ namespace Microsoft.PythonTools.Analysis {
         }
         public static async Task<IAnalysisSet> GetAttribute(
             this IEnumerable<AnalysisValue> values, 
+            IAnalysisState caller,
             string attribute,
             CancellationToken cancellationToken
         ) {
             IAnalysisSet result = null;
             foreach (var t in values) {
-                Add(ref result, await t.GetAttribute(attribute, cancellationToken));
+                Add(ref result, await t.GetAttribute(caller, attribute, cancellationToken));
             }
             return result;
         }
 
         public static async Task<IAnalysisSet> Call(
-            this IEnumerable<AnalysisValue> values, 
-            IReadOnlyList<VariableKey> args,
-            IReadOnlyDictionary<string, VariableKey> keywordArgs,
+            this IEnumerable<AnalysisValue> values,
+            IAnalysisState caller,
+            VariableKey callSite,
             CancellationToken cancellationToken
         ) {
             IAnalysisSet result = null;
             foreach (var t in values) {
-                Add(ref result, await t.Call(args, keywordArgs, cancellationToken));
+                Add(ref result, await t.Call(caller, callSite, cancellationToken));
             }
             return result;
         }

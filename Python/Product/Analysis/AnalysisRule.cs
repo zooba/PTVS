@@ -66,6 +66,8 @@ namespace Microsoft.PythonTools.Analysis {
             IAnalysisSet newResults
         ) {
             if (priorResults == null) {
+                return newResults == null;
+            } else if (newResults == null) {
                 return false;
             }
             IAnalysisSet oldResults;

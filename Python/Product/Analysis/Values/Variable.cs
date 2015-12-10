@@ -40,9 +40,14 @@ namespace Microsoft.PythonTools.Analysis.Values {
             if (type == null) {
                 return;
             }
-            if (!_types.Contains(type)) {
-                _types.Add(type);
+            _types.Add(type);
+        }
+
+        internal void AddTypes(IAnalysisSet set) {
+            if (set == null || !set.Any()) {
+                return;
             }
+            _types.AddRange(set);
         }
 
         public async Task<string> ToAnnotationStringAsync(CancellationToken cancellationToken) {

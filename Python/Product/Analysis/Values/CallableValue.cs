@@ -14,15 +14,5 @@ namespace Microsoft.PythonTools.Analysis.Values {
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             return "Callable";
         }
-
-        public virtual IReadOnlyList<AnalysisValue> Call(
-            VariableKey self,
-            IReadOnlyList<IReadOnlyList<AnalysisValue>> args,
-            IReadOnlyDictionary<string, IReadOnlyList<AnalysisValue>> keywordArgs,
-            Func<string, IReadOnlyList<AnalysisValue>> getVariable
-        ) {
-            return null;
-        }
-
     }
 }

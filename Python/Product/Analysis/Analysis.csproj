@@ -142,7 +142,7 @@
     <Compile Include="Rules\ImportFromModule.cs" />
     <Compile Include="Rules\NameLookup.cs" />
     <Compile Include="Rules\ReturnValueLookup.cs" />
-    <Compile Include="Values\BuiltinFunctionInfo.cs" />
+    <Compile Include="Values\BuiltinFunctionValue.cs" />
     <Compile Include="Values\BuiltinsModule.cs" />
     <Compile Include="Values\CallableValue.cs" />
     <Compile Include="Values\ClassValue.cs" />

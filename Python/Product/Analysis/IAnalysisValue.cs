@@ -20,15 +20,12 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis {
     public interface IAnalysisValue {
         Task<string> ToAnnotationAsync(CancellationToken cancellationToken);
-        Task<IAnalysisSet> GetAttribute(string attribute, CancellationToken cancellationToken);
-        Task<IAnalysisSet> Call(
-            IReadOnlyList<VariableKey> args,
-            IReadOnlyDictionary<string, VariableKey> keywordArgs,
-            CancellationToken cancellationToken
-        );
+        Task<IAnalysisSet> GetAttribute(IAnalysisState caller, string attribute, CancellationToken cancellationToken);
+        Task<IAnalysisSet> Call(IAnalysisState caller, VariableKey callSite, CancellationToken cancellationToken);
     }
 }

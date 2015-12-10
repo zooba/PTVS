@@ -35,6 +35,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
         }
 
         public string FullName => _fullname;
+        public string Moniker => _moniker;
 
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             return _fullname;

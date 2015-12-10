@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis {
     /// <summary>
@@ -49,6 +50,7 @@ namespace Microsoft.PythonTools.Analysis {
         private long _version;
 
         public static readonly IAnalysisSet Empty = new AnalysisSet();
+        public static readonly Task<IAnalysisSet> EmptyTask = Task.FromResult(Empty);
 
         // Flags merged into _version
         private const long Mask = 0x7000000000000000;
@@ -222,6 +224,9 @@ namespace Microsoft.PythonTools.Analysis {
         public bool SetEquals(IAnalysisSet other) {
             if (ReferenceEquals(this, other)) {
                 return true;
+            }
+            if (other == null) {
+                return false;
             }
             var otherHc = new HashSet<AnalysisValue>(other, _comparer);
             foreach (var key in this) {

@@ -171,13 +171,22 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     break;
                 }
             }
-            if (variable == null) {
-                return false;
+            if (variable != null) {
+                _rules.Add(new Rules.NameLookup(variable.Key, targets));
+                return true;
             }
 
-            _rules.Add(new Rules.NameLookup(variable.Key, targets));
-            
-            return true;
+            var builtin = _builtins.GetAttribute(expr.Name);
+            if (builtin != null) {
+                foreach (var t in targets) {
+                    if (!_vars.TryGetValue(t, out variable)) {
+                        _vars[t] = variable = new Variable(_state, t);
+                    }
+                    variable.AddTypes(builtin);
+                }
+            }
+
+            return false;
         }
 
         private bool GetAttributeValue(MemberExpression expr, IEnumerable<string> targets) {

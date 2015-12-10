@@ -20,21 +20,26 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     class NumericValue : TypeValue {
-        private readonly Dictionary<string, BuiltinFunctionInfo> _members;
+        private readonly Dictionary<string, BuiltinFunctionValue> _members;
 
         public NumericValue(VariableKey key, string name) : base(key, name) {
-            _members = new Dictionary<string, BuiltinFunctionInfo>();
+            _members = new Dictionary<string, BuiltinFunctionValue>();
         }
 
-        public override Task<IAnalysisSet> GetAttribute(string attribute, CancellationToken cancellationToken) {
-            BuiltinFunctionInfo member;
+        public override Task<IAnalysisSet> GetAttribute(
+            IAnalysisState caller,
+            string attribute,
+            CancellationToken cancellationToken
+        ) {
+            BuiltinFunctionValue member;
             if (_members.TryGetValue(attribute, out member)) {
                 return Task.FromResult<IAnalysisSet>(member);
             }
-            return base.GetAttribute(attribute, cancellationToken);
+            return base.GetAttribute(caller, attribute, cancellationToken);
         }
     }
 }

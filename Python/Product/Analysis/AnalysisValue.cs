@@ -52,19 +52,16 @@ namespace Microsoft.PythonTools.Analysis {
             return Task.FromResult(string.Empty);
         }
 
-        public virtual Task<IAnalysisSet> GetAttribute(
+        public virtual async Task<IAnalysisSet> GetAttribute(
+            IAnalysisState caller,
             string attribute,
             CancellationToken cancellationToken
         ) {
             if (Key.IsEmpty) {
-                return Task.FromResult(AnalysisSet.Empty);
+                return AnalysisSet.Empty;
             }
             var attr = Key + ("." + attribute);
-            var res = attr.GetTypes(Key.State);
-            if (res != null) {
-                return Task.FromResult(res);
-            }
-            return attr.GetTypesAsync(cancellationToken);
+            return attr.GetTypes(caller) ?? await attr.GetTypesAsync(cancellationToken);
         }
 
         public virtual Task<IReadOnlyCollection<string>> GetAttributeNames(CancellationToken cancellationToken) {
@@ -72,16 +69,16 @@ namespace Microsoft.PythonTools.Analysis {
         }
 
         public virtual async Task<IAnalysisSet> Call(
-            IReadOnlyList<VariableKey> args,
-            IReadOnlyDictionary<string, VariableKey> keywordArgs,
+            IAnalysisState caller,
+            VariableKey callSite,
             CancellationToken cancellationToken
         ) {
             if (Key.IsEmpty) {
                 return AnalysisSet.Empty;
             }
-            var call = await GetAttribute("__call__", cancellationToken);
+            var call = await GetAttribute(caller, "__call__", cancellationToken);
             if (call != null) {
-                return await call.Except(this).Call(args, keywordArgs, cancellationToken);
+                return await call.Except(this).Call(caller, callSite, cancellationToken);
             }
             // TODO: Report uncallable object
             //await _key.State.ReportErrorAsync();

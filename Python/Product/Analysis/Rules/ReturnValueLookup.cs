@@ -49,31 +49,7 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             }
 
             var vars = state.GetVariables();
-            var values = new AnalysisSet();
-            foreach (var func in callables.OfType<FunctionValue>()) {
-                var returnKey = func.Key + "#$r";
-                var types = returnKey.GetTypes(state) ?? await returnKey.GetTypesAsync(cancellationToken);
-                foreach (var t in types.MaybeEnumerate()) {
-                    var p = t as ParameterValue;
-                    if (p != null) {
-                        var pTypes = p.Key.GetTypes(state) ?? await p.Key.GetTypesAsync(cancellationToken);
-                        if (pTypes != null) {
-                            values.AddRange(pTypes);
-                        }
-                        var pKey = p.GetCallKey(_function);
-                        pTypes = pKey.GetTypes(state) ?? await pKey.GetTypesAsync(cancellationToken);
-                        if (pTypes != null) {
-                            values.AddRange(pTypes);
-                        }
-                    } else {
-                        values.Add(t);
-                    }
-                }
-            }
-
-            foreach (var t in callables.OfType<BuiltinFunctionInfo>()) {
-                
-            }
+            var values = await callables.Call(state, _function, cancellationToken);
 
             var result = new Dictionary<string, IAnalysisSet>();
             bool anyChanged = false;

@@ -159,10 +159,36 @@ x = z".AnalyzeAsync(Configuration);
             await state.AssertAnnotationsAsync("h", "Callable");
         }
 
+        public virtual IEnumerable<string> BuiltinFunctionNames {
+            get {
+                yield return "abs x";
+                yield return "all bool";
+                yield return "any bool";
+                yield return "ascii str";
+                yield return "bin str";
+            }
+        }
+
         [TestMethod, Priority(0)]
         public async Task BuiltinFunctions() {
-            var state = await @"
-".AnalyzeAsync(Configuration);
+            var code = new StringBuilder();
+            var expected = new Dictionary<string, string>();
+            foreach (var fn in BuiltinFunctionNames) {
+                var name = fn.Split(' ')[0];
+                var type = fn.Split(' ')[1];
+                code.AppendLine(name + "_ = " + name + "(1)");
+                if (type == "x") {
+                    expected[name + "_"] = "int";
+                    code.AppendLine(name + "_f = " + name + "(1.0)");
+                    expected[name + "_f"] = "float";
+                } else {
+                    expected[name + "_"] = type;
+                }
+            }
+            var state = await code.ToString().AnalyzeAsync(Configuration);
+            foreach (var kv in expected) {
+                await state.AssertAnnotationsAsync(kv.Key, kv.Value);
+            }
         }
     }
 

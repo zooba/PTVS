@@ -55,7 +55,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             if (!name.StartsWith(_namePrefix)) {
                 return null;
             }
-            return _builtinsModule.GetAttribute(name.Substring(_namePrefix.Length), cancellationToken);
+            return _builtinsModule.GetAttribute(this, name.Substring(_namePrefix.Length), cancellationToken);
         }
 
         public Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken) {

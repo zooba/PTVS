@@ -14,6 +14,8 @@ namespace Microsoft.PythonTools.Analysis.Values {
         private readonly NumericValue _bool, _int, _long, _float;
         private readonly StringValue _bytes, _str;
 
+        private readonly BuiltinFunctionValue _abs;
+
         public BuiltinsModule(VariableKey key, string fullname, string name, string moniker) :
             base(key, fullname, name, moniker) {
             _noneType = new TypeValue(Key + ".NoneType", "None");
@@ -23,6 +25,16 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _float = new NumericValue(Key + ".float", "float");
             _bytes = new StringValue(Key, false);
             _str = new StringValue(Key, true);
+
+            _abs = new BuiltinFunctionValue(Key + ".abs", "Callable[T, T]", AbsCall);
+        }
+
+        private Task<IAnalysisSet> AbsCall(
+            IAnalysisState caller,
+            VariableKey callSite,
+            CancellationToken cancellationToken
+        ) {
+            return BuiltinFunctionValue.GetArgValue(caller, callSite, 0, null, cancellationToken);
         }
 
         internal AnalysisValue None => NoneType.Instance;
@@ -34,26 +46,29 @@ namespace Microsoft.PythonTools.Analysis.Values {
         internal StringValue Bytes => _bytes;
         internal StringValue Str => _str;
 
-        public async override Task<IAnalysisSet> GetAttribute(string attribute, CancellationToken cancellationToken) {
+        internal CallableValue Abs => _abs;
+
+        public async override Task<IAnalysisSet> GetAttribute(
+            IAnalysisState caller,
+            string attribute,
+            CancellationToken cancellationToken
+        ) {
+            return GetAttribute(attribute);
+        }
+
+        internal IAnalysisSet GetAttribute(string attribute) {
             switch (attribute) {
-                case "bool":
-                    return Bool;
-                case "int":
-                    return Int;
-                case "long":
-                    return Long;
-                case "float":
-                    return Float;
-                case "NoneType":
-                    return NoneType;
-                case "str":
-                    return Key.State.Features.IsUnicodeCalledStr ? Str : Bytes;
-                case "bytes":
-                    return Bytes;
-                case "unicode":
-                    return Str;
-                default:
-                    return null;
+                case "bool": return Bool;
+                case "int": return Int;
+                case "long": return Long;
+                case "float": return Float;
+                case "NoneType": return NoneType;
+                case "str": return Key.State.Features.IsUnicodeCalledStr ? Str : Bytes;
+                case "bytes": return Bytes;
+                case "unicode": return Str;
+
+                case "abs": return Abs;
+                default: return null;
             }
         }
     }
