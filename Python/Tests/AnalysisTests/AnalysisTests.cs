@@ -51,7 +51,9 @@ namespace AnalysisTests {
 
         [TestInitialize]
         public void TestInitialize() {
-            LanguageServiceProvider = new PythonLanguageServiceProvider();
+            LanguageServiceProvider = new PythonLanguageServiceProvider(new[] {
+                new OperatorModuleProvider()
+            });
             FileContextProvider = new PythonFileContextProvider();
         }
 
@@ -132,8 +134,8 @@ def g():
     y = x
     x = 1".AnalyzeAsync(Configuration);
             await state.AssertAnnotationsAsync("x", "float");
-            await state.AssertAnnotationsAsync("f@11#y", "float");
-            await state.AssertAnnotationsAsync("g@34#y", "int");
+            await state.AssertAnnotationsAsync("f@1#y", "float");
+            await state.AssertAnnotationsAsync("g@2#y", "int");
         }
 
         [TestMethod, Priority(0)]
@@ -147,9 +149,9 @@ y = g(1)
 z = g('abc')
 w = h()
 x = z".AnalyzeAsync(Configuration);
-            await state.AssertAnnotationsAsync("f@0#$r", "int");
+            await state.AssertAnnotationsAsync("f@1#$r", "int");
             await state.AssertAnnotationsAsync("x", "int", "str");
-            await state.AssertAnnotationsAsync("g@19#$r", "Parameter[0]");
+            await state.AssertAnnotationsAsync("g@2#$r", "Parameter[0]");
             await state.AssertAnnotationsAsync("y", "int");
             await state.AssertAnnotationsAsync("z", "str");
             await state.AssertAnnotationsAsync("w", "int", "str");
@@ -157,6 +159,19 @@ x = z".AnalyzeAsync(Configuration);
             await state.AssertAnnotationsAsync("f", "Callable");
             await state.AssertAnnotationsAsync("g", "Callable");
             await state.AssertAnnotationsAsync("h", "Callable");
+        }
+
+        [TestMethod, Priority(0)]
+        public async Task NumericOperators() {
+            var state = await @"x = 1 + 2
+y = 1.0 + 2
+z_p = x + y
+z_m = x - y
+".AnalyzeAsync(Configuration);
+            await state.AssertAnnotationsAsync("x", "int");
+            await state.AssertAnnotationsAsync("y", "float");
+            await state.AssertAnnotationsAsync("z_p", "float");
+            await state.AssertAnnotationsAsync("z_m", "float");
         }
 
         public virtual IEnumerable<string> BuiltinFunctionNames {

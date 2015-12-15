@@ -89,15 +89,15 @@ namespace Microsoft.PythonTools.Analysis {
         /// </summary>
         internal IAnalysisSet GetTypes(IAnalysisState callingState) {
             var state = callingState as AnalysisState;
-            if (state != null && callingState == state) {
-                Variable variable;
+            if (state != null && callingState == State) {
+                Variable variable = null;
                 var key = Key;
-                if (state.GetVariables().TryGetValue(key, out variable)) {
-                    return variable
-                        .Types
-                        .Concat(state.GetRules().MaybeEnumerate().Select(r => r.GetTypes(key)).Where(r => r != null).SelectMany())
-                        .Where(r => r != AnalysisValue.Empty)
-                        .ToSet();
+                if (state.GetVariables()?.TryGetValue(key, out variable) ?? false && variable != null) {
+                    var results = state.GetRuleResults();
+                    if (results == null) {
+                        return variable.Types;
+                    }
+                    return variable.Types.Union(results.GetTypes(key));
                 }
             }
             return null;

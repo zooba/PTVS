@@ -60,9 +60,11 @@
     <Compile Include="AnalysisRule.cs" />
     <Compile Include="AnalysisValueExtensions.cs" />
     <Compile Include="Analyzer\AnalysisState.cs" />
-    <Compile Include="Analyzer\BuiltinsModuleState.cs" />
+    <Compile Include="Analyzer\AnalysisStateExtensions.cs" />
+    <Compile Include="Analyzer\SourcelessModuleState.cs" />
     <Compile Include="Analyzer\FindScopeFromLocationWalker.cs" />
     <Compile Include="Analyzer\IAnalysisThread.cs" />
+    <Compile Include="Analyzer\IModuleProvider.cs" />
     <Compile Include="Analyzer\ScopeTrackingWalker.cs" />
     <Compile Include="Analyzer\Tasks\UpdateRules.cs" />
     <Compile Include="Analyzer\VariableChangedEventArgs.cs" />
@@ -143,6 +145,7 @@
     <Compile Include="Rules\ImportFromModule.cs" />
     <Compile Include="Rules\NameLookup.cs" />
     <Compile Include="Rules\ReturnValueLookup.cs" />
+    <Compile Include="RuleResults.cs" />
     <Compile Include="Values\BuiltinFunctionValue.cs" />
     <Compile Include="Values\BuiltinsModule.cs" />
     <Compile Include="Values\CallableValue.cs" />
@@ -152,6 +155,7 @@
     <Compile Include="Values\MethodWrapperValue.cs" />
     <Compile Include="Values\ModuleValue.cs" />
     <Compile Include="Values\NumericValue.cs" />
+    <Compile Include="Values\OperatorModule.cs" />
     <Compile Include="Values\ParameterValue.cs" />
     <Compile Include="Values\StringValue.cs" />
     <Compile Include="Values\TypeValue.cs" />

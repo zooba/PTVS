@@ -16,15 +16,14 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
+using System.Runtime.ExceptionServices;
+using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.PythonTools.Analysis.Values;
-using System.Threading;
-using System.IO;
 using Microsoft.PythonTools.Common.Infrastructure;
 using Microsoft.PythonTools.Infrastructure;
 
@@ -41,9 +40,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         private IReadOnlyDictionary<string, Variable> _variables;
         private IReadOnlyCollection<AnalysisRule> _rules;
+        private RuleResults _ruleResults;
 
         private TaskCompletionSource<object> _updated;
         private TaskCompletionSource<object> _upToDate;
+        private ExceptionDispatchInfo _exception;
         private long _version;
 
         internal AnalysisState(
@@ -91,17 +92,24 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             NotifyUpdated();
         }
 
-        private void NotifyUpdated() {
-            Interlocked.Exchange(ref _updated, null)?.SetResult(null);
-            _context?.NotifyDocumentAnalysisChanged(_document);
-            Interlocked.Increment(ref _version);
+        internal void SetRuleResults(RuleResults results) {
+            _ruleResults = results;
+            NotifyUpdated();
+        }
 
+        private void NotifyUpdated() {
             if (Volatile.Read(ref _upToDate) == null) {
                 Interlocked.CompareExchange(ref _upToDate, new TaskCompletionSource<object>(), null);
             }
+
+            Interlocked.Exchange(ref _updated, null)?.SetResult(null);
+            _context?.NotifyDocumentAnalysisChanged(_document);
+            Interlocked.Increment(ref _version);
         }
 
         internal async Task WaitForUpdateAsync(CancellationToken cancellationToken) {
+            _exception?.Throw();
+
             var updated = Volatile.Read(ref _updated);
             if (updated == null) {
                 var tcs = new TaskCompletionSource<object>();
@@ -132,73 +140,77 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             Interlocked.Exchange(ref _upToDate, null)?.SetResult(null);
         }
 
-        public Task WaitForUpToDateAsync(CancellationToken cancellationToken) {
+        public async Task WaitForUpToDateAsync(CancellationToken cancellationToken) {
+            _exception?.Throw();
+
             var upToDate = Volatile.Read(ref _upToDate);
             if (upToDate == null) {
-                return Task.FromResult<object>(null);
+                return;
             }
 
             var cancelTcs = new TaskCompletionSource<object>();
-            upToDate.Task.ContinueWith(t => cancelTcs.TrySetResult(null));
-            cancellationToken.Register(() => cancelTcs.TrySetCanceled());
-            return cancelTcs.Task;
+            upToDate.Task.ContinueWith(t => {
+                var c = cancelTcs;
+                if (c != null) {
+                    if (t.Exception != null) {
+                        c.TrySetException(t.Exception);
+                    } else {
+                        c.TrySetResult(null);
+                    }
+                }
+            }).DoNotWait();
+            using (cancellationToken.Register(() => cancelTcs.TrySetCanceled())) {
+                await cancelTcs.Task;
+                cancelTcs = null;
+            }
         }
 
-        public async Task<Tokenization> GetTokenizationAsync(CancellationToken cancellationToken) {
-            var tokenization = _tokenization;
-            if (tokenization != null) {
-                return tokenization;
-            }
+        internal void NotifyError(ExceptionDispatchInfo ex) {
+            _exception = ex;
 
-            if (_thread == null) {
-                while (true) {
-                    var t = _tokenization;
-                    if (t != null) {
-                        return t;
-                    }
-                    await Task.Yield();
-                }
-            }
+            var upToDate = Volatile.Read(ref _upToDate);
+            upToDate?.TrySetException(ex.SourceException);
+            var updated = Volatile.Read(ref _updated);
+            updated?.TrySetException(ex.SourceException);
+        }
 
-            return await _thread.Post(async () => {
-                while (true) {
-                    var t = _tokenization;
-                    if (t != null) {
-                        return t;
-                    }
-                    await Task.Yield();
+        private Task InvokeAsync(Func<Task> func) {
+            if (_thread != null && !_thread.IsCurrent) {
+                return _thread.Post(func);
+            }
+            return func();
+        }
+
+        private Task<T> InvokeAsync<T>(Func<Task<T>> func) {
+            if (_thread != null && !_thread.IsCurrent) {
+                return _thread.Post(func);
+            }
+            return func();
+        }
+
+        public Task<Tokenization> GetTokenizationAsync(CancellationToken cancellationToken) {
+            return InvokeAsync(async () => {
+                var t = _tokenization;
+                while (t == null) {
+                    await WaitForUpdateAsync(cancellationToken);
+                    t = _tokenization;
                 }
-            }).ConfigureAwait(true);
+                return t;
+            });
         }
 
         public Tokenization TryGetTokenization() {
             return _tokenization;
         }
 
-        public async Task<PythonAst> GetAstAsync(CancellationToken cancellationToken) {
-            var ast = _ast;
-            if (ast != null) {
-                return ast;
-            }
-
-            if (_thread == null) {
-                while (true) {
-                    var a = _ast;
-                    if (a != null) {
-                        return a;
-                    }
+        public Task<PythonAst> GetAstAsync(CancellationToken cancellationToken) {
+            return InvokeAsync(async () => {
+                var a = _ast;
+                while (a == null) {
                     await WaitForUpdateAsync(cancellationToken);
+                    a = _ast;
                 }
-            }
-
-            return await _thread.Post(async () => {
-                while (true) {
-                    var a = _ast;
-                    if (a != null) {
-                        return a;
-                    }
-                    await WaitForUpdateAsync(cancellationToken);
-                }
+                return a;
             });
         }
 
@@ -210,29 +222,15 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return _rules;
         }
 
-        internal async Task GetVariablesAndRulesAsync(
+        internal RuleResults GetRuleResults() {
+            return _ruleResults;
+        }
+
+        internal Task GetVariablesAndRulesAsync(
             Action<IReadOnlyDictionary<string, Variable>, IReadOnlyCollection<AnalysisRule>> action,
             CancellationToken cancellationToken
         ) {
-            var variables = _variables;
-            var rules = _rules;
-            if (variables != null && rules != null) {
-                action?.Invoke(variables, rules);
-                return;
-            }
-
-            if (_thread == null) {
-                var v = _variables;
-                var r = _rules;
-                while (v == null || r == null) {
-                    await WaitForUpdateAsync(cancellationToken);
-                    v = _variables;
-                    r = _rules;
-                }
-                action?.Invoke(v, r);
-            }
-
-            await _thread.Post(async () => {
+            return InvokeAsync(async () => {
                 var v = _variables;
                 var r = _rules;
                 while (v == null || r == null) {
@@ -249,65 +247,67 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         ) {
             IReadOnlyCollection<string> result = null;
             await GetVariablesAndRulesAsync((variables, rules) => {
-                result = variables.Keys
-                    .Union(rules.SelectMany(r => r.GetVariableNames()))
-                    .ToArray();
+                result = variables.Keys.ToArray();
             }, cancellationToken);
             return result ?? new string[0];
         }
 
-        public async Task<string> GetFullNameAsync(
+        public Task<string> GetFullNameAsync(
             string name,
             SourceLocation location,
             CancellationToken cancellationToken
         ) {
-            var ast = _ast;
-            var variables = _variables;
-            if (ast == null || variables == null) {
-                if (_thread == null) {
-                    while (ast == null || variables == null) {
-                        await WaitForUpdateAsync(cancellationToken);
-                        ast = _ast;
-                        variables = _variables;
-                    }
-                } else {
-                    var aAndV = await _thread.Post(async () => {
-                        var t = Tuple.Create(_ast, _variables);
-                        while (t.Item1 == null || t.Item2 == null) {
-                            await WaitForUpdateAsync(cancellationToken);
-                            t = Tuple.Create(_ast, _variables);
-                        }
-                        return t;
-                    });
-                    ast = aAndV.Item1;
-                    variables = aAndV.Item2;
+            return InvokeAsync(async () => {
+                var ast = _ast;
+                var variables = _variables;
+                while (ast == null || variables == null) {
+                    await WaitForUpdateAsync(cancellationToken);
+                    ast = _ast;
+                    variables = _variables;
                 }
-            }
 
-            return FindScopeFromLocationWalker
-                .FindNames(ast, location, name)
-                .MaybeEnumerate()
-                .FirstOrDefault(variables.ContainsKey) ?? name;
+                return FindScopeFromLocationWalker
+                    .FindNames(ast, location, name)
+                    .MaybeEnumerate()
+                    .FirstOrDefault(variables.ContainsKey) ?? name;
+            });
         }
 
-        public async Task<IAnalysisSet> GetTypesAsync(
+        public Task<Dictionary<string, IAnalysisSet>> GetAllTypesAsync(CancellationToken cancellationToken) {
+            return InvokeAsync(async () => {
+                var v = _variables;
+                var r = _ruleResults;
+                while (v == null || r == null) {
+                    await WaitForUpdateAsync(cancellationToken);
+                    v = _variables;
+                    r = _ruleResults;
+                }
+                var result = new Dictionary<string, IAnalysisSet>();
+                foreach (var kv in v) {
+                    result[kv.Key] = kv.Value.Types.Union(r.GetTypes(kv.Key));
+                }
+                return result;
+            });
+        }
+
+        public Task<IAnalysisSet> GetTypesAsync(
             string name,
             CancellationToken cancellationToken
         ) {
-            AnalysisSet result = null;
-
-            await GetVariablesAndRulesAsync(async (variables, rules) => {
-                if (!variables.ContainsKey(name)) {
-                    result = null;
-                } else {
-                    result = new AnalysisSet(variables[name]
-                        .Types
-                        .Concat(rules.SelectMany(r => r.GetTypes(name)))
-                        .Where(t => t != AnalysisValue.Empty)
-                    );
+            return InvokeAsync(async () => {
+                var variables = _variables;
+                var results = _ruleResults;
+                while (variables == null || results == null) {
+                    await WaitForUpdateAsync(cancellationToken);
+                    variables = _variables;
+                    results = _ruleResults;
                 }
-            }, cancellationToken);
-            return result ?? AnalysisSet.Empty;
+                Variable v;
+                if (GetVariables().TryGetValue(name, out v)) {
+                    return v.Types.Union(results.GetTypes(name));
+                }
+                return AnalysisSet.Empty;
+            });
         }
 
         private async Task DumpOnThreadAsync(TextWriter output, CancellationToken cancellationToken) {
@@ -325,10 +325,15 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 }
                 output.WriteLine();
             }
+            if (_ruleResults != null) {
+                output.WriteLine("Rule Results");
+                await _ruleResults.Dump(output, "  ", cancellationToken);
+                output.WriteLine();
+            }
             if (_rules != null) {
                 output.WriteLine("Rules");
                 foreach (var r in _rules) {
-                    await r.Dump(output, this, "  ", cancellationToken);
+                    output.WriteLine("{0}{1}", "  ", r);
                 }
                 output.WriteLine();
             }

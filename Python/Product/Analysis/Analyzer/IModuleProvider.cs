@@ -14,13 +14,9 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System;
-using System.Threading.Tasks;
-
 namespace Microsoft.PythonTools.Analysis.Analyzer {
-    interface IAnalysisThread {
-        Task Post(Func<Task> action);
-        Task<T> Post<T>(Func<Task<T>> task);
-        bool IsCurrent { get; }
+    public interface IModuleProvider {
+        string Name { get; }
+        bool TryGetModule(PythonLanguageService analyzer, out IAnalysisState state, out IAnalysisValue module);
     }
 }

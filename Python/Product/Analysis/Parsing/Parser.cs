@@ -1406,6 +1406,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             var expr = ParseNotTest();
             var withinOp = SourceSpan.None;
 
+            var opSpan = Peek.Span;
             var op = PythonOperator.None;
             if (Peek.Is(TokenKind.KeywordAnd)) {
                 op = PythonOperator.And;
@@ -1416,6 +1417,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 withinOp = ReadWhitespace();
                 Read(TokenKind.KeywordIn);
                 op = PythonOperator.NotIn;
+                opSpan = new SourceSpan(opSpan.Start, Current.Span.End);
             } else if (_version.Is3x() && Peek.Is(TokenKind.LessThanGreaterThan)) {
                 ReportError(errorAt: Peek.Span);
                 op = PythonOperator.NotEqual;
@@ -1443,6 +1445,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return WithTrailingWhitespace(new BinaryExpression {
                 Left = expr,
                 Operator = op,
+                OperatorSpan = opSpan,
                 WithinOperator = withinOp,
                 Right = rhs,
                 Span = new SourceSpan(expr.Span.Start, rhs.Span.End)
@@ -1500,6 +1503,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Expression ParseExpr(int precedence = 0) {
             var expr = ParseFactor();
             while (Peek.IsAny(TokenUsage.BinaryOperator, TokenUsage.BinaryOrUnaryOperator)) {
+                var opSpan = Peek.Span;
                 var op = Peek.Kind.GetBinaryOperator();
                 if (op == PythonOperator.None) {
                     return expr;
@@ -1523,6 +1527,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 expr = WithTrailingWhitespace(new BinaryExpression {
                     Left = expr,
                     Operator = op,
+                    OperatorSpan = opSpan,
                     Right = rhs,
                     Span = new SourceSpan(expr.Span.Start, rhs.Span.End)
                 });
@@ -1644,6 +1649,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
         private Expression ParsePower() {
             var expr = ParsePrimaryWithTrailers();
             if (TryRead(TokenKind.Power)) {
+                var opSpan = Current.Span;
                 var ws = ReadWhitespace();
                 var rhs = ParseFactor();
                 rhs.BeforeNode = ws;
@@ -1652,6 +1658,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
                 expr = WithTrailingWhitespace(new BinaryExpression {
                     Left = expr,
                     Operator = PythonOperator.Power,
+                    OperatorSpan = opSpan,
                     Right = rhs,
                     Span = new SourceSpan(expr.Span.Start, rhs.Span.End)
                 });

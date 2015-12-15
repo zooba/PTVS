@@ -32,6 +32,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _deferredNodes = new Stack<List<Node>>();
         }
 
+        protected virtual void OnEnterScope() { }
+
+        protected virtual void OnLeaveScope() { }
+
         protected void EnterScope(string name, string suffix) {
             if (_scope.Count <= 1) {
                 _scope.Push(new KeyValuePair<string, string>(name, suffix));
@@ -40,6 +44,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 _scope.Push(new KeyValuePair<string, string>(p.Key + p.Value + name, suffix));
             }
             _deferredNodes.Push(new List<Node>());
+            OnEnterScope();
         }
 
         protected bool Defer(Node node) {
@@ -71,6 +76,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 ex.Data["PoppedSuffix"] = scope.Value;
                 throw ex;
             }
+            OnLeaveScope();
         }
 
         public override bool Walk(PythonAst node) {

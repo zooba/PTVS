@@ -25,6 +25,7 @@ using Microsoft.PythonTools.Analysis.Analyzer;
 namespace Microsoft.PythonTools.Analysis {
     public interface IAnalysisValue {
         Task<string> ToAnnotationAsync(CancellationToken cancellationToken);
+        Task<IReadOnlyCollection<string>> GetAttributeNames(IAnalysisState caller, CancellationToken cancellationToken);
         Task<IAnalysisSet> GetAttribute(IAnalysisState caller, string attribute, CancellationToken cancellationToken);
         Task<IAnalysisSet> Call(CallSiteKey callSite, CancellationToken cancellationToken);
     }

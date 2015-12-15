@@ -9,31 +9,41 @@ using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Parsing;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.PythonTools.Analysis.Values;
+using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
-    class BuiltinsModuleState : IAnalysisState {
+    class SourcelessModuleState : IAnalysisState {
         private readonly PythonLanguageService _analyzer;
-        private readonly BuiltinsModule _builtinsModule;
         private readonly ISourceDocument _document;
         private readonly LanguageFeatures _features;
         private readonly string _namePrefix;
+        private IAnalysisValue _module;
 
-        public BuiltinsModuleState(PythonLanguageService analyzer) {
+        public static SourcelessModuleState Create(
+            PythonLanguageService analyzer,
+            string name,
+            Func<VariableKey,ISourceDocument, IAnalysisValue> createModule
+        ) {
+            var state = new SourcelessModuleState(analyzer, name);
+            state._module = createModule(new VariableKey(state, name), state.Document);
+            return state;
+        }
+
+        private SourcelessModuleState(PythonLanguageService analyzer, string name) {
             _analyzer = analyzer;
             _features = new LanguageFeatures(_analyzer.Configuration.Version, FutureOptions.Invalid);
 
-            var name = _features.BuiltinsName;
             var moniker = analyzer.Configuration.InterpreterPath + "$" + name;
             _document = new SourcelessDocument(moniker);
-            _builtinsModule = new BuiltinsModule(new VariableKey(this, name), name, name, moniker);
             _namePrefix = name + ".";
         }
 
+        public PythonLanguageService Analyzer => _analyzer;
         public PythonFileContext Context => null;
         public ISourceDocument Document => _document;
         public LanguageFeatures Features => _features;
-        public BuiltinsModule Module => _builtinsModule;
-        public long Version => 0;
+        public IAnalysisValue Module => _module;
+        public long Version => 1;
 
         public Task DumpAsync(TextWriter output, CancellationToken cancellationToken) {
             throw new NotImplementedException();
@@ -52,14 +62,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         public async Task<IAnalysisSet> GetTypesAsync(string name, CancellationToken cancellationToken) {
-            if (!name.StartsWith(_namePrefix)) {
-                return null;
-            }
-            return _builtinsModule.GetAttribute(name.Substring(_namePrefix.Length), false);
+            return await _module.GetAttribute(this, name, cancellationToken);
         }
 
         public Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken) {
-            return _builtinsModule.GetAttributeNames(cancellationToken);
+            return _module.GetAttributeNames(this, cancellationToken);
         }
 
         public Task<bool> ReportErrorAsync(string code, string text, SourceLocation location, CancellationToken cancellationToken) {

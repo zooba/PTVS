@@ -40,7 +40,7 @@ namespace Microsoft.PythonTools.Analysis {
     /// the buckets and then calls a static helper function to do the read from the bucket
     /// array to ensure that readers are not seeing multiple bucket arrays.
     /// </summary>
-    [DebuggerDisplay(DebugViewProxy.DisplayString), DebuggerTypeProxy(typeof(DebugViewProxy))]
+    [DebuggerTypeProxy(typeof(DebugViewProxy))]
     [Serializable]
     sealed class AnalysisSet : IAnalysisSet {
         [NonSerialized]
@@ -49,7 +49,7 @@ namespace Microsoft.PythonTools.Analysis {
         private readonly IEqualityComparer<AnalysisValue> _comparer;
         private long _version;
 
-        public static readonly IAnalysisSet Empty = new AnalysisSet();
+        public static readonly IAnalysisSet Empty = new AnalysisSet(isCopyOnWrite: false, isReadOnly: true);
         public static readonly Task<IAnalysisSet> EmptyTask = Task.FromResult(Empty);
 
         // Flags merged into _version
@@ -72,6 +72,10 @@ namespace Microsoft.PythonTools.Analysis {
         /// </summary>
         public AnalysisSet() {
             _comparer = EqualityComparer<AnalysisValue>.Default;
+        }
+
+        private AnalysisSet(bool isReadOnly, bool isCopyOnWrite) : this() {
+            _version = (isCopyOnWrite ? CopyOnWrite : 0) | (isReadOnly ? ReadOnly : 0);
         }
 
         /// <summary>
@@ -182,6 +186,16 @@ namespace Microsoft.PythonTools.Analysis {
                 _buckets = buckets;
                 IncreaseVersion();
             }
+        }
+
+        public IAnalysisSet Union(IEnumerable<AnalysisValue> other) {
+            if (Count == 0) {
+                return other.ToSet();
+            }
+            var r = Clone();
+            r.AddRange(other);
+            r.Remove(AnalysisValue.Empty);
+            return r;
         }
 
         private bool AddFromEnumerator(ref Bucket[] buckets, IEnumerator<AnalysisValue> items) {
@@ -456,10 +470,11 @@ namespace Microsoft.PythonTools.Analysis {
             }
         }
 
-        sealed class DebugViewProxy {
-            [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-            public const string DisplayString = "{this}, {Comparer.GetType().Name,nq}";
+        public override string ToString() {
+            return new DebugViewProxy(this).ToString();
+        }
 
+        sealed class DebugViewProxy {
             public DebugViewProxy(AnalysisSet source) {
                 Data = source.ToArray();
                 Comparer = source.Comparer;

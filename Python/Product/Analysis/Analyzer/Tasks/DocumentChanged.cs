@@ -26,7 +26,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
     sealed class DocumentChanged : QueueItem {
         private readonly ISourceDocument _document;
 
-        public DocumentChanged(AnalysisState item, ISourceDocument document)
+        public DocumentChanged(IAnalysisState item, ISourceDocument document)
             : base(item) {
             _document = document;
         }
@@ -36,16 +36,20 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
         }
 
         public override async Task PerformAsync(CancellationToken cancellationToken) {
-            _item.SetDocument(_document);
+            var item = _state as AnalysisState;
+            if (item == null) {
+                return;
+            }
+
+            item.SetDocument(_document);
 
             var tokenization = await Tokenization.TokenizeAsync(
                 _document,
-                _item.Analyzer.Configuration.Version,
+                _state.Analyzer.Configuration.Version,
                 cancellationToken
             );
-            _item.SetTokenization(tokenization);
-
-            _item.Analyzer.Enqueue(_item.Context, new UpdateVariables(_item));
+            item.SetTokenization(tokenization);
+            item.Analyzer.Enqueue(item.Context, new UpdateVariables(item));
         }
     }
 }

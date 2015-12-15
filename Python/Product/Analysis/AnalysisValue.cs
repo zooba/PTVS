@@ -61,10 +61,13 @@ namespace Microsoft.PythonTools.Analysis {
                 return AnalysisSet.Empty;
             }
             var attr = Key + ("." + attribute);
-            return attr.GetTypes(caller) ?? await attr.GetTypesAsync(cancellationToken);
+            return attr.GetTypes(caller) ?? await attr.GetTypesAsync(cancellationToken) ?? AnalysisSet.Empty;
         }
 
-        public virtual Task<IReadOnlyCollection<string>> GetAttributeNames(CancellationToken cancellationToken) {
+        public virtual Task<IReadOnlyCollection<string>> GetAttributeNames(
+            IAnalysisState caller,
+            CancellationToken cancellationToken
+        ) {
             return Task.FromResult(EmptyNames);
         }
 
@@ -127,6 +130,12 @@ namespace Microsoft.PythonTools.Analysis {
 
         void IAnalysisSet.AddRange(IEnumerable<AnalysisValue> values) {
             throw new NotSupportedException("Collection is read only");
+        }
+
+        IAnalysisSet IAnalysisSet.Union(IEnumerable<AnalysisValue> other) {
+            var r = new AnalysisSet(other);
+            r.Add(this);
+            return r;
         }
 
         bool IAnalysisSet.SetEquals(IAnalysisSet other) {

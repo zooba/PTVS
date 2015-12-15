@@ -26,16 +26,18 @@ using Microsoft.PythonTools.Analysis.Values;
 
 namespace Microsoft.PythonTools.Analysis {
     abstract class AnalysisRule {
-        private Dictionary<string, IAnalysisSet> _results;
-        private object _targets;
+        private readonly AnalysisState _state;
+        private readonly object _targets;
 
         private static readonly IReadOnlyCollection<string> EmptyNames = new string[0];
 
-        protected AnalysisRule(string target) {
+        protected AnalysisRule(AnalysisState state, string target) {
+            _state = state;
             _targets = target;
         }
 
-        protected AnalysisRule(IEnumerable<string> targets) {
+        protected AnalysisRule(AnalysisState state, IEnumerable<string> targets) {
+            _state = state;
             var targetsArray = targets.ToArray();
             if (targetsArray.Length == 0) {
                 _targets = null;
@@ -45,6 +47,8 @@ namespace Microsoft.PythonTools.Analysis {
                 _targets = targetsArray;
             }
         }
+
+        public IAnalysisState State => _state;
 
         protected IEnumerable<string> Targets {
             get {
@@ -60,75 +64,25 @@ namespace Microsoft.PythonTools.Analysis {
             }
         }
 
-        protected bool AreSame(
-            string target,
-            IReadOnlyDictionary<string, IAnalysisSet> priorResults,
-            IAnalysisSet newResults
-        ) {
-            if (priorResults == null) {
-                return newResults == null;
-            } else if (newResults == null) {
-                return false;
-            }
-            IAnalysisSet oldResults;
-            if (!priorResults.TryGetValue(target, out oldResults)) {
-                return false;
-            }
-            return newResults.SetEquals(oldResults);
-        }
-
-        public IReadOnlyCollection<string> GetVariableNames() {
-            var results = Volatile.Read(ref _results);
-            return results?.Keys ?? EmptyNames;
-        }
-
-        public IAnalysisSet GetTypes(string name) {
-            var results = Volatile.Read(ref _results);
-            if (results == null) {
-                return AnalysisSet.Empty;
-            }
-            IAnalysisSet v;
-            return results.TryGetValue(name, out v) ? v : AnalysisSet.Empty;
-        }
-
         public async Task<bool> ApplyAsync(
             PythonLanguageService analyzer,
             AnalysisState state,
+            RuleResults results,
             CancellationToken cancellationToken
         ) {
-            var oldResults = Volatile.Read(ref _results);
-            var newResults = await ApplyWorkerAsync(analyzer, state, oldResults, cancellationToken);
-            if (newResults != null) {
-                Interlocked.CompareExchange(ref _results, newResults, oldResults);
-                return true;
+            var reads = new HashSet<string>();
+            var writes = new HashSet<string>();
+            using (results.Track(reads, writes)) {
+                await ApplyWorkerAsync(analyzer, state, results, cancellationToken);
             }
-            return false;
+            return writes.Any();
         }
 
-        protected abstract Task<Dictionary<string, IAnalysisSet>> ApplyWorkerAsync(
+        protected abstract Task ApplyWorkerAsync(
             PythonLanguageService analyzer, 
             AnalysisState state,
-            IReadOnlyDictionary<string, IAnalysisSet> priorResults,
+            RuleResults results,
             CancellationToken cancellationToken
         );
-
-        internal virtual async Task Dump(
-            TextWriter output,
-            IAnalysisState state,
-            string indent,
-            CancellationToken cancellationToken
-        ) {
-            output.WriteLine("{0}{1}", indent, this);
-            if (_results != null) {
-                foreach (var v in _results.OrderBy(kv => kv.Key)) {
-                    output.WriteLine(
-                        "{0}  {1}: {2}",
-                        indent,
-                        v.Key,
-                        await v.Value.ToAnnotationAsync(cancellationToken)
-                    );
-                }
-            }
-        }
     }
 }

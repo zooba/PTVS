@@ -14,46 +14,34 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
-using Microsoft.PythonTools.Analysis.Values;
 
 namespace Microsoft.PythonTools.Analysis.Rules {
     class NameLookup : AnalysisRule {
         private readonly VariableKey _name;
-        private readonly object _targets;
 
-        public NameLookup(VariableKey name, string target) : base(target) {
+        public NameLookup(AnalysisState state, VariableKey name, string target) : base(state, target) {
             _name = name;
         }
 
-        public NameLookup(VariableKey name, IEnumerable<string> targets) : base(targets) {
+        public NameLookup(AnalysisState state, VariableKey name, IEnumerable<string> targets) : base(state, targets) {
             _name = name;
         }
 
-        protected override async Task<Dictionary<string, IAnalysisSet>> ApplyWorkerAsync(
+        protected override async Task ApplyWorkerAsync(
             PythonLanguageService analyzer,
             AnalysisState state,
-            IReadOnlyDictionary<string, IAnalysisSet> priorResults,
+            RuleResults results,
             CancellationToken cancellationToken
         ) {
             var types = _name.GetTypes(state) ?? await _name.GetTypesAsync(cancellationToken);
 
-            var result = new Dictionary<string, IAnalysisSet>();
-            bool anyChanged = priorResults == null;
             foreach (var target in Targets) {
-                result[target] = types;
-
-                if (!anyChanged && !AreSame(target, priorResults, types)) {
-                    anyChanged = true;
-                }
+                results.AddTypes(target, types);
             }
-            return anyChanged ? result : null;
         }
 
         public override string ToString() {

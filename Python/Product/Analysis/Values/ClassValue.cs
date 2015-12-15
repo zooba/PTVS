@@ -26,11 +26,9 @@ using Microsoft.PythonTools.Analysis.Parsing.Ast;
 namespace Microsoft.PythonTools.Analysis.Values {
     public class ClassValue : AnalysisValue {
         private readonly ClassDefinition _node;
-        private readonly InstanceValue _instance;
 
         public ClassValue(VariableKey key, ClassDefinition node) : base(key) {
             _node = node;
-            _instance = new InstanceValue(key);
         }
 
         public override bool Equals(object obj) {
@@ -40,8 +38,6 @@ namespace Microsoft.PythonTools.Analysis.Values {
         public override int GetHashCode() {
             return 389357 ^ _node.GetHashCode();
         }
-
-        public InstanceValue Instance => _instance;
 
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             return _node.Name;

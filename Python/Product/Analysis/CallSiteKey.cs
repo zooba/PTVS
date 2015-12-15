@@ -21,7 +21,7 @@ using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Values;
 
 namespace Microsoft.PythonTools.Analysis {
-    public struct CallSiteKey {
+    public class CallSiteKey {
         public VariableKey CallSite;
 
         public static readonly CallSiteKey Empty = new CallSiteKey(VariableKey.Empty);
@@ -37,33 +37,33 @@ namespace Microsoft.PythonTools.Analysis {
         public bool IsEmpty => CallSite.IsEmpty;
         public IAnalysisState State => CallSite.State;
 
-        public override int GetHashCode() {
-            return CallSite.GetHashCode();
-        }
-
-        public override bool Equals(object obj) {
-            if (!(obj is CallSiteKey)) {
-                return false;
-            }
-            var other = (CallSiteKey)obj;
-            return CallSite == other.CallSite;
-        }
+        public override int GetHashCode() => CallSite.GetHashCode();
+        public override bool Equals(object obj) => CallSite == (obj as CallSiteKey)?.CallSite;
 
         public override string ToString() {
             return "Call " + CallSite.ToString();
         }
 
-        public async Task<IAnalysisSet> GetCallableAsync(CancellationToken cancellationToken) {
+        public virtual async Task<IAnalysisSet> GetCallableAsync(CancellationToken cancellationToken) {
             return CallSite.GetTypes(CallSite.State) ?? await CallSite.GetTypesAsync(cancellationToken);
         }
 
-        public async Task<IAnalysisSet> GetArgValue(ParameterValue parameter, CancellationToken cancellationToken) {
+        public virtual async Task<IAnalysisSet> GetArgValue(
+            ParameterValue parameter,
+            CancellationToken cancellationToken
+        ) {
             var values = parameter.Key.GetTypes(State) ?? await parameter.Key.GetTypesAsync(cancellationToken);
-            values.AddRange(await GetArgValue(parameter.Index, null, cancellationToken));
+            var newValues = await GetArgValue(parameter.Index, null, cancellationToken);
+            if (newValues?.Any() ?? false) {
+                if (values.IsReadOnly) {
+                    values = new AnalysisSet(values);
+                }
+                values.AddRange(newValues);
+            }
             return values;
         }
 
-        public async Task<IAnalysisSet> GetArgValue(
+        public virtual async Task<IAnalysisSet> GetArgValue(
             int index,
             string name,
             CancellationToken cancellationToken

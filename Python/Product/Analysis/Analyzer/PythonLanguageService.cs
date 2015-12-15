@@ -39,7 +39,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private readonly LanguageFeatures _features;
         private readonly CancellationTokenSource _disposing;
         private int _users;
-        private BuiltinsModuleState _builtinsModule;
+        private SourcelessModuleState _builtinsModule;
+        private IReadOnlyDictionary<string, KeyValuePair<IAnalysisState, IAnalysisValue>> _knownModules;
+        private IReadOnlyDictionary<string, IAnalysisState> _knownStatesByMoniker;
 
         private readonly Dictionary<PythonFileContext, AnalysisThread> _contexts;
         private readonly List<KeyValuePair<string, string[]>> _searchPaths;
@@ -50,7 +52,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             TimeSpan.FromSeconds(1)
         );
 
-        public PythonLanguageService(
+        internal PythonLanguageService(
             PythonLanguageServiceProvider provider,
             PythonFileContextProvider fileContextProvider,
             InterpreterConfiguration config
@@ -67,6 +69,19 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             foreach (var p in config.SysPath) {
                 _searchPaths.Add(new KeyValuePair<string, string[]>(p, null));
             }
+
+            var knownModules = new Dictionary<string, KeyValuePair<IAnalysisState, IAnalysisValue>>();
+            var knownStatesByMoniker = new Dictionary<string, IAnalysisState>();
+            foreach (var mp in _provider.ModuleProviders) {
+                IAnalysisState state;
+                IAnalysisValue module;
+                if (mp.TryGetModule(this, out state, out module)) {
+                    knownModules[mp.Name] = new KeyValuePair<IAnalysisState, IAnalysisValue>(state, module);
+                    knownStatesByMoniker[state.Document.Moniker] = state;
+                }
+            }
+            _knownModules = knownModules;
+            _knownStatesByMoniker = knownStatesByMoniker;
 
             _loadInterpreter = LoadInterpreterAsync(fileContextProvider, CancellationToken.None);
         }
@@ -136,6 +151,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 context.Value.Dispose();
             }
 
+            foreach (var module in _knownModules.Values.OfType<IDisposable>()) {
+                module.Dispose();
+            }
+
             _disposing.Dispose();
         }
 
@@ -148,9 +167,14 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         internal BuiltinsModule BuiltinsModule {
             get {
                 if (_builtinsModule == null) {
-                    _builtinsModule = new BuiltinsModuleState(this);
+                    var name = _features.BuiltinsName;
+                    _builtinsModule = SourcelessModuleState.Create(
+                        this,
+                        name,
+                        (vk, doc) => new BuiltinsModule(vk, name, name, doc.Moniker)
+                    );
                 }
-                return _builtinsModule.Module;
+                return (BuiltinsModule)_builtinsModule.Module;
             }
         }
 
@@ -209,6 +233,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return null;
             }
 
+            KeyValuePair<IAnalysisState, IAnalysisValue> knownModule;
+            if (_knownModules.TryGetValue(importName, out knownModule)) {
+                return knownModule.Key.Document.Moniker;
+            }
+
             var parts = GetModuleFullNameParts(importName, importingFromModule);
 
             var fileParts = parts.ToArray();
@@ -238,7 +267,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     SkipMatchingLeadingElements(initParts, kv.Value).ToList();
 
                 foreach (var context in contexts) {
-                    AnalysisState value;
+                    IAnalysisState value;
                     // TODO: Check whether .py file precedes /__init__.py
                     if (context.AnalysisStates.TryFindValueByParts(kv.Key, trimmedFileParts, out value) ||
                         context.AnalysisStates.TryFindValueByParts(kv.Key, trimmedInitParts, out value)) {
@@ -280,7 +309,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             var docs = await context.GetDocumentsAsync(cancellationToken);
 
             foreach (var doc in docs) {
-                AnalysisState item;
+                IAnalysisState item;
                 if (!state.AnalysisStates.TryGetValue(doc.Moniker, out item)) {
                     item = new AnalysisState(this, state, doc, context);
                     state.AnalysisStates.Add(doc.Moniker, item);
@@ -309,10 +338,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         internal async Task AddNotificationAsync(
-            AnalysisState whenUpdated,
-            AnalysisState reanalyze,
+            IAnalysisState whenUpdated,
+            IAnalysisState reanalyze,
             CancellationToken cancellationToken
         ) {
+            if (whenUpdated == null || whenUpdated.Context == null || whenUpdated == _builtinsModule) {
+                return;
+            }
             AnalysisThread state = null;
             lock (_contexts) {
                 _contexts.TryGetValue(whenUpdated.Context, out state);
@@ -321,14 +353,14 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return;
             }
             await state.Post(async () => {
-                HashSet<AnalysisState> states;
+                HashSet<IAnalysisState> states;
                 var rou = state.ReanalyzeOnUpdate;
                 if (rou == null) {
-                    state.ReanalyzeOnUpdate = rou = new Dictionary<string, HashSet<AnalysisState>>();
+                    state.ReanalyzeOnUpdate = rou = new Dictionary<string, HashSet<IAnalysisState>>();
                     whenUpdated.Context.SourceDocumentAnalysisChanged += Context_SourceDocumentAnalysisChanged;
                 }
                 if (!rou.TryGetValue(whenUpdated.Document.Moniker, out states)) {
-                    rou[whenUpdated.Document.Moniker] = states = new HashSet<AnalysisState>();
+                    rou[whenUpdated.Document.Moniker] = states = new HashSet<IAnalysisState>();
                 }
                 states.Add(reanalyze);
             });
@@ -336,10 +368,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         private async void Context_SourceDocumentAnalysisChanged(object sender, SourceDocumentEventArgs e) {
             var context = (PythonFileContext)sender;
-            IEnumerable<AnalysisState> toUpdate = null;
+            IEnumerable<IAnalysisState> toUpdate = null;
             lock (_contexts) {
                 AnalysisThread state;
-                HashSet<AnalysisState> states = null;
+                HashSet<IAnalysisState> states = null;
                 if (_contexts.TryGetValue(context, out state) &&
                     (state.ReanalyzeOnUpdate?.TryGetValue(e.Document.Moniker, out states) ?? false)) {
                     toUpdate = states?.ToArray();
@@ -347,7 +379,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             if (toUpdate != null) {
-                foreach (var state in toUpdate) {
+                foreach (var state in toUpdate.OfType<AnalysisState>()) {
                     Enqueue(state.Context, new UpdateRules(state));
                 }
             }
@@ -358,7 +390,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string moniker,
             bool searchAllContexts
         ) {
-            AnalysisState item = null;
+            IAnalysisState item = null;
+            lock(_knownStatesByMoniker) {
+                if (_knownStatesByMoniker.TryGetValue(moniker, out item)) {
+                    return item;
+                }
+            }
+
             lock (_contexts) {
                 AnalysisThread state = null;
                 if (context != null) {
@@ -534,7 +572,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         sealed class AnalysisThread : IAnalysisThread, IDisposable {
-            private readonly PathSet<AnalysisState> _analysisStates;
+            private readonly PathSet<IAnalysisState> _analysisStates;
 
             private readonly Thread _thread;
             private readonly CancellationToken _cancel;
@@ -543,7 +581,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             private TaskCompletionSource<SynchronizationContext> _tasks;
 
             public AnalysisThread(string contextRoot, CancellationToken cancellationToken) {
-                _analysisStates = new PathSet<AnalysisState>(contextRoot);
+                _analysisStates = new PathSet<IAnalysisState>(contextRoot);
                 _cancel = cancellationToken;
                 _tasks = new TaskCompletionSource<SynchronizationContext>();
                 _thread = new Thread(Worker);
@@ -559,9 +597,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 }
             }
 
-            public PathSet<AnalysisState> AnalysisStates => _analysisStates;
+            public PathSet<IAnalysisState> AnalysisStates => _analysisStates;
+            public bool IsCurrent => SynchronizationContext.Current == Context;
 
-            public Dictionary<string, HashSet<AnalysisState>> ReanalyzeOnUpdate { get; set; }
+            public Dictionary<string, HashSet<IAnalysisState>> ReanalyzeOnUpdate { get; set; }
 
             public void Dispose() {
                 _edi?.Throw();
@@ -582,14 +621,20 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             public void Enqueue(QueueItem item) {
-                Context.Post(_ => {
-                    item.PerformAsync(_cancel).ContinueWith(t => {
-                        if (t.IsCanceled) {
-                        } else if (t.Exception != null) {
-                            _edi = ExceptionDispatchInfo.Capture(t.Exception);
-                        }
-                    }, TaskScheduler.FromCurrentSynchronizationContext());
-                }, null);
+                var state = item.State as AnalysisState;
+                if (state == null) {
+                    Context.Post(_ => { item.PerformAsync(_cancel).DoNotWait(); }, null);
+                } else {
+                    Context.Post(_ => {
+                        item.PerformAsync(_cancel).ContinueWith(t => {
+                            state.NotifyError(ExceptionDispatchInfo.Capture(
+                                t.Exception.InnerExceptions.Count == 1 ?
+                                t.Exception.InnerException :
+                                t.Exception
+                            ));
+                        }, TaskContinuationOptions.OnlyOnFaulted);
+                    }, null);
+                }
             }
 
             public Task Post(Func<Task> action) {
@@ -599,7 +644,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                         if (t.IsCanceled) {
                             tcs.SetCanceled();
                         } else if (t.Exception != null) {
-                            tcs.SetException(t.Exception);
+                            if (t.Exception.InnerExceptions.Count == 1) {
+                                tcs.SetException(t.Exception.InnerException);
+                            } else {
+                                tcs.SetException(t.Exception);
+                            }
                         } else {
                             tcs.SetResult(null);
                         }

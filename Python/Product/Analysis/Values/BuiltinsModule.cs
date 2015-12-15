@@ -19,37 +19,38 @@ namespace Microsoft.PythonTools.Analysis.Values {
 
         public BuiltinsModule(VariableKey key, string fullname, string name, string moniker) :
             base(key, fullname, name, moniker) {
-            _noneType = new TypeValue(Key + ".NoneType", "None");
-            _code = new TypeValue(Key + ".code", "code");
-            _bool = new NumericValue(Key + ".bool", "bool");
-            _int = new NumericValue(Key + ".int", "int");
-            _long = Key.State.Features.HasLong ? new NumericValue(Key + ".long", "long") : _int;
-            _float = new NumericValue(Key + ".float", "float");
-            _complex = new NumericValue(Key + ".complex", "complex");
+            Func<string, VariableKey> K = n => new VariableKey(key.State, n);
+            _noneType = new TypeValue(K("NoneType"), "None");
+            _code = new TypeValue(K("code"), "code");
+            _bool = new NumericValue(K("bool"), "bool");
+            _int = new NumericValue(K("int"), "int");
+            _long = Key.State.Features.HasLong ? new NumericValue(K("long"), "long") : _int;
+            _float = new NumericValue(K("float"), "float");
+            _complex = new NumericValue(K("complex"), "complex");
             _bytes = new StringValue(Key, false);
             _str = new StringValue(Key, true);
 
-            _abs = new BuiltinFunctionValue(Key + ".abs", "Callable[[T], T]", ReturnParameter1);
-            _all = new BuiltinFunctionValue(Key + ".all", "Callable[..., bool]", ReturnBool);
-            _any = new BuiltinFunctionValue(Key + ".any", "Callable[..., bool]", ReturnBool);
-            _ascii = new BuiltinFunctionValue(Key + ".ascii", "Callable[[Any], str]", ReturnStr);
-            _bin = new BuiltinFunctionValue(Key + ".bin", "Callable[[Any], str]", ReturnStr);
-            _callable = new BuiltinFunctionValue(Key + ".callable", "Callable[[Any], bool]", ReturnBool);
-            _chr = new BuiltinFunctionValue(Key + ".chr", "Callable[[Any], str]", ReturnStr);
+            _abs = new BuiltinFunctionValue(K("abs"), "Callable[[T], T]", ReturnParameter1);
+            _all = new BuiltinFunctionValue(K("all"), "Callable[..., bool]", ReturnBool);
+            _any = new BuiltinFunctionValue(K("any"), "Callable[..., bool]", ReturnBool);
+            _ascii = new BuiltinFunctionValue(K("ascii"), "Callable[[Any], str]", ReturnStr);
+            _bin = new BuiltinFunctionValue(K("bin"), "Callable[[Any], str]", ReturnStr);
+            _callable = new BuiltinFunctionValue(K("callable"), "Callable[[Any], bool]", ReturnBool);
+            _chr = new BuiltinFunctionValue(K("chr"), "Callable[[Any], str]", ReturnStr);
             //_classmethod
-            _compile = new BuiltinFunctionValue(Key + ".compile", "Callable[..., code]", CompileCall);
-            _delattr = new BuiltinFunctionValue(Key + ".delattr", "Callable[[Any, str]]", DelAttrCall);
+            _compile = new BuiltinFunctionValue(K("compile"), "Callable[..., code]", CompileCall);
+            _delattr = new BuiltinFunctionValue(K("delattr"), "Callable[[Any, str]]", DelAttrCall);
         }
 
-        private Task<IAnalysisSet> ReturnParameter1(CallSiteKey callSite, CancellationToken cancellationToken) {
+        internal Task<IAnalysisSet> ReturnParameter1(CallSiteKey callSite, CancellationToken cancellationToken) {
             return callSite.GetArgValue(0, null, cancellationToken);
         }
 
-        private Task<IAnalysisSet> ReturnBool(CallSiteKey callSite, CancellationToken cancellationToken) {
+        internal Task<IAnalysisSet> ReturnBool(CallSiteKey callSite, CancellationToken cancellationToken) {
             return Task.FromResult<IAnalysisSet>(Bool.Instance);
         }
 
-        private Task<IAnalysisSet> ReturnStr(CallSiteKey callSite, CancellationToken cancellationToken) {
+        internal Task<IAnalysisSet> ReturnStr(CallSiteKey callSite, CancellationToken cancellationToken) {
             return Task.FromResult<IAnalysisSet>(Str.Instance);
         }
 
@@ -60,6 +61,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
         private async Task<IAnalysisSet> DelAttrCall(CallSiteKey callSite, CancellationToken cancellationToken) {
             var target = await callSite.GetArgValue(0, null, cancellationToken);
             var key = await callSite.GetArgValue(1, null, cancellationToken);
+            // TODO: Mark key as deleted
             return None;
         }
 
@@ -88,7 +90,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
             string attribute,
             CancellationToken cancellationToken
         ) {
-            return GetAttribute(attribute, true);
+            return GetAttribute(attribute, caller != Key.State);
         }
 
         internal IAnalysisSet GetAttribute(string attribute, bool onlyImportable) {
@@ -102,7 +104,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
                 case "str": return Key.State.Features.IsUnicodeCalledStr ? Str : Bytes;
                 case "bytes": return Bytes;
                 case "unicode": return Str;
-                case "code": return onlyImportable ? null : Code;
+                case "code": return onlyImportable ? AnalysisSet.Empty : Code;
 
                 case "copyright": return Str.Instance;
                 case "credits": return Str.Instance;
@@ -116,7 +118,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
                 case "chr": return Chr;
                 case "compile": return _compile;
                 case "delattr": return _delattr;
-                default: return null;
+                default: return AnalysisSet.Empty;
             }
         }
     }

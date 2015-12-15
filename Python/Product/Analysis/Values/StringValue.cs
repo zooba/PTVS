@@ -27,7 +27,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
         private readonly bool _isUnicode;
 
         public StringValue(VariableKey baseKey, bool isUnicode) :
-            base(baseKey + "." + GetName(baseKey, isUnicode), GetName(baseKey, isUnicode)) {
+            base(new VariableKey(baseKey.State, GetName(baseKey, isUnicode)), GetName(baseKey, isUnicode)) {
             _isUnicode = isUnicode;
         }
 

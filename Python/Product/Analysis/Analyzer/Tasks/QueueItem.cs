@@ -21,9 +21,13 @@ using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
     abstract class QueueItem : IReadOnlyCollection<QueueItem> {
-        protected QueueItem(AnalysisState item) {
-            _item = item;
+        protected readonly IAnalysisState _state;
+
+        protected QueueItem(IAnalysisState state) {
+            _state = state;
         }
+
+        public IAnalysisState State => _state;
 
         public virtual ThreadPriority Priority { get { return ThreadPriority.Lowest; } }
 
@@ -31,7 +35,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
         IEnumerator IEnumerable.GetEnumerator() { return GetEnumerator(); }
         public IEnumerator<QueueItem> GetEnumerator() { yield return this; }
 
-        protected readonly AnalysisState _item;
         public abstract Task PerformAsync(CancellationToken cancellationToken);
     }
 }

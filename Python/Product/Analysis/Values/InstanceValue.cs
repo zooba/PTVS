@@ -26,11 +26,29 @@ using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     public class InstanceValue : AnalysisValue {
-        public InstanceValue(VariableKey type) : base(type) {
+        private readonly VariableKey _type;
+
+        public InstanceValue(VariableKey key, VariableKey type) : base(key) {
+            _type = type;
+        }
+
+        public override Task<IAnalysisSet> GetAttribute(
+            IAnalysisState caller,
+            string attribute,
+            CancellationToken cancellationToken
+        ) {
+            if (attribute == "__class__") {
+                var res = _type.GetTypes(caller);
+                if (res != null) {
+                    return Task.FromResult(res);
+                }
+                return _type.GetTypesAsync(cancellationToken);
+            }
+            return base.GetAttribute(caller, attribute, cancellationToken);
         }
 
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
-            var values = await Key.GetTypesAsync(cancellationToken);
+            var values = await _type.GetTypesAsync(cancellationToken);
 
             var annotations = new HashSet<string>();
             foreach (var group in values.MaybeEnumerate().GroupBy(v => (v is TypeValue))) {

@@ -26,6 +26,7 @@ using Microsoft.PythonTools.Analysis.Parsing.Ast;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     public interface IAnalysisState {
+        PythonLanguageService Analyzer { get; }
         PythonFileContext Context { get; }
         ISourceDocument Document { get; }
         long Version { get; }

@@ -28,12 +28,18 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
     [Export(typeof(PythonLanguageServiceProvider))]
     public sealed class PythonLanguageServiceProvider : IDisposable {
         private readonly PathSet<PythonLanguageService> _services;
-        private readonly AsyncMutex _servicesLock = new AsyncMutex();
+        private readonly IReadOnlyCollection<IModuleProvider> _moduleProviders;
         private bool _isDisposed;
 
-        public PythonLanguageServiceProvider() {
+        [ImportingConstructor]
+        public PythonLanguageServiceProvider(
+            [ImportMany] IEnumerable<IModuleProvider> moduleProviders
+        ) {
             _services = new PathSet<PythonLanguageService>(null);
+            _moduleProviders = moduleProviders.ToArray();
         }
+
+        public IEnumerable<IModuleProvider> ModuleProviders => _moduleProviders.MaybeEnumerate();
 
         public void Dispose() {
             if (_isDisposed) {
@@ -41,7 +47,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
             _isDisposed = true;
 
-            using (_servicesLock.WaitAndDispose(1000)) {
+            lock (_services) {
                 var toDispose = _services.GetValues().ToArray();
                 foreach (var v in toDispose) {
                     v.Dispose();
@@ -58,7 +64,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return null;
             }
 
-            using (await _servicesLock.WaitAsync(cancellationToken)) {
+            lock (_services) {
                 PythonLanguageService service;
                 if (!_services.TryGetValue(config.InterpreterPath, out service) || !service.AddReference()) {
                     service = new PythonLanguageService(this, fileContextProvider, config);
@@ -73,7 +79,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return;
             }
 
-            using (await _servicesLock.WaitAsync(cancellationToken)) {
+            lock (_services) {
                 _services.Remove(service.Configuration.InterpreterPath);
             }
         }

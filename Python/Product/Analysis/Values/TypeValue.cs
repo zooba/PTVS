@@ -29,7 +29,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
 
         public TypeValue(VariableKey key, string name) : base(key) {
             _name = name;
-            _instance = new InstanceValue(Key);
+            _instance = new InstanceValue(key, key);
         }
 
         public AnalysisValue Instance => _instance;

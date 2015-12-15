@@ -36,7 +36,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private readonly Dictionary<string, Variable> _vars;
         private readonly List<AnalysisRule> _rules;
 
-        private readonly Stack<List<Node>> _deferredNodes;
+        private readonly Stack<int> _nestedIds;
+        private readonly Dictionary<Node, int> _knownNestedIds;
 
         private bool _addRules;
 
@@ -52,7 +53,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _vars = new Dictionary<string, Variable>();
             _rules = new List<AnalysisRule>();
 
-            _deferredNodes = new Stack<List<Node>>();
+            _nestedIds = new Stack<int>();
+            _nestedIds.Push(0);
+            _knownNestedIds = new Dictionary<Node, int>();
 
             if (currentVariables != null) {
                 foreach (var kv in currentVariables) {
@@ -62,6 +65,26 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             if (currentRules != null) {
                 _rules.AddRange(currentRules);
             }
+        }
+
+        protected override void OnEnterScope() {
+            base.OnEnterScope();
+            _nestedIds.Push(0);
+        }
+
+        protected override void OnLeaveScope() {
+            base.OnLeaveScope();
+            _nestedIds.Pop();
+        }
+
+        private int GetNestingId(Node node) {
+            int next;
+            if (!_knownNestedIds.TryGetValue(node, out next)) {
+                next = _nestedIds.Pop() + 1;
+                _nestedIds.Push(next);
+                _knownNestedIds[node] = next;
+            }
+            return next;
         }
 
         public IReadOnlyDictionary<string, Variable> WalkVariables(PythonAst ast) {
@@ -172,7 +195,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 }
             }
             if (variable != null) {
-                _rules.Add(new Rules.NameLookup(variable.Key, targets));
+                _rules.Add(new Rules.NameLookup(_state, variable.Key, targets));
                 return true;
             }
 
@@ -198,13 +221,34 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return false;
         }
 
+        private bool GetBinOpValue(BinaryExpression expr, IEnumerable<string> targets) {
+            if (expr == null) {
+                return false;
+            }
+
+            var callName = OperatorModule.GetMemberNameForOperator(expr.Operator);
+            if (string.IsNullOrEmpty(callName)) {
+                return false;
+            }
+
+            var callKey = string.Format("()@{0}", GetNestingId(expr));
+            Add(callKey, null);
+            Add(new Rules.ImportFromModule(_state, _analyzer.ResolveImport("operator", ""), callName, callKey));
+
+            Assign(string.Format("{0}#$0", callKey), expr.Left);
+            Assign(string.Format("{0}#$1", callKey), expr.Right);
+
+            Assign(string.Format("{0}#$r", callKey), null);
+            Add(new Rules.ReturnValueLookup(_state, new CallSiteKey(_state, callKey), targets));
+            return true;
+        }
+
         private bool GetReturnValue(CallExpression expr, IEnumerable<string> targets) {
             if (expr == null) {
                 return false;
             }
 
-            // TODO: Implement call handling
-            var callKey = string.Format("()@{0}", expr.Span.Start.Index);
+            var callKey = string.Format("()@{0}", GetNestingId(expr));
             Assign(callKey, expr.Expression);
             if (expr.Args != null) {
                 int argIndex = 0;
@@ -222,7 +266,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 }
             }
             Assign(string.Format("{0}#$r", callKey), null);
-            Add(new Rules.ReturnValueLookup(new CallSiteKey(_state, callKey), targets));
+            Add(new Rules.ReturnValueLookup(_state, new CallSiteKey(_state, callKey), targets));
             return true;
         }
 
@@ -267,14 +311,14 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private void Assign(IEnumerable<string> targets, Expression value) {
             AnalysisValue type =
                 GetLiteralValue(value as ConstantExpression) ??
-                GetStringValue(value as StringExpression) ??
-                AnalysisValue.Empty;
+                GetStringValue(value as StringExpression);
 
             var targetNames = targets.Select(t => Add(t, type)).ToList();
 
             var addedRules = !_addRules ||
                 GetVariableValue(value as NameExpression, targetNames) ||
                 GetAttributeValue(value as MemberExpression, targetNames) ||
+                GetBinOpValue(value as BinaryExpression, targetNames) ||
                 GetReturnValue(value as CallExpression, targetNames);
         }
 
@@ -309,7 +353,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         public override bool Walk(FunctionDefinition node) {
-            var key = string.Format("{0}@{1}", node.Name, node.Span.Start.Index);
+            var key = string.Format("{0}@{1}", node.Name, GetNestingId(node));
             var fi = Add(key, k => new FunctionValue(k, node, CurrentScopeWithSuffix + node.Name));
 
             if (Defer(node)) {
@@ -350,7 +394,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 LeaveScope(fi.Key.Key, "#");
 
                 // TODO: Generate decorator calls
-                Add(new Rules.NameLookup(fi.Key, Add(node.Name, null)));
+                Add(new Rules.NameLookup(_state, fi.Key, Add(node.Name, null)));
             }
 
             return false;
@@ -373,7 +417,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 var asName = ImportStatement.GetAsName(n);
                 var mi = _analyzer.ResolveImport(importName, "");
                 Add(asName, null);
-                Add(new Rules.ImportFromModule(mi, ModuleValue.VariableName, asName));
+                Add(new Rules.ImportFromModule(_state, mi, ModuleValue.VariableName, asName));
             }
 
             return false;
@@ -399,7 +443,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 if (asName != "*") {
                     Add(asName, null);
                 }
-                Add(new Rules.ImportFromModule(mi, importName, asName));
+                Add(new Rules.ImportFromModule(_state, mi, importName, asName));
             }
 
 

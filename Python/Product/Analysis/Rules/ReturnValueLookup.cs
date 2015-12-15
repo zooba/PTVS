@@ -29,39 +29,31 @@ namespace Microsoft.PythonTools.Analysis.Rules {
     class ReturnValueLookup : AnalysisRule {
         private readonly CallSiteKey _function;
 
-        public ReturnValueLookup(CallSiteKey function, string target) : base(target) {
+        public ReturnValueLookup(AnalysisState state, CallSiteKey function, string target) : base(state, target) {
             _function = function;
         }
 
-        public ReturnValueLookup(CallSiteKey function, IEnumerable<string> targets) : base(targets) {
+        public ReturnValueLookup(AnalysisState state, CallSiteKey function, IEnumerable<string> targets) :
+            base(state, targets) {
             _function = function;
         }
 
-        protected override async Task<Dictionary<string, IAnalysisSet>> ApplyWorkerAsync(
+        protected override async Task ApplyWorkerAsync(
             PythonLanguageService analyzer,
             AnalysisState state,
-            IReadOnlyDictionary<string, IAnalysisSet> priorResults,
+            RuleResults results,
             CancellationToken cancellationToken
         ) {
             var callables = await _function.GetCallableAsync(cancellationToken);
             if (callables == null) {
-                return null;
+                return;
             }
 
-            var vars = state.GetVariables();
             var values = await callables.Call(_function, cancellationToken);
 
-            var result = new Dictionary<string, IAnalysisSet>();
-            bool anyChanged = false;
             foreach (var target in Targets) {
-                result[target] = values;
-
-                if (!anyChanged && !AreSame(target, priorResults, values)) {
-                    anyChanged = true;
-                }
+                results.AddTypes(target, values);
             }
-
-            return anyChanged ? result : null;
         }
 
         public override string ToString() {
