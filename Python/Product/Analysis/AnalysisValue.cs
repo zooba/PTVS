@@ -86,6 +86,7 @@ namespace Microsoft.PythonTools.Analysis {
 
         long IAnalysisSet.Version => 0;
         int IAnalysisSet.Count => 1;
+        bool IAnalysisSet.Any() => true;
         int ICollection<AnalysisValue>.Count => 1;
         int IReadOnlyCollection<AnalysisValue>.Count => 1;
 

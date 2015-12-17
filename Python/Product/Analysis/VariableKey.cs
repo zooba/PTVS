@@ -93,7 +93,7 @@ namespace Microsoft.PythonTools.Analysis {
                 Variable variable = null;
                 var key = Key;
                 if (state.GetVariables()?.TryGetValue(key, out variable) ?? false && variable != null) {
-                    var results = state.GetRuleResults();
+                    var results = state.GetPendingRuleResults();
                     if (results == null) {
                         return variable.Types;
                     }

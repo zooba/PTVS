@@ -1,18 +1,29 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿// Python Tools for Visual Studio
+// Copyright(c) Microsoft Corporation
+// All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the License); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+//
+// THIS CODE IS PROVIDED ON AN  *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS
+// OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY
+// IMPLIED WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+// MERCHANTABLITY OR NON-INFRINGEMENT.
+//
+// See the Apache Version 2.0 License for specific language governing
+// permissions and limitations under the License.
+
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
-using Microsoft.PythonTools.Analysis.Parsing;
-using Microsoft.PythonTools.Interpreter;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     class BuiltinsModule : ModuleValue {
         private readonly TypeValue _noneType, _code;
         private readonly NumericValue _bool, _int, _long, _float, _complex;
-        private readonly StringValue _bytes, _str;
+        private readonly StringValue _bytes, _str, _unicode;
 
         private readonly BuiltinFunctionValue _abs, _all, _any, _ascii, _bin,
             _callable, _chr, _compile, _delattr;
@@ -28,7 +39,8 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _float = new NumericValue(K("float"), "float");
             _complex = new NumericValue(K("complex"), "complex");
             _bytes = new StringValue(Key, false);
-            _str = new StringValue(Key, true);
+            _unicode = new StringValue(Key, true);
+            _str = Key.State.Features.IsUnicodeCalledStr ? _unicode : _bytes;
 
             _abs = new BuiltinFunctionValue(K("abs"), "Callable[[T], T]", ReturnParameter1);
             _all = new BuiltinFunctionValue(K("all"), "Callable[..., bool]", ReturnBool);
@@ -42,16 +54,20 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _delattr = new BuiltinFunctionValue(K("delattr"), "Callable[[Any, str]]", DelAttrCall);
         }
 
-        internal Task<IAnalysisSet> ReturnParameter1(CallSiteKey callSite, CancellationToken cancellationToken) {
+        internal static Task<IAnalysisSet> ReturnParameter1(CallSiteKey callSite, CancellationToken cancellationToken) {
             return callSite.GetArgValue(0, null, cancellationToken);
         }
 
-        internal Task<IAnalysisSet> ReturnBool(CallSiteKey callSite, CancellationToken cancellationToken) {
-            return Task.FromResult<IAnalysisSet>(Bool.Instance);
+        internal static Task<IAnalysisSet> ReturnBool(CallSiteKey callSite, CancellationToken cancellationToken) {
+            return Task.FromResult<IAnalysisSet>(callSite.State.Analyzer.BuiltinsModule.Bool.Instance);
         }
 
-        internal Task<IAnalysisSet> ReturnStr(CallSiteKey callSite, CancellationToken cancellationToken) {
-            return Task.FromResult<IAnalysisSet>(Str.Instance);
+        internal static Task<IAnalysisSet> ReturnInt(CallSiteKey callSite, CancellationToken cancellationToken) {
+            return Task.FromResult<IAnalysisSet>(callSite.State.Analyzer.BuiltinsModule.Int.Instance);
+        }
+
+        internal static Task<IAnalysisSet> ReturnStr(CallSiteKey callSite, CancellationToken cancellationToken) {
+            return Task.FromResult<IAnalysisSet>(callSite.State.Analyzer.BuiltinsModule.Str.Instance);
         }
 
         private Task<IAnalysisSet> CompileCall(CallSiteKey callSite, CancellationToken cancellationToken) {
@@ -75,6 +91,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
         internal NumericValue Complex => _complex;
         internal StringValue Bytes => _bytes;
         internal StringValue Str => _str;
+        internal StringValue Unicode => _unicode;
 
         internal CallableValue Abs => _abs;
         internal CallableValue All => _all;
@@ -101,9 +118,9 @@ namespace Microsoft.PythonTools.Analysis.Values {
                 case "float": return Float;
                 case "complex": return Complex;
                 case "NoneType": return NoneType;
-                case "str": return Key.State.Features.IsUnicodeCalledStr ? Str : Bytes;
                 case "bytes": return Bytes;
-                case "unicode": return Str;
+                case "str": return Str;
+                case "unicode": return Unicode;
                 case "code": return onlyImportable ? AnalysisSet.Empty : Code;
 
                 case "copyright": return Str.Instance;

@@ -46,6 +46,7 @@ namespace Microsoft.PythonTools.Analysis {
         public bool HasGeneratorReturn => _version >= PythonLanguageVersion.V33;
         public bool HasLong => _version.Is2x();
         public bool HasNonlocal => _version.Is3x();
+        public bool HasOperatorSliceFunctions => _version.Is2x();
         public bool HasPrintFunction => _future.ThrowIfInvalid().HasFlag(FutureOptions.PrintFunction) || _version.Is3x();
         public bool HasRawBytesPrefix => _version >= PythonLanguageVersion.V33;
         public bool HasReprLiterals => _version.Is2x();

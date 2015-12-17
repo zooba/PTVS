@@ -39,10 +39,10 @@ namespace AnalysisTests {
             AssertListener.Initialize();
         }
 
-        [ThreadStatic]
         public static PythonLanguageServiceProvider LanguageServiceProvider;
-        [ThreadStatic]
         public static PythonFileContextProvider FileContextProvider;
+
+        public static int Counter { get; set; }
 
         public abstract InterpreterConfiguration Configuration { get; }
 
@@ -55,6 +55,7 @@ namespace AnalysisTests {
                 new OperatorModuleProvider()
             });
             FileContextProvider = new PythonFileContextProvider();
+            Counter = 0;
         }
 
         [TestCleanup]
@@ -172,6 +173,13 @@ z_m = x - y
             await state.AssertAnnotationsAsync("y", "float");
             await state.AssertAnnotationsAsync("z_p", "float");
             await state.AssertAnnotationsAsync("z_m", "float");
+
+            state = await @"x = 3 / 2
+y = 3. / 2
+z = 3 / 2.".AnalyzeAsync(Configuration);
+            await state.AssertAnnotationsAsync("x", state.Features.HasTrueDivision ? "float" : "int");
+            await state.AssertAnnotationsAsync("y", "float");
+            await state.AssertAnnotationsAsync("z", "float");
         }
 
         public virtual IEnumerable<string> BuiltinFunctionNames {
@@ -269,7 +277,7 @@ z_m = x - y
             CancellationToken cancellationToken = default(CancellationToken),
             [CallerMemberName] string filename = null
         ) {
-            return new StringLiteralDocument(code, "Tests\\" + filename + ".py").AnalyzeAsync(
+            return new StringLiteralDocument(code, $"Tests\\{filename}_{AnalysisTests.Counter++}.py").AnalyzeAsync(
                 config,
                 cancellationToken
             );
@@ -308,8 +316,17 @@ z_m = x - y
             var state = analyzer.GetAnalysisState(context, document.Moniker, false);
             await state.WaitForUpToDateAsync(cancellationToken);
             await state.DumpAsync(Console.Out, cancellationToken);
+            var aState = state as AnalysisState;
+            if (aState != null) {
+                await aState.DumpTraceAsync(Console.Error, cancellationToken);
+            }
             return state;
         }
+    }
+
+    [TestClass]
+    public class Python27AnalysisTests : AnalysisTests {
+        public override InterpreterConfiguration Configuration => PythonPaths.Python27.Configuration;
     }
 
     [TestClass]

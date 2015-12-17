@@ -37,9 +37,16 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         ) {
             _services = new PathSet<PythonLanguageService>(null);
             _moduleProviders = moduleProviders.ToArray();
+#if DEBUG
+            TraceCapacity = 1000;
+#else
+            TraceCapacity = 100;
+#endif
         }
 
         public IEnumerable<IModuleProvider> ModuleProviders => _moduleProviders.MaybeEnumerate();
+
+        public int TraceCapacity { get; set; }
 
         public void Dispose() {
             if (_isDisposed) {

@@ -9,6 +9,7 @@ namespace Microsoft.PythonTools.Analysis {
         void AddRange(IEnumerable<AnalysisValue> values);
         IAnalysisSet Union(IEnumerable<AnalysisValue> other);
         IAnalysisSet Clone(bool asReadOnly = false);
+        bool Any();
         new int Count { get; }
         long Version { get; }
         bool SetEquals(IAnalysisSet other);

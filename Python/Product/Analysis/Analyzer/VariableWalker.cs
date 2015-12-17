@@ -171,7 +171,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             } else if (expr.Value is ByteString) {
                 return _builtins.Bytes.Instance;
             } else if (expr.Value is string) {
-                return _builtins.Str.Instance;
+                return _builtins.Unicode.Instance;
             }
             return null;
         }
@@ -226,7 +226,15 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return false;
             }
 
-            var callName = OperatorModule.GetMemberNameForOperator(expr.Operator);
+            var op = expr.Operator;
+            switch(op) {
+                case PythonOperator.Divide:
+                    if (_state.Features.HasTrueDivision) {
+                        op = PythonOperator.TrueDivide;
+                    }
+                    break;
+            }
+            var callName = OperatorModule.GetMemberNameForOperator(op);
             if (string.IsNullOrEmpty(callName)) {
                 return false;
             }

@@ -16,6 +16,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -23,6 +24,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Values;
+using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis {
     abstract class AnalysisRule {
@@ -73,9 +75,17 @@ namespace Microsoft.PythonTools.Analysis {
             var reads = new HashSet<string>();
             var writes = new HashSet<string>();
             using (results.Track(reads, writes)) {
+                state.Trace($"  applying rule {this}");
                 await ApplyWorkerAsync(analyzer, state, results, cancellationToken);
             }
-            return writes.Any();
+            if (reads.Any()) {
+                state.Trace($"  read: {string.Join(", ", reads.Ordered())}");
+            }
+            if (writes.Any()) {
+                state.Trace($"  changed: {string.Join(", ", writes.Ordered())}");
+                return true;
+            }
+            return false;
         }
 
         protected abstract Task ApplyWorkerAsync(

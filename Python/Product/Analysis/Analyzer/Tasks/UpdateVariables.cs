@@ -30,22 +30,22 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             : base(item) { }
 
         public override async Task PerformAsync(CancellationToken cancellationToken) {
-            var item = _state as AnalysisState;
-            if (item == null) {
+            var state = _state as AnalysisState;
+            if (state == null) {
                 return;
             }
 
             var parser = new Parser(await _state.GetTokenizationAsync(cancellationToken));
             var errors = new CollectingErrorSink();
             var ast = parser.Parse(errors);
-            item.SetAst(ast, errors.Errors);
+            state.SetAst(ast, errors.Errors);
 
-            var walker = new VariableWalker(item.Analyzer, item, item.GetVariables(), item.GetRules());
+            var walker = new VariableWalker(state.Analyzer, state, state.GetVariables(), state.GetRules());
             var variables = walker.WalkVariables(ast);
             var rules = walker.WalkRules(ast);
-            item.SetVariablesAndRules(variables, rules);
+            state.SetVariablesAndRules(variables, rules);
 
-            item.Analyzer.Enqueue(item.Context, new UpdateRules(item));
+            state.Analyzer.Enqueue(state.Context, new UpdateRules(state));
         }
     }
 }

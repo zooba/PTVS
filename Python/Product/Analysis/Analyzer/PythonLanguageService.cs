@@ -311,7 +311,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             foreach (var doc in docs) {
                 IAnalysisState item;
                 if (!state.AnalysisStates.TryGetValue(doc.Moniker, out item)) {
-                    item = new AnalysisState(this, state, doc, context);
+                    var aState = new AnalysisState(this, state, doc, context);
+                    aState.TraceCapacity = _provider.TraceCapacity;
+                    item = aState;
                     state.AnalysisStates.Add(doc.Moniker, item);
                 }
             }

@@ -33,29 +33,25 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
                 return;
             }
 
-            IReadOnlyDictionary<string, Variable> variables = null;
-            IReadOnlyCollection<AnalysisRule> rules = null;
-            RuleResults results = null;
-            await state.GetVariablesAndRulesAsync((v, r) => {
-                variables = v;
-                rules = r;
-                results = state.GetRuleResults() ?? new RuleResults();
-            }, cancellationToken);
+            var variables = state.GetVariables();
+            var rules = state.GetRules();
 
-            if (variables == null || rules == null || results == null) {
+            if (variables == null || rules == null) {
                 return;
             }
 
             bool anyChange = true;
             while (anyChange) {
+                state.Trace($"Applying rules (Version: {state.Version})");
                 anyChange = false;
+                var results = state.BeginSetRuleResults();
                 foreach (var r in rules) {
                     bool change = await r.ApplyAsync(state.Analyzer, state, results, cancellationToken);
                     if (change) {
                         anyChange = true;
                     }
                 }
-                state.SetRuleResults(results.Clone());
+                state.EndSetRuleResults();
             }
             state.NotifyUpToDate();
         }

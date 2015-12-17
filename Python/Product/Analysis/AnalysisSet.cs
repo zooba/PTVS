@@ -423,10 +423,8 @@ namespace Microsoft.PythonTools.Analysis {
             return -1;
         }
 
-        /// <summary>
-        /// Returns the number of key/value pairs currently in the dictionary.
-        /// </summary>
         public int Count => _count;
+        public bool Any() => _count > 0;
 
         public void Clear() {
             if (_buckets != null && _count != 0) {

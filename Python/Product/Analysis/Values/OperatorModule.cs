@@ -28,17 +28,98 @@ namespace Microsoft.PythonTools.Analysis.Values {
     class OperatorModule : ModuleValue {
         private readonly IReadOnlyDictionary<string, BuiltinFunctionValue> _methods;
 
+        // Methods 'n' with operator.n, operator.__n__, object.__n__ and
+        // object.__rn__ (trailing underscores are trimmed when adding dunders)
+        private static readonly string[] ReversibleBinaryObjectOperators = new[] {
+            "add", "sub", "mul", "div", "truediv", "floordiv", "matmul", "mod",
+            "and_", "or_", "xor", "lshift", "rshift"
+        };
+
+        // Methods 'n' with operator.in, operator.__in__ and object.__in__
+        private static readonly string[] InPlaceBinaryObjectOperators = new[] {
+            "add", "sub", "mul", "div", "truediv", "floordiv", "matmul", "mod",
+            "and", "or", "xor", "lshift", "rshift"
+        };
+
+        // Methods 'n' with operator.n, operator.__n__, object.__n__.
+        // Requires a colon followed by arg annotations
+        // Names ending in "slice" require HasOperatorSliceFunctions
+        private static readonly string[] IrreversibleObjectOperators = new[] {
+            "lt:[Any, Any], Any", "le:[Any, Any], Any", "eq:[Any, Any], Any", "ne:[Any, Any], Any",
+            "ge:[Any, Any], Any", "gt:[Any, Any], Any",
+            "neg:[Any], Any", "pos:[Any], Any", "abs:[Any], Any", "invert:[Any], Any",
+            "delitem:[Sequence, Any]", "delslice:[Sequence, Any, Any]",
+            "getitem:[Sequence, Any], Any", "getslice:[Sequence, Any, Any], Any",
+            "setitem:[Sequence, Any, Any]", "setslice:[Sequence, Any, Any, Any]"
+        };
+
+        // Methods 'n' with operator.n, operator.__n__ that return bool
+        private static readonly string[] BoolOperators = new[] {
+            "is_:[Any, Any], bool", "is_not:[Any, Any]: bool", "not_:[Any], bool"
+        };
+
+        private static readonly string[] IntOperators = new[] {
+            "index:[Any], int"
+        };
+
         public OperatorModule(VariableKey key, ISourceDocument document, string name)
             : base(key, name, name, document.Moniker) {
             Func<string, VariableKey> K = n => new VariableKey(key.State, n);
             var methods = new Dictionary<string, BuiltinFunctionValue>();
 
-            foreach (var n in new[] { "add", "sub", "mul", "div", "truediv", "floordiv", "matmul" }) {
-                var dunderN = "__" + n + "__";
+            foreach (var n in ReversibleBinaryObjectOperators) {
+                var dunderN = "__" + n.TrimEnd('_') + "__";
                 methods[dunderN] = methods[n] = new BuiltinFunctionValue(
-                    K(dunderN), "Callable[[Any, Any], Any]", (cs, ct) => Arithmetic(cs, dunderN, "__r" + n + "__", ct)
+                    K(dunderN), "Callable[[Any, Any], Any]", (cs, ct) => Arithmetic(cs, dunderN, "__r" + n .TrimEnd('_') + "__", ct)
                 );
             }
+
+            foreach (var n in InPlaceBinaryObjectOperators) {
+                var dunderN = "__i" + n + "__";
+                methods[dunderN] = methods["i" + n] = new BuiltinFunctionValue(
+                    K(dunderN), "Callable[[Any, Any], Any]", (cs, ct) => Arithmetic(cs, dunderN, ct)
+                );
+            }
+
+            foreach (var nWithArgs in IrreversibleObjectOperators) {
+                var n = nWithArgs.Remove(nWithArgs.IndexOf(':'));
+                var args = nWithArgs.Substring(nWithArgs.IndexOf(':'));
+
+                if (n.EndsWith("slice") && !key.State.Features.HasOperatorSliceFunctions) {
+                    continue;
+                }
+
+                var dunderN = "__" + n + "__";
+                methods[dunderN] = methods[n] = new BuiltinFunctionValue(
+                    K(dunderN), "Callable[" + args + "]", (cs, ct) => Arithmetic(cs, dunderN, ct)
+                );
+            }
+
+            foreach (var nWithArgs in BoolOperators) {
+                var n = nWithArgs.Remove(nWithArgs.IndexOf(':'));
+                var args = nWithArgs.Substring(nWithArgs.IndexOf(':'));
+
+                var dunderN = "__" + n.TrimEnd('_') + "__";
+                methods[dunderN] = methods[n] = new BuiltinFunctionValue(
+                    K(dunderN), "Callable[" + args + "]", BuiltinsModule.ReturnBool
+                );
+            }
+
+            foreach (var nWithArgs in IntOperators) {
+                var n = nWithArgs.Remove(nWithArgs.IndexOf(':'));
+                var args = nWithArgs.Substring(nWithArgs.IndexOf(':'));
+
+                var dunderN = "__" + n.TrimEnd('_') + "__";
+                methods[dunderN] = methods[n] = new BuiltinFunctionValue(
+                    K(dunderN), "Callable[" + args + "]", BuiltinsModule.ReturnInt
+                );
+            }
+
+            methods["__concat__"] = methods["concat"] = methods["__add__"];
+            methods["__iconcat__"] = methods["iconcat"] = methods["__iadd__"];
+            methods["__inv__"] = methods["inv"] = methods["__invert__"];
+
+            methods["truth"] = new BuiltinFunctionValue(K("truth"), "Callable[[Any], bool]", BuiltinsModule.ReturnBool);
 
             _methods = methods;
         }
@@ -71,8 +152,32 @@ namespace Microsoft.PythonTools.Analysis.Values {
                 case PythonOperator.TrueDivide: return "__truediv__";
                 case PythonOperator.FloorDivide: return "__floordiv__";
                 case PythonOperator.MatMultiply: return "__matmul__";
+                case PythonOperator.Power: return "__pow__";
+                case PythonOperator.Mod: return "__mod__";
+                case PythonOperator.BitwiseAnd: return "__and__";
+                case PythonOperator.BitwiseOr: return "__or__";
+                case PythonOperator.BitwiseXor: return "__xor__";
+                case PythonOperator.Pos: return "__pos__";
+                case PythonOperator.Negate: return "__neg__";
+                case PythonOperator.Invert: return "__invert__";
+                case PythonOperator.LeftShift: return "__lshift__";
+                case PythonOperator.RightShift: return "__rshift__";
                 default: return null;
             }
+        }
+
+        private static async Task<IAnalysisSet> Arithmetic(
+            CallSiteKey callSite,
+            string opName,
+            CancellationToken cancellationToken
+        ) {
+            var arg0 = await callSite.GetArgValue(0, null, cancellationToken);
+            var caller = callSite.State;
+
+            var xCls = await arg0.GetAttribute(caller, "__class__", cancellationToken);
+            var op = await xCls.GetAttribute(caller, opName, cancellationToken);
+
+            return await op.Call(callSite, cancellationToken);
         }
 
         private static async Task<IAnalysisSet> Arithmetic(

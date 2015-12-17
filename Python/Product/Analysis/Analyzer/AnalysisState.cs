@@ -16,6 +16,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
@@ -40,12 +41,16 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         private IReadOnlyDictionary<string, Variable> _variables;
         private IReadOnlyCollection<AnalysisRule> _rules;
-        private RuleResults _ruleResults;
+        private RuleResults _ruleResults, _pendingRuleResults;
 
         private TaskCompletionSource<object> _updated;
         private TaskCompletionSource<object> _upToDate;
         private ExceptionDispatchInfo _exception;
         private long _version;
+
+        private readonly List<List<IFormattable>> _trace;
+        private int _traceIndex;
+        private const int TraceChunk = 100;
 
         internal AnalysisState(
             PythonLanguageService analyzer,
@@ -58,6 +63,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _document = document;
             _context = context;
             _upToDate = new TaskCompletionSource<object>();
+            _trace = new List<List<IFormattable>>();
+            _pendingRuleResults = new RuleResults();
         }
 
         public PythonLanguageService Analyzer => _analyzer;
@@ -66,6 +73,81 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         public long Version => _version;
         public LanguageFeatures Features => _ast?.Features ?? default(LanguageFeatures);
 
+        #region Tracing
+
+        internal int TraceCapacity {
+            get {
+                return _trace.Count * TraceChunk;
+            }
+            set {
+                if (value == 0) {
+                    _trace.Clear();
+                    _traceIndex = -1;
+                    return;
+                }
+                int desired = Math.Max((value - 1) / TraceChunk + 1, 1);
+                while (_trace.Count > desired && _traceIndex < _trace.Count) {
+                    _trace.RemoveAt(_trace.Count);
+                }
+                while (_trace.Count > desired) {
+                    _trace.RemoveAt(0);
+                    _traceIndex -= 1;
+                }
+                while (_trace.Count < desired) {
+                    _trace.Add(new List<IFormattable>(TraceChunk));
+                }
+            }
+        }
+
+        public Task TraceAsync(IFormattable message) {
+            if (_thread == null || _thread.IsCurrent) {
+                Trace(message);
+                return Task.FromResult<object>(null);
+            }
+            return _thread.Post(async () => { Trace(message); });
+        }
+
+        public void Trace(IFormattable message) {
+            Debug.Assert(_thread == null || _thread.IsCurrent, "Must not be called from off analysis thread");
+
+            if (_traceIndex < 0 || _traceIndex >= _trace.Count) {
+                return;
+            }
+            var trace = _trace[_traceIndex];
+            while (trace.Count == TraceChunk) {
+                _traceIndex += 1;
+                if (_traceIndex > _trace.Count) {
+                    _traceIndex = 0;
+                }
+                _trace[_traceIndex] = trace = new List<IFormattable>(TraceChunk);
+            }
+            trace.Add(message);
+        }
+
+        public async Task DumpTraceAsync(TextWriter output, CancellationToken cancellationToken) {
+            await InvokeAsync(async () => {
+                for (int i = _traceIndex + 1; i < _trace.Count; ++i) {
+                    foreach (var m in _trace[i]) {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (m != null) {
+                            output.WriteLine(m.ToString());
+                        }
+                    }
+                }
+                for (int i = 0; i < _trace.Count && i <= _traceIndex; ++i) {
+                    foreach (var m in _trace[i]) {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (m != null) {
+                            output.WriteLine(m.ToString());
+                        }
+                    }
+                }
+                _trace.Clear();
+                _traceIndex = 0;
+            });
+        }
+
+        #endregion
 
         internal void SetDocument(ISourceDocument document) {
             _document = document;
@@ -92,8 +174,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             NotifyUpdated();
         }
 
-        internal void SetRuleResults(RuleResults results) {
-            _ruleResults = results;
+        internal RuleResults BeginSetRuleResults() {
+            return _pendingRuleResults = (_ruleResults?.Clone()) ?? new RuleResults();
+        }
+
+        internal void EndSetRuleResults() {
+            _ruleResults = _pendingRuleResults;
             NotifyUpdated();
         }
 
@@ -137,6 +223,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         internal void NotifyUpToDate() {
+            Trace($"{_document.Moniker} up to date at version {Version}");
             Interlocked.Exchange(ref _upToDate, null)?.SetResult(null);
         }
 
@@ -222,8 +309,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return _rules;
         }
 
-        internal RuleResults GetRuleResults() {
-            return _ruleResults;
+        internal RuleResults GetPendingRuleResults() {
+            return _pendingRuleResults;
         }
 
         internal Task GetVariablesAndRulesAsync(
@@ -277,14 +364,18 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return InvokeAsync(async () => {
                 var v = _variables;
                 var r = _ruleResults;
-                while (v == null || r == null) {
+                while (v == null) {
                     await WaitForUpdateAsync(cancellationToken);
                     v = _variables;
                     r = _ruleResults;
                 }
                 var result = new Dictionary<string, IAnalysisSet>();
                 foreach (var kv in v) {
-                    result[kv.Key] = kv.Value.Types.Union(r.GetTypes(kv.Key));
+                    if (r != null) {
+                        result[kv.Key] = kv.Value.Types.Union(r.GetTypes(kv.Key));
+                    } else {
+                        result[kv.Key] = kv.Value.Types;
+                    }
                 }
                 return result;
             });
@@ -294,20 +385,24 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             string name,
             CancellationToken cancellationToken
         ) {
-            return InvokeAsync(async () => {
-                var variables = _variables;
-                var results = _ruleResults;
-                while (variables == null || results == null) {
+            return InvokeAsync((Func<Task<IAnalysisSet>>)(async () => {
+                var v = _variables;
+                var r = _ruleResults;
+                while (v == null) {
                     await WaitForUpdateAsync(cancellationToken);
-                    variables = _variables;
-                    results = _ruleResults;
+                    v = _variables;
+                    r = _ruleResults;
                 }
-                Variable v;
-                if (GetVariables().TryGetValue(name, out v)) {
-                    return v.Types.Union(results.GetTypes(name));
+                Variable variable;
+                if (GetVariables().TryGetValue((string)name, out variable)) {
+                    if (r != null) {
+                        return variable.Types.Union(r.GetTypes(name));
+                    } else {
+                        return variable.Types;
+                    }
                 }
                 return AnalysisSet.Empty;
-            });
+            }));
         }
 
         private async Task DumpOnThreadAsync(TextWriter output, CancellationToken cancellationToken) {
