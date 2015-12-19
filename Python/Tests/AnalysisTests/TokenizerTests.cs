@@ -214,7 +214,7 @@ namespace AnalysisTests {
                     "SWS:", "a", "NewLine:\\r\\n",
                     "# Below", "WS:\\r\\n",
                     "WS:\\r\\n",
-                    "SWS:", "If:if", "WS: ", "True:True", ":", "NewLine:\\r\\n",
+                    "SWS:", "If:if", "WS: ", "a", ":", "NewLine:\\r\\n",
                     "WS:    ", "#block", "WS:\\r\\n",
                     "SWS:....", "Pass:pass", "NewLine:\\r\\n",
                     "WS:\\r\\n",

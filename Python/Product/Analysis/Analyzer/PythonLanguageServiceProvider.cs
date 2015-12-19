@@ -36,7 +36,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             [ImportMany] IEnumerable<IModuleProvider> moduleProviders
         ) {
             _services = new PathSet<PythonLanguageService>(null);
-            _moduleProviders = moduleProviders.ToArray();
+            _moduleProviders = moduleProviders?.ToArray();
 #if DEBUG
             TraceCapacity = 1000;
 #else

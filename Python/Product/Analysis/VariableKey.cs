@@ -35,7 +35,7 @@ namespace Microsoft.PythonTools.Analysis {
 
         public VariableKey(IAnalysisState state, string key) {
             State = state;
-            Key = key;
+            Key = key == null ? null : string.Intern(key);
         }
 
         public bool IsEmpty => State == null;

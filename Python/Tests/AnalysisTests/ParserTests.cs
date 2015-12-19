@@ -2397,11 +2397,28 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void ParseComments() {
-            var version = PythonLanguageVersion.V35;
-            var tree = ParseFileNoErrors("Comments.py", version);
-            Assert.Fail("Not yet implemented");
+            foreach (var version in AllVersions) {
+                var tree = ParseFileNoErrors("Comments.py", version);
+                var A = CheckExprStmt(CheckNameExpr("a"));
+                CheckAst(
+                    tree,
+                    CheckSuite(
+                        A,
+                        CheckComment("# After", tree, A),
+                        CheckFuncDef("f", new[] {
+                            CheckComment("#param", tree, CheckParameter("a"))
+                        }, CheckSuite(
+                            Pass,
+                            Pass
+                        )),
+                        A,
+                        CheckIfStmt(CheckIf(CheckNameExpr("a"), CheckSuite(Pass)))
+                    )
+                );
+            }
+
         }
 
         #endregion
@@ -3493,13 +3510,9 @@ namespace AnalysisTests {
             };
         }
 
-        private Action<Statement> CheckCommentStatement(string comment, PythonAst tree) {
-            return CheckComment(comment, tree, CheckEmptyStmt());
-        }
-
         private Action<T> CheckComment<T>(string comment, PythonAst tree, Action<T> checkNode) where T : Node {
             return node => {
-                //Assert.AreEqual(comment, node.GetComment(tree));
+                Assert.AreEqual(comment, FindCommentWalker.Find(tree, node));
                 checkNode(node);
             };
         }

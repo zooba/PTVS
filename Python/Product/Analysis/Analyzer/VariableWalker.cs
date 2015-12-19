@@ -109,14 +109,14 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
-        private void Add(VariableKey key, AnalysisValue value) {
+        private void Add(VariableKey key, IAnalysisSet value) {
             Variable v;
             if (!_vars.TryGetValue(key.Key, out v)) {
                 _vars[key.Key] = v = new Variable(_state, key.Key);
             }
 
             if (value != null) {
-                v.AddType(value);
+                v.AddTypes(value);
             }
         }
 
@@ -137,7 +137,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return value;
         }
 
-        private string Add(string key, AnalysisValue value) {
+        private string Add(string key, IAnalysisSet value) {
             var vk = new VariableKey(_state, CurrentScopeWithSuffix + key);
 
             Add(vk, value);
@@ -152,7 +152,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
 
-        private AnalysisValue GetLiteralValue(ConstantExpression expr) {
+        private IAnalysisSet GetLiteralValue(ConstantExpression expr) {
             if (expr == null) {
                 return null;
             }
@@ -176,11 +176,24 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return null;
         }
 
-        private AnalysisValue GetStringValue(StringExpression expr) {
+        private IAnalysisSet GetStringValue(StringExpression expr) {
             if ((expr?.Parts?.Count ?? 0) == 0) {
                 return null;
             }
             return GetLiteralValue(expr.Parts[0] as ConstantExpression);
+        }
+
+        private IAnalysisSet GetLocalValue(NameExpression expr) {
+            if (expr == null) {
+                return null;
+            }
+
+            var key = CurrentScopeWithSuffix + expr.Name;
+            Variable variable;
+            if (_vars.TryGetValue(key, out variable)) {
+                return variable.Types;
+            }
+            return null;
         }
 
         private bool GetVariableValue(NameExpression expr, IEnumerable<string> targets) {
@@ -317,9 +330,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         private void Assign(IEnumerable<string> targets, Expression value) {
-            AnalysisValue type =
+            IAnalysisSet type =
                 GetLiteralValue(value as ConstantExpression) ??
-                GetStringValue(value as StringExpression);
+                GetStringValue(value as StringExpression) ??
+                GetLocalValue(value as NameExpression);
 
             var targetNames = targets.Select(t => Add(t, type)).ToList();
 
@@ -347,15 +361,15 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         public override bool Walk(ClassDefinition node) {
             Add(node.Name, key => new ClassValue(key, node));
 
-            if (Defer(node)) {
-                foreach (var d in node.Decorators.MaybeEnumerate()) {
-                    d.Walk(this);
-                }
-            } else {
-                EnterScope(node.Name, ".");
-                node.Body?.Walk(this);
-                LeaveScope(node.Name, ".");
+            foreach (var d in node.Decorators.MaybeEnumerate()) {
+                d.Walk(this);
             }
+
+            // TODO: Bases
+
+            EnterScope(node.Name, ".");
+            node.Body?.Walk(this);
+            LeaveScope(node.Name, ".");
 
             return false;
         }
@@ -364,46 +378,44 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             var key = string.Format("{0}@{1}", node.Name, GetNestingId(node));
             var fi = Add(key, k => new FunctionValue(k, node, CurrentScopeWithSuffix + node.Name));
 
-            if (Defer(node)) {
-                foreach (var d in node.Decorators.MaybeEnumerate()) {
-                    d.Walk(this);
-                }
-            } else {
-                var defaults = new List<AnalysisValue>();
-                foreach (var p in (node.Parameters?.Parameters).MaybeEnumerate()) {
-                    // TODO: Walk annotation
-
-                    // TODO: Walk default value
-                    defaults.Add(null);
-                }
-
-                EnterScope(fi.Key.Key, "#");
-                int parameterNumber = 0;
-                var defaultsEnum = defaults.GetEnumerator();
-                foreach (var p in (node.Parameters?.Parameters).MaybeEnumerate()) {
-                    // Add the local variable for the parameter
-                    var pv = Add(p.Name, v => {
-                        if (p.Kind != ParameterKind.KeywordOnly) {
-                            return new ParameterValue(fi.Key, p.Kind, parameterNumber++);
-                        }
-                        return null;
-                    });
-
-                    if (pv != null) {
-                        // Add the positional field for the parameter
-                        Add(pv.Key, null);
-                    }
-                    if (defaultsEnum.MoveNext()) {
-                        Add(p.Name, defaultsEnum.Current);
-                    }
-                }
-
-                node.Body?.Walk(this);
-                LeaveScope(fi.Key.Key, "#");
-
-                // TODO: Generate decorator calls
-                Add(new Rules.NameLookup(_state, fi.Key, Add(node.Name, null)));
+            foreach (var d in node.Decorators.MaybeEnumerate()) {
+                d.Walk(this);
             }
+
+            var defaults = new List<AnalysisValue>();
+            foreach (var p in (node.Parameters?.Parameters).MaybeEnumerate()) {
+                // TODO: Walk annotation
+
+                // TODO: Walk default value
+                defaults.Add(null);
+            }
+
+            EnterScope(key, "#");
+            int parameterNumber = 0;
+            var defaultsEnum = defaults.GetEnumerator();
+            foreach (var p in (node.Parameters?.Parameters).MaybeEnumerate()) {
+                // Add the local variable for the parameter
+                var pv = Add(p.Name, v => {
+                    if (p.Kind != ParameterKind.KeywordOnly) {
+                        return new ParameterValue(fi.Key, p.Kind, parameterNumber++);
+                    }
+                    return null;
+                });
+
+                if (pv != null) {
+                    // Add the positional field for the parameter
+                    Add(pv.Key, null);
+                }
+                if (defaultsEnum.MoveNext()) {
+                    Add(p.Name, defaultsEnum.Current);
+                }
+            }
+
+            node.Body?.Walk(this);
+            LeaveScope(key, "#");
+
+            // TODO: Generate decorator calls
+            Add(new Rules.NameLookup(_state, fi.Key, Add(node.Name, fi)));
 
             return false;
         }

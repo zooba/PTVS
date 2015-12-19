@@ -23,6 +23,7 @@ using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.PythonTools.Common.Infrastructure;
+using Microsoft.PythonTools.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     public class InstanceValue : AnalysisValue {
@@ -66,6 +67,10 @@ namespace Microsoft.PythonTools.Analysis.Values {
                 return "<unknown>";
             }
             return string.Join(", ", annotations.Ordered());
+        }
+
+        public async override Task<string> ToDebugAnnotationAsync(CancellationToken cancellationToken) {
+            return "Instance of " + await ToAnnotationAsync(cancellationToken);
         }
     }
 }

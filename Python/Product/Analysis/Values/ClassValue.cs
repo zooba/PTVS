@@ -42,5 +42,9 @@ namespace Microsoft.PythonTools.Analysis.Values {
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             return _node.Name;
         }
+
+        public override async Task<string> ToDebugAnnotationAsync(CancellationToken cancellationToken) {
+            return string.Format("Class[{0}]", _node.Name);
+        }
     }
 }

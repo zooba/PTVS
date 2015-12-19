@@ -48,5 +48,9 @@ namespace Microsoft.PythonTools.Analysis.Values {
             }
             return values;
         }
+
+        public override string ToString() {
+            return base.ToString();
+        }
     }
 }

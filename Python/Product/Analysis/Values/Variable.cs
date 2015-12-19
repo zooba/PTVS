@@ -24,21 +24,26 @@ using Microsoft.PythonTools.Analysis.Analyzer;
 namespace Microsoft.PythonTools.Analysis.Values {
     public sealed class Variable {
         private readonly VariableKey _key;
-        private readonly AnalysisSet _types;
+        private IAnalysisSet _types;
 
         internal Variable(AnalysisState state, string key) {
             _key = new VariableKey(state, key);
-            _types = new AnalysisSet();
         }
 
         public VariableKey Key => _key;
         public long Version => _types.Version;
 
-        public IAnalysisSet Types => _types.Clone(true);
+        public IAnalysisSet Types => _types?.Clone(true) ?? AnalysisSet.Empty;
 
         internal void AddType(AnalysisValue type) {
             if (type == null) {
                 return;
+            }
+            if (_types == null) {
+                _types = type;
+                return;
+            } else if (_types.IsReadOnly) {
+                _types = _types.Clone();
             }
             _types.Add(type);
         }
@@ -47,16 +52,37 @@ namespace Microsoft.PythonTools.Analysis.Values {
             if (set == null || !set.Any()) {
                 return;
             }
-            _types.AddRange(set);
+            if (_types == null) {
+                _types = set.Clone();
+            } else if (_types.IsReadOnly) {
+                _types = _types.Union(set);
+            } else {
+                _types.AddRange(set);
+            }
         }
 
-        public async Task<string> ToAnnotationStringAsync(CancellationToken cancellationToken) {
+        public async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             var types = _types;
+            if ((types?.Count ?? 0) == 0) {
+                return "{}";
+            }
             var names = new List<string>(types.Count);
             foreach (var t in types) {
                 names.Add(await t.ToAnnotationAsync(cancellationToken));
             }
-            return string.Format("{{{0}}}", string.Join(", ", names));
+            return string.Join(", ", names);
+        }
+
+        public async Task<string> ToDebugAnnotationAsync(CancellationToken cancellationToken) {
+            var types = _types;
+            if ((types?.Count ?? 0) == 0) {
+                return "{}";
+            }
+            var names = new List<string>(types.Count);
+            foreach (var t in types) {
+                names.Add(await t.ToDebugAnnotationAsync(cancellationToken));
+            }
+            return string.Join(", ", names);
         }
     }
 }

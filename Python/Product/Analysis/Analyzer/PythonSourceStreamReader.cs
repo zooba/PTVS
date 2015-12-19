@@ -34,7 +34,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private int _lineIndex;
         private bool _eof;
 
-        internal const int BufferFillChunkSize = 4096;
+        internal const int BufferFillChunkSize = 1024 * 32;
         internal const int ReadLineBufferSize = 128;
 
         private static readonly Regex _codingRegex = new Regex("coding[:=]\\s*([-\\w.]+)", RegexOptions.Compiled);

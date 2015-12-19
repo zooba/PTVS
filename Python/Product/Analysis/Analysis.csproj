@@ -89,6 +89,7 @@
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="Interpreter\InterpreterConfiguration.cs" />
     <Compile Include="Interpreter\InterpreterUIMode.cs" />
+    <Compile Include="Parsing\FindCommentWalker.cs" />
     <Compile Include="Parsing\ByteString.cs" />
     <Compile Include="Parsing\Ast\Arg.cs" />
     <Compile Include="Parsing\Ast\AsExpression.cs" />

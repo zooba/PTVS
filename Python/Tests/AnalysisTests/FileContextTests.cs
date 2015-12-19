@@ -180,13 +180,17 @@ namespace AnalysisTests {
 
                 var moniker = service.ResolveImport("os", "");
                 Trace.TraceInformation("Looking at {0}", moniker);
+                var state = service.GetAnalysisState(null, moniker, true);
                 var imports = await service.GetModuleMembersAsync(null, moniker, null, Cancel5s);
+                await state.DumpAsync(Console.Out, Cancel30s);
+
                 AssertUtil.CheckCollection(
                     imports,
                     new[] { "walk", "environ", "_wrap_close", "_exit" },
                     new[] { "__init__", "__enter__" }
                 );
-                var walk = await service.GetModuleMemberTypesAsync(null, moniker, "walk", Cancel5s);
+                var walk = await state.GetTypesAsync("walk", Cancel5s);
+                Assert.AreEqual(1, walk.Count, walk.ToString());
                 Assert.IsInstanceOfType(walk.Single(), typeof(FunctionValue));
 
                 moniker = service.ResolveImport("collections", "");
@@ -195,9 +199,11 @@ namespace AnalysisTests {
                 Assert.IsInstanceOfType(Counter.Single(), typeof(ClassValue));
 
                 // TODO: Reimplement class members
-                //imports = await service.GetModuleMembersAsync(null, moniker, "Counter", Cancel5s);
-                //AssertUtil.ContainsAtLeast(imports, "elements", "fromkeys");
-                //Assert.IsInstanceOfType(imports["elements"], typeof(FunctionInfo));
+                imports = await service.GetModuleMembersAsync(null, moniker, "Counter", Cancel5s);
+                AssertUtil.ContainsAtLeast(imports, "elements", "fromkeys");
+                var elements = await service.GetModuleMemberTypesAsync(null, moniker, "Counter.elements", Cancel5s);
+                Assert.AreEqual(1, elements.Count, elements.ToString());
+                Assert.IsInstanceOfType(elements.Single(), typeof(FunctionValue));
             }
         }
 

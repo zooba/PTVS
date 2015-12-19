@@ -34,6 +34,11 @@ namespace Microsoft.PythonTools.Analysis {
             _listeners = new List<Listener>();
         }
 
+        public RuleResults(IEnumerable<string> keys) {
+            _dict = keys.MaybeEnumerate().ToDictionary(k => k, k => new AnalysisSet());
+            _listeners = new List<Listener>();
+        }
+
         private RuleResults(Dictionary<string, AnalysisSet> dict) {
             _dict = dict;
             _listeners = new List<Listener>();

@@ -77,7 +77,10 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             Reset();
             try {
                 _errors = errors ?? ErrorSink.Null;
-                return new PythonAst(ParseSuite(assumeMultiLine: true), _tokenization, _features);
+                var body = ParseSuite(assumeMultiLine: true);
+                return new PythonAst(body, _tokenization, _features) {
+                    Span = body.Span
+                };
             } finally {
                 _errors = null;
             }
@@ -94,22 +97,6 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             Statement stmt;
 
             _singleLine = !assumeMultiLine && !TryRead(TokenKind.NewLine);
-
-            //while (!_singleLine && !TryRead(TokenKind.SignificantWhitespace)) {
-            //    var ws = ReadWhitespace();
-            //    Debug.Assert(Peek.IsAny(TokenKind.Comment, TokenKind.NewLine, TokenKind.EndOfFile));
-            //    stmt = new EmptyStatement {
-            //        BeforeNode = ws,
-            //        AfterNode = ReadNewLine()
-            //    };
-            //    stmt.Freeze();
-            //    body.Add(stmt);
-            //    if (Peek.Is(TokenKind.EndOfFile)) {
-            //        suite = new SuiteStatement(body, ws);
-            //        suite.Freeze();
-            //        return suite;
-            //    }
-            //}
 
             var ws = ReadWhitespace();
 
@@ -152,6 +139,9 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             _singleLine = prevSingleLine;
 
             suite = WithTrailingWhitespace(new SuiteStatement(body, indent));
+            if (body.Any()) {
+                suite.Span = new SourceSpan(body.First().Span.Start, body.Last().Span.End);
+            }
             suite.Freeze();
 
             return suite;
@@ -729,6 +719,7 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
 
             var expr = ParseSingleExpression();
             if (expr is EmptyExpression) {
+                stmt.Span = new SourceSpan(start, Current.Span.End);
                 return stmt;
             }
             expr.Freeze();
@@ -1035,7 +1026,8 @@ namespace Microsoft.PythonTools.Analysis.Parsing {
             return WithTrailingWhitespace(new AugmentedAssignStatement {
                 Target = expr,
                 Operator = Next().Kind.GetBinaryOperator(),
-                Expression = ParseExpression()
+                Expression = ParseExpression(),
+                Span = new SourceSpan(expr.Span.Start, Current.Span.End)
             });
 
         }

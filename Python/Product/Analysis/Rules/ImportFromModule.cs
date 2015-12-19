@@ -84,8 +84,8 @@ namespace Microsoft.PythonTools.Analysis.Rules {
         public override string ToString() {
             return string.Format(
                 "from {0} import {1} as {2}",
-                _moduleMoniker.Substring(_moduleMoniker.IndexOf('$') + 1),
-                _importName,
+                _moduleMoniker?.Substring(_moduleMoniker.IndexOf('$') + 1) ?? "(null)",
+                string.IsNullOrEmpty(_importName) ? ModuleValue.VariableName : _importName,
                 string.Join(", ", Targets)
             );
         }

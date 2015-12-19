@@ -18,12 +18,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
-using Microsoft.PythonTools.Analysis.Values;
 using Microsoft.PythonTools.Common.Infrastructure;
+using Microsoft.PythonTools.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis {
     public abstract class AnalysisValue : IAnalysisValue, IAnalysisSet {
@@ -39,9 +38,7 @@ namespace Microsoft.PythonTools.Analysis {
 
         public VariableKey Key => _key;
 
-        public override int GetHashCode() {
-            return _key.GetHashCode();
-        }
+        public override int GetHashCode() => _key.GetHashCode();
 
         public override bool Equals(object obj) {
             var other = obj as AnalysisValue;
@@ -49,7 +46,11 @@ namespace Microsoft.PythonTools.Analysis {
         }
 
         public virtual Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
-            return Task.FromResult(string.Empty);
+            return Task.FromResult("Any");
+        }
+
+        public virtual Task<string> ToDebugAnnotationAsync(CancellationToken cancellationToken) {
+            return ToAnnotationAsync(cancellationToken);
         }
 
         public virtual async Task<IAnalysisSet> GetAttribute(

@@ -15,7 +15,7 @@ def f(
 a
 # Below
 
-if True:
+if a:
     #block
     pass
 

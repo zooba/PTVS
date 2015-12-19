@@ -274,11 +274,13 @@ z = 3 / 2.".AnalyzeAsync(Configuration);
         public static Task<IAnalysisState> AnalyzeAsync(
             this string code,
             InterpreterConfiguration config,
+            bool wait = true,
             CancellationToken cancellationToken = default(CancellationToken),
             [CallerMemberName] string filename = null
         ) {
             return new StringLiteralDocument(code, $"Tests\\{filename}_{AnalysisTests.Counter++}.py").AnalyzeAsync(
                 config,
+                wait,
                 cancellationToken
             );
         }
@@ -286,6 +288,7 @@ z = 3 / 2.".AnalyzeAsync(Configuration);
         public static async Task<IAnalysisState> AnalyzeAsync(
             this ISourceDocument document,
             InterpreterConfiguration config,
+            bool wait = true,
             CancellationToken cancellationToken = default(CancellationToken)
         ) {
             if (Debugger.IsAttached) {
@@ -314,11 +317,13 @@ z = 3 / 2.".AnalyzeAsync(Configuration);
             await analyzer.AddFileContextAsync(context, cancellationToken);
 
             var state = analyzer.GetAnalysisState(context, document.Moniker, false);
-            await state.WaitForUpToDateAsync(cancellationToken);
-            await state.DumpAsync(Console.Out, cancellationToken);
-            var aState = state as AnalysisState;
-            if (aState != null) {
-                await aState.DumpTraceAsync(Console.Error, cancellationToken);
+            if (wait) {
+                await state.WaitForUpToDateAsync(cancellationToken);
+                await state.DumpAsync(Console.Out, cancellationToken);
+                var aState = state as AnalysisState;
+                if (aState != null) {
+                    await aState.DumpTraceAsync(Console.Error, cancellationToken);
+                }
             }
             return state;
         }

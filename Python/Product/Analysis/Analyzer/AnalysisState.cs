@@ -44,6 +44,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private RuleResults _ruleResults, _pendingRuleResults;
 
         private TaskCompletionSource<object> _updated;
+        private readonly Dictionary<CancellationToken, TaskCompletionSource<object>> _updatedCancelable;
         private TaskCompletionSource<object> _upToDate;
         private ExceptionDispatchInfo _exception;
         private long _version;
@@ -62,6 +63,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _thread = thread;
             _document = document;
             _context = context;
+            _updatedCancelable = new Dictionary<CancellationToken, TaskCompletionSource<object>>();
             _upToDate = new TaskCompletionSource<object>();
             _trace = new List<List<IFormattable>>();
             _pendingRuleResults = new RuleResults();
@@ -116,7 +118,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             var trace = _trace[_traceIndex];
             while (trace.Count == TraceChunk) {
                 _traceIndex += 1;
-                if (_traceIndex > _trace.Count) {
+                if (_traceIndex >= _trace.Count) {
                     _traceIndex = 0;
                 }
                 _trace[_traceIndex] = trace = new List<IFormattable>(TraceChunk);
@@ -151,17 +153,20 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         internal void SetDocument(ISourceDocument document) {
             _document = document;
+            System.Diagnostics.Trace.TraceInformation("Updated document {0}", _document?.Moniker ?? "(null)");
             NotifyUpdated();
         }
 
         internal void SetTokenization(Tokenization tokenization) {
             _tokenization = tokenization;
+            System.Diagnostics.Trace.TraceInformation("Updated tokenization for {0}", _document?.Moniker ?? "(null)");
             NotifyUpdated();
         }
 
         internal void SetAst(PythonAst ast, IReadOnlyList<ErrorResult> errors) {
             _ast = ast;
             _errors = errors;
+            System.Diagnostics.Trace.TraceInformation("Updated AST for {0}", _document?.Moniker ?? "(null)");
             NotifyUpdated();
         }
 
@@ -175,7 +180,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         internal RuleResults BeginSetRuleResults() {
-            return _pendingRuleResults = (_ruleResults?.Clone()) ?? new RuleResults();
+            return _pendingRuleResults = (_ruleResults?.Clone()) ??
+                new RuleResults(_variables?.Keys);
         }
 
         internal void EndSetRuleResults() {
@@ -189,6 +195,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             Interlocked.Exchange(ref _updated, null)?.SetResult(null);
+            lock (_updatedCancelable) {
+                _updatedCancelable.Clear();
+            }
             _context?.NotifyDocumentAnalysisChanged(_document);
             Interlocked.Increment(ref _version);
         }
@@ -205,18 +214,35 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             if (cancellationToken.CanBeCanceled) {
                 // Don't cancel updated, since others may be listening for it.
                 // So create a new task and abort that one.
-                var cancelTcs = new TaskCompletionSource<object>();
-                updated.Task.ContinueWith(t => {
-                    try {
-                        cancelTcs.TrySetResult(null);
-                    } catch (ObjectDisposedException) {
-                    } catch (NullReferenceException) {
+                bool created = false;
+                TaskCompletionSource<object> cancelTcs;
+                lock (_updatedCancelable) {
+                    if (!_updatedCancelable.TryGetValue(cancellationToken, out cancelTcs)) {
+                        lock (_updatedCancelable) {
+                            _updatedCancelable[cancellationToken] = cancelTcs = new TaskCompletionSource<object>();
+                            created = true;
+                        }
                     }
-                }).DoNotWait();
-                using (cancellationToken.Register(() => cancelTcs.TrySetCanceled())) {
+                }
+                if (created) {
+                    updated.Task.ContinueWith(t => {
+                        try {
+                            cancelTcs.TrySetResult(null);
+                        } catch (ObjectDisposedException) {
+                        } catch (NullReferenceException) {
+                        }
+                    }).DoNotWait();
+                    using (cancellationToken.Register(() => cancelTcs.TrySetCanceled())) {
+                        await cancelTcs.Task;
+                    }
+                    lock (_updatedCancelable) {
+                        _updatedCancelable.Remove(cancellationToken);
+                    }
+                    cancelTcs = null;
+                } else {
+                    Debug.Assert(!cancelTcs.Task.IsCompleted);
                     await cancelTcs.Task;
                 }
-                cancelTcs = null;
             } else {
                 await updated.Task;
             }
@@ -415,7 +441,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     output.WriteLine(
                         "  {0} = {1}",
                         v.Key,
-                        await v.Value.ToAnnotationStringAsync(cancellationToken)
+                        await v.Value.ToDebugAnnotationAsync(cancellationToken)
                     );
                 }
                 output.WriteLine();
