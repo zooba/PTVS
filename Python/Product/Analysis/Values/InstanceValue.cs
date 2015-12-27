@@ -33,19 +33,18 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _type = type;
         }
 
-        public override Task<IAnalysisSet> GetAttribute(
+        public override async Task GetAttribute(
             IAnalysisState caller,
             string attribute,
+            IAssignable result,
             CancellationToken cancellationToken
         ) {
             if (attribute == "__class__") {
-                var res = _type.GetTypes(caller);
-                if (res != null) {
-                    return Task.FromResult(res);
-                }
-                return _type.GetTypesAsync(cancellationToken);
+                var res = _type.GetTypes(caller) ?? await _type.GetTypesAsync(cancellationToken);
+                await result.AddTypesAsync(res, cancellationToken);
+                return;
             }
-            return base.GetAttribute(caller, attribute, cancellationToken);
+            await base.GetAttribute(caller, attribute, result, cancellationToken);
         }
 
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {

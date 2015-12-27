@@ -44,6 +44,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         Task<IAnalysisSet> GetTypesAsync(string name, CancellationToken cancellationToken);
         Task<string> GetFullNameAsync(string name, SourceLocation location, CancellationToken cancellationToken);
 
+        Task AddTypesAsync(string name, IAnalysisSet types, CancellationToken cancellationToken);
+
         Task<bool> ReportErrorAsync(
             string code,
             string text,

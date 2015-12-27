@@ -46,32 +46,33 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _members["__rdivmod__"] = new BuiltinFunctionValue(Key + ".__rmod__", "Callable", DivMod);
         }
 
-        private static async Task<IAnalysisSet> CoerceAsync(
+        private static async Task CoerceAsync(
             CallSiteKey callSite,
+            IAssignable result,
             CancellationToken cancellationToken,
             Func<NumericValue, NumericValue, PythonLanguageService, BuiltinsModule, NumericValue> coerce
         ) {
             var caller = callSite.State;
             var x = await callSite.GetArgValue(0, null, cancellationToken);
-            var xCls = await x.GetAttribute(caller, "__class__", cancellationToken);
+            var xCls = new LocalAssignable("x.__class__");
+            await x.GetAttribute(caller, "__class__", xCls, cancellationToken);
             var y = await callSite.GetArgValue(1, null, cancellationToken);
-            var yCls = await y.GetAttribute(caller, "__class__", cancellationToken);
+            var yCls = new LocalAssignable("y.__class__");
+            await y.GetAttribute(caller, "__class__", yCls, cancellationToken);
 
             var bm = caller.Analyzer.BuiltinsModule;
-            var r = new AnalysisSet();
-            foreach (var xnv in xCls.OfType<NumericValue>()) {
-                foreach (var ynv in yCls.OfType<NumericValue>()) {
+            foreach (var xnv in xCls.Values.OfType<NumericValue>()) {
+                foreach (var ynv in yCls.Values.OfType<NumericValue>()) {
                     var i = coerce(xnv, ynv, caller.Analyzer, bm);
                     if (i != null) {
-                        r.Add(i.Instance);
+                        await result.AddTypesAsync(i.Instance, cancellationToken);
                     }
                 }
             }
-            return r.Trim();
         }
 
-        private static Task<IAnalysisSet> AddSubMul(CallSiteKey callSite, CancellationToken cancellationToken) {
-            return CoerceAsync(callSite, cancellationToken, (x, y, a, bm) => {
+        private static Task AddSubMul(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
+            return CoerceAsync(callSite, result, cancellationToken, (x, y, a, bm) => {
                 if (x == bm.Bool || x == bm.Int) {
                     if (y == bm.Bool || y == bm.Int) {
                         return bm.Int;
@@ -89,8 +90,8 @@ namespace Microsoft.PythonTools.Analysis.Values {
             });
         }
 
-        private static Task<IAnalysisSet> Div(CallSiteKey callSite, CancellationToken cancellationToken) {
-            return CoerceAsync(callSite, cancellationToken, (x, y, a, bm) => {
+        private static Task Div(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
+            return CoerceAsync(callSite, result, cancellationToken, (x, y, a, bm) => {
                 if (x == bm.Bool || x == bm.Int) {
                     if (y == bm.Bool || y == bm.Int) {
                         return bm.Int;
@@ -110,8 +111,8 @@ namespace Microsoft.PythonTools.Analysis.Values {
             });
         }
 
-        private static Task<IAnalysisSet> ModFloorDiv(CallSiteKey callSite, CancellationToken cancellationToken) {
-            return CoerceAsync(callSite, cancellationToken, (x, y, a, bm) => {
+        private static Task ModFloorDiv(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
+            return CoerceAsync(callSite, result, cancellationToken, (x, y, a, bm) => {
                 if (x == bm.Complex || y == bm.Complex) {
                     // Cannot take floor div of complex
                     return null;
@@ -124,8 +125,8 @@ namespace Microsoft.PythonTools.Analysis.Values {
             });
         }
 
-        private static Task<IAnalysisSet> TrueDiv(CallSiteKey callSite, CancellationToken cancellationToken) {
-            return CoerceAsync(callSite, cancellationToken, (x, y, a, bm) => {
+        private static Task TrueDiv(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
+            return CoerceAsync(callSite, result, cancellationToken, (x, y, a, bm) => {
                 if (x == bm.Complex || y == bm.Complex) {
                     // Cannot take floor div of complex
                     return bm.Complex;
@@ -134,22 +135,23 @@ namespace Microsoft.PythonTools.Analysis.Values {
             });
         }
 
-        private static async Task<IAnalysisSet> DivMod(CallSiteKey callSite, CancellationToken cancellationToken) {
-            var res = await ModFloorDiv(callSite, cancellationToken);
-            // TODO: Return tuple (res, res)
-            return null;
+        private static async Task DivMod(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
+            //result.AddTypesAsync(callSite.State.Analyzer.BuiltinsModule.Tuple.Instance, cancellationToken);
+            await ModFloorDiv(callSite, result.WithSuffix("[0]"), cancellationToken);
+            await ModFloorDiv(callSite, result.WithSuffix("[1]"), cancellationToken);
         }
 
-        public override Task<IAnalysisSet> GetAttribute(
+        public override Task GetAttribute(
             IAnalysisState caller,
             string attribute,
+            IAssignable result,
             CancellationToken cancellationToken
         ) {
             BuiltinFunctionValue member;
             if (_members.TryGetValue(attribute, out member)) {
-                return Task.FromResult<IAnalysisSet>(member);
+                return result.AddTypesAsync(member, cancellationToken);
             }
-            return base.GetAttribute(caller, attribute, cancellationToken);
+            return base.GetAttribute(caller, attribute, result, cancellationToken);
         }
     }
 }

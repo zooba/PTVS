@@ -14,27 +14,13 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    public class ModuleValue : AnalysisValue {
-        public const string VariableName = "$module";
-
-        private readonly string _fullname, _name, _moniker;
-
-        public ModuleValue(VariableKey key, string fullname, string name, string moniker) : base(key) {
-            _fullname = fullname;
-            _name = name;
-            _moniker = moniker;
-        }
-
-        public string FullName => _fullname;
-        public string Moniker => _moniker;
-
-        public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
-            return _fullname;
-        }
+    public interface IDirectAttributeProvider : IAnalysisValue {
+        Task<IAnalysisSet> GetAttribute(string attribute, CancellationToken cancellationToken);
+        Task<IReadOnlyCollection<string>> GetAttributeNames(CancellationToken cancellationToken);
     }
 }

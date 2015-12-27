@@ -40,7 +40,7 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             var types = _name.GetTypes(state) ?? await _name.GetTypesAsync(cancellationToken);
 
             foreach (var target in Targets) {
-                results.AddTypes(target, types);
+                await results.AddTypesAsync(target, types, cancellationToken);
             }
         }
 

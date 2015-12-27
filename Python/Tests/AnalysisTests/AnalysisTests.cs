@@ -163,6 +163,18 @@ x = z".AnalyzeAsync(Configuration);
         }
 
         [TestMethod, Priority(0)]
+        public async Task Attributes() {
+            var state = await @"class F: pass
+f = F()
+f.a = 123
+x = f.a
+".AnalyzeAsync(Configuration);
+
+            await state.AssertAnnotationsAsync("f", "F");
+            await state.AssertAnnotationsAsync("x", "int");
+        }
+
+        [TestMethod, Priority(0)]
         public async Task NumericOperators() {
             var state = await @"x = 1 + 2
 y = 1.0 + 2
@@ -180,6 +192,13 @@ z = 3 / 2.".AnalyzeAsync(Configuration);
             await state.AssertAnnotationsAsync("x", state.Features.HasTrueDivision ? "float" : "int");
             await state.AssertAnnotationsAsync("y", "float");
             await state.AssertAnnotationsAsync("z", "float");
+
+            state = await @"x = 3 // 2
+y = 3. // 2
+z = 3 // 2.".AnalyzeAsync(Configuration);
+            await state.AssertAnnotationsAsync("x", "int");
+            await state.AssertAnnotationsAsync("y", "float");
+            await state.AssertAnnotationsAsync("z", "float");
         }
 
         public virtual IEnumerable<string> BuiltinFunctionNames {
@@ -191,7 +210,18 @@ z = 3 / 2.".AnalyzeAsync(Configuration);
                 yield return "bin str";
                 yield return "callable bool";
                 yield return "compile code";
-                yield return "delattr None";
+                //yield return "dir Sequence[str]";
+                //yield return "divmod Tuple[int, int]";
+                //yield return "enumerate ???";
+                yield return "format str";
+                //yield return "globals Mapping[str, Any]";
+                yield return "hasattr bool";
+                yield return "hash int";
+                yield return "hex str";
+                yield return "id int";
+                yield return "isinstance bool";
+                yield return "issubclass bool";
+                yield return "len int";
             }
         }
 
@@ -201,7 +231,7 @@ z = 3 / 2.".AnalyzeAsync(Configuration);
             var expected = new Dictionary<string, string>();
             foreach (var fn in BuiltinFunctionNames) {
                 var name = fn.Split(' ')[0];
-                var type = fn.Split(' ')[1];
+                var type = string.Join(" ", fn.Split(' ').Skip(1));
                 code.AppendLine(name + "_ = " + name + "(1)");
                 if (type == "x") {
                     expected[name + "_"] = "int";

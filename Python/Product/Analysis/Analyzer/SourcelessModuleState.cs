@@ -17,12 +17,12 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private readonly ISourceDocument _document;
         private readonly LanguageFeatures _features;
         private readonly string _namePrefix;
-        private IAnalysisValue _module;
+        private IDirectAttributeProvider _module;
 
         public static SourcelessModuleState Create(
             PythonLanguageService analyzer,
             string name,
-            Func<VariableKey,ISourceDocument, IAnalysisValue> createModule
+            Func<VariableKey,ISourceDocument, IDirectAttributeProvider> createModule
         ) {
             var state = new SourcelessModuleState(analyzer, name);
             state._module = createModule(new VariableKey(state, name), state.Document);
@@ -42,7 +42,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         public PythonFileContext Context => null;
         public ISourceDocument Document => _document;
         public LanguageFeatures Features => _features;
-        public IAnalysisValue Module => _module;
+        public IDirectAttributeProvider Module => _module;
         public long Version => 1;
 
         public Task DumpAsync(TextWriter output, CancellationToken cancellationToken) {
@@ -61,12 +61,16 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             return Task.FromResult<Tokenization>(null);
         }
 
+        public async Task AddTypesAsync(string name, IAnalysisSet values, CancellationToken cancellationToken) {
+            //await ReportErrorAsync("read-only-attribute", "cannot assign to '" + name + "'", 
+        }
+
         public async Task<IAnalysisSet> GetTypesAsync(string name, CancellationToken cancellationToken) {
-            return await _module.GetAttribute(this, name, cancellationToken);
+            return await _module.GetAttribute(name, cancellationToken);
         }
 
         public Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken) {
-            return _module.GetAttributeNames(this, cancellationToken);
+            return _module.GetAttributeNames(cancellationToken);
         }
 
         public Task<bool> ReportErrorAsync(string code, string text, SourceLocation location, CancellationToken cancellationToken) {

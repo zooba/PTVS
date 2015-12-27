@@ -66,7 +66,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             _updatedCancelable = new Dictionary<CancellationToken, TaskCompletionSource<object>>();
             _upToDate = new TaskCompletionSource<object>();
             _trace = new List<List<IFormattable>>();
-            _pendingRuleResults = new RuleResults();
+            _pendingRuleResults = new RuleResults(this);
         }
 
         public PythonLanguageService Analyzer => _analyzer;
@@ -181,7 +181,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         internal RuleResults BeginSetRuleResults() {
             return _pendingRuleResults = (_ruleResults?.Clone()) ??
-                new RuleResults(_variables?.Keys);
+                new RuleResults(this, _variables?.Keys);
         }
 
         internal void EndSetRuleResults() {
@@ -407,11 +407,15 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             });
         }
 
+        public Task AddTypesAsync(string name, IAnalysisSet types, CancellationToken cancellationToken) {
+            return InvokeAsync(() => _pendingRuleResults.AddTypesAsync(name, types, cancellationToken));
+        }
+
         public Task<IAnalysisSet> GetTypesAsync(
             string name,
             CancellationToken cancellationToken
         ) {
-            return InvokeAsync((Func<Task<IAnalysisSet>>)(async () => {
+            return InvokeAsync(async () => {
                 var v = _variables;
                 var r = _ruleResults;
                 while (v == null) {
@@ -420,7 +424,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     r = _ruleResults;
                 }
                 Variable variable;
-                if (GetVariables().TryGetValue((string)name, out variable)) {
+                if (v.TryGetValue(name, out variable)) {
                     if (r != null) {
                         return variable.Types.Union(r.GetTypes(name));
                     } else {
@@ -428,7 +432,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     }
                 }
                 return AnalysisSet.Empty;
-            }));
+            });
         }
 
         private async Task DumpOnThreadAsync(TextWriter output, CancellationToken cancellationToken) {

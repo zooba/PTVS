@@ -39,6 +39,12 @@ namespace Microsoft.PythonTools.Analysis.Values {
             return 389357 ^ _node.GetHashCode();
         }
 
+        public override async Task Call(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
+            foreach (var k in result.Keys) {
+                await result.AddTypeAsync(k, new InstanceValue(k, Key), cancellationToken);
+            }
+        }
+
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             return _node.Name;
         }

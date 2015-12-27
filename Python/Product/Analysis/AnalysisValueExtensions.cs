@@ -65,29 +65,28 @@ namespace Microsoft.PythonTools.Analysis {
                 set.AddRange(value);
             }
         }
-        public static async Task<IAnalysisSet> GetAttribute(
-            this IEnumerable<AnalysisValue> values, 
+
+        public static async Task GetAttribute(
+            this IEnumerable<AnalysisValue> values,
             IAnalysisState caller,
             string attribute,
+            IAssignable result,
             CancellationToken cancellationToken
         ) {
-            IAnalysisSet result = null;
             foreach (var t in values) {
-                Add(ref result, await t.GetAttribute(caller, attribute, cancellationToken));
+                await t.GetAttribute(caller, attribute, result, cancellationToken);
             }
-            return result ?? AnalysisSet.Empty;
         }
 
-        public static async Task<IAnalysisSet> Call(
+        public static async Task Call(
             this IEnumerable<AnalysisValue> values,
             CallSiteKey callSite,
+            IAssignable result,
             CancellationToken cancellationToken
         ) {
-            IAnalysisSet result = null;
             foreach (var t in values) {
-                Add(ref result, await t.Call(callSite, cancellationToken));
+                await t.Call(callSite, result, cancellationToken);
             }
-            return result ?? AnalysisSet.Empty;
         }
 
         public static IAnalysisSet ToSet(this IEnumerable<AnalysisValue> values) {

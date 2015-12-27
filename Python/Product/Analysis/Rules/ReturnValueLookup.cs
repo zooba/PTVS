@@ -49,11 +49,7 @@ namespace Microsoft.PythonTools.Analysis.Rules {
                 return;
             }
 
-            var values = await callables.Call(_function, cancellationToken);
-
-            foreach (var target in Targets) {
-                results.AddTypes(target, values);
-            }
+            await callables.Call(_function, results.AsAssignable(Targets), cancellationToken);
         }
 
         public override string ToString() {

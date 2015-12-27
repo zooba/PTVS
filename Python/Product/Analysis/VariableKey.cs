@@ -27,7 +27,7 @@ using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis {
     [DebuggerTypeProxy(typeof(DebugViewProxy))]
-    public struct VariableKey {
+    public struct VariableKey : IAssignable {
         public IAnalysisState State;
         public string Key;
 
@@ -102,6 +102,21 @@ namespace Microsoft.PythonTools.Analysis {
             }
             return null;
         }
+
+        public Task AddTypesAsync(IAnalysisSet values, CancellationToken cancellationToken) {
+            return State?.AddTypesAsync(Key, values, cancellationToken) ??
+                Task.FromCanceled<object>(cancellationToken);
+        }
+
+        public Task AddTypeAsync(VariableKey key, IAnalysisSet values, CancellationToken cancellationToken) {
+            Debug.Assert(key.State == State);
+            return State?.AddTypesAsync(key.Key, values, cancellationToken) ??
+                Task.FromCanceled<object>(cancellationToken);
+        }
+
+        IAssignable IAssignable.WithSuffix(string suffix) => this + suffix;
+
+        IEnumerable<VariableKey> IAssignable.Keys => Enumerable.Repeat(this, 1);
 
         sealed class DebugViewProxy {
             public DebugViewProxy(VariableKey source) {

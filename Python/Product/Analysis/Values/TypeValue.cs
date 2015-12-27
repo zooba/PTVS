@@ -34,6 +34,14 @@ namespace Microsoft.PythonTools.Analysis.Values {
 
         public AnalysisValue Instance => _instance;
 
+        public override Task Call(
+            CallSiteKey callSite,
+            IAssignable variable,
+            CancellationToken cancellationToken
+        ) {
+            return variable.AddTypesAsync(Instance, cancellationToken);
+        }
+
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             return "type";
         }

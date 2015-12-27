@@ -70,11 +70,15 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             var n = string.IsNullOrEmpty(_importName) ? ModuleValue.VariableName : _importName;
             if (n == "*") {
                 foreach (var kv in (await importState.GetAllTypesAsync(cancellationToken))) {
-                    results.AddTypes(kv.Key, kv.Value);
+                    await results.AddTypesAsync(kv.Key, kv.Value, cancellationToken);
                 }
             } else {
                 foreach (var target in Targets) {
-                    results.AddTypes(target, await importState.GetTypesAsync(n, cancellationToken));
+                    await results.AddTypesAsync(
+                        target,
+                        await importState.GetTypesAsync(n, cancellationToken),
+                        cancellationToken
+                    );
                 }
             }
             _lastVersion = importState.Version;

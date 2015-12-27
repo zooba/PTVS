@@ -22,30 +22,36 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Analyzer;
+using Microsoft.PythonTools.Analysis.Parsing;
+using Microsoft.PythonTools.Analysis.Parsing.Ast;
 using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis {
-    class RuleResults : IEnumerable<KeyValuePair<string, IAnalysisSet>> {
+    class RuleResults : IAnalysisState, IEnumerable<KeyValuePair<string, IAnalysisSet>> {
+        private readonly IAnalysisState _state;
         private readonly Dictionary<string, AnalysisSet> _dict;
         private readonly List<Listener> _listeners;
 
-        public RuleResults() {
+        public RuleResults(IAnalysisState state) {
+            _state = state;
             _dict = new Dictionary<string, AnalysisSet>();
             _listeners = new List<Listener>();
         }
 
-        public RuleResults(IEnumerable<string> keys) {
+        public RuleResults(IAnalysisState state, IEnumerable<string> keys) {
+            _state = state;
             _dict = keys.MaybeEnumerate().ToDictionary(k => k, k => new AnalysisSet());
             _listeners = new List<Listener>();
         }
 
-        private RuleResults(Dictionary<string, AnalysisSet> dict) {
+        private RuleResults(IAnalysisState state, Dictionary<string, AnalysisSet> dict) {
+            _state = state;
             _dict = dict;
             _listeners = new List<Listener>();
         }
 
         public RuleResults Clone() {
-            return new RuleResults(new Dictionary<string, AnalysisSet>(_dict));
+            return new RuleResults(_state, new Dictionary<string, AnalysisSet>(_dict));
         }
 
         internal async Task Dump(
@@ -74,21 +80,19 @@ namespace Microsoft.PythonTools.Analysis {
             return res;
         }
 
-        public bool AddTypes(string key, IAnalysisSet types) {
+        public Task AddTypesAsync(string key, IAnalysisSet types, CancellationToken cancellationToken) {
             AnalysisSet set;
             if (!_dict.TryGetValue(key, out set)) {
                 _dict[key] = set = new AnalysisSet();
             }
             var beforeVersion = set.Version;
             set.AddRange(types);
-            if (set.Version == beforeVersion) {
-                return false;
+            if (set.Version != beforeVersion) {
+                foreach (var listener in _listeners) {
+                    listener._writes?.Add(key);
+                }
             }
-
-            foreach (var listener in _listeners) {
-                listener._writes?.Add(key);
-            }
-            return true;
+            return Task.FromResult<object>(null);
         }
 
         public async Task<IAnalysisSet> GetVariableTypes(
@@ -121,6 +125,13 @@ namespace Microsoft.PythonTools.Analysis {
             return new Listener(_listeners, reads, writes);
         }
 
+        public IAssignable AsAssignable(IEnumerable<string> names) {
+            return new AssignTarget {
+                Results = this,
+                Keys = names.Select(n => new VariableKey(_state, n)).ToArray()
+            };
+        }
+
         public IEnumerator<KeyValuePair<string, IAnalysisSet>> GetEnumerator() {
             return _dict.Select(kv => new KeyValuePair<string, IAnalysisSet>(kv.Key, kv.Value)).GetEnumerator();
         }
@@ -128,6 +139,52 @@ namespace Microsoft.PythonTools.Analysis {
         IEnumerator IEnumerable.GetEnumerator() {
             return GetEnumerator();
         }
+
+        #region IAnalysisState implementation
+
+        public PythonLanguageService Analyzer => _state.Analyzer;
+        public PythonFileContext Context => _state.Context;
+        public ISourceDocument Document => _state.Document;
+        public long Version => _state.Version;
+        public LanguageFeatures Features => _state.Features;
+
+        public Task DumpAsync(TextWriter output, CancellationToken cancellationToken) {
+            return _state.DumpAsync(output, cancellationToken);
+        }
+
+        public Task WaitForUpToDateAsync(CancellationToken cancellationToken) {
+            return _state.WaitForUpToDateAsync(cancellationToken);
+        }
+
+        public Tokenization TryGetTokenization() {
+            return _state.TryGetTokenization();
+        }
+
+        public Task<Tokenization> GetTokenizationAsync(CancellationToken cancellationToken) {
+            return _state.GetTokenizationAsync(cancellationToken);
+        }
+
+        public Task<PythonAst> GetAstAsync(CancellationToken cancellationToken) {
+            return _state.GetAstAsync(cancellationToken);
+        }
+
+        public Task<IReadOnlyCollection<string>> GetVariablesAsync(CancellationToken cancellationToken) {
+            return _state.GetVariablesAsync(cancellationToken);
+        }
+
+        public Task<IAnalysisSet> GetTypesAsync(string name, CancellationToken cancellationToken) {
+            return _state.GetTypesAsync(name, cancellationToken);
+        }
+
+        public Task<string> GetFullNameAsync(string name, SourceLocation location, CancellationToken cancellationToken) {
+            return _state.GetFullNameAsync(name, location, cancellationToken);
+        }
+
+        public Task<bool> ReportErrorAsync(string code, string text, SourceLocation location, CancellationToken cancellationToken) {
+            return _state.ReportErrorAsync(code, text, location, cancellationToken);
+        }
+
+        #endregion
 
         sealed class Listener : IDisposable {
             private readonly List<Listener> _owner;
@@ -142,6 +199,28 @@ namespace Microsoft.PythonTools.Analysis {
 
             public void Dispose() {
                 _owner.Remove(this);
+            }
+        }
+
+        sealed class AssignTarget : IAssignable {
+            public RuleResults Results { get; set; }
+            public IEnumerable<VariableKey> Keys { get; set; }
+
+            public Task AddTypeAsync(VariableKey key, IAnalysisSet values, CancellationToken cancellationToken) {
+                return Results.AddTypesAsync(key.Key, values, cancellationToken);
+            }
+
+            public async Task AddTypesAsync(IAnalysisSet values, CancellationToken cancellationToken) {
+                foreach (var key in Keys) {
+                    await Results.AddTypesAsync(key.Key, values, cancellationToken);
+                }
+            }
+
+            public IAssignable WithSuffix(string suffix) {
+                return new AssignTarget {
+                    Results = Results,
+                    Keys = Keys.Select(k => k + suffix).ToArray()
+                };
             }
         }
     }

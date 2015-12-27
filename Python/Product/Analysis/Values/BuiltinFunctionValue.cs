@@ -18,11 +18,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     class BuiltinFunctionValue : CallableValue {
-        public delegate Task<IAnalysisSet> CallDelegate(CallSiteKey callSite, CancellationToken cancellationToken);
+        public delegate Task CallDelegate(
+            CallSiteKey callSite,
+            IAssignable result,
+            CancellationToken cancellationToken
+        );
 
         private readonly string _annotation;
         private readonly CallDelegate _onCall;
@@ -36,8 +39,11 @@ namespace Microsoft.PythonTools.Analysis.Values {
             return Task.FromResult(_annotation);
         }
 
-        public override Task<IAnalysisSet> Call(CallSiteKey callSite, CancellationToken cancellationToken) {
-            return _onCall(callSite, cancellationToken);
+        public override Task Call(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
+            if (_onCall == null) {
+                return Task.FromResult<object>(null);
+            }
+            return _onCall(callSite, result, cancellationToken);
         }
     }
 }

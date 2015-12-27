@@ -212,7 +212,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return true;
             }
 
-            var builtin = _builtins.GetAttribute(expr.Name, true);
+            var builtin = _builtins.GetAttributeWorker(expr.Name);
             if (builtin != null) {
                 foreach (var t in targets) {
                     if (!_vars.TryGetValue(t, out variable)) {
@@ -259,7 +259,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             Assign(string.Format("{0}#$0", callKey), expr.Left);
             Assign(string.Format("{0}#$1", callKey), expr.Right);
 
-            Assign(string.Format("{0}#$r", callKey), null);
             Add(new Rules.ReturnValueLookup(_state, new CallSiteKey(_state, callKey), targets));
             return true;
         }
@@ -286,7 +285,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     }
                 }
             }
-            Assign(string.Format("{0}#$r", callKey), null);
             Add(new Rules.ReturnValueLookup(_state, new CallSiteKey(_state, callKey), targets));
             return true;
         }

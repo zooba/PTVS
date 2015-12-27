@@ -25,7 +25,7 @@ using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    class OperatorModule : ModuleValue {
+    class OperatorModule : ModuleValue, IDirectAttributeProvider {
         private readonly IReadOnlyDictionary<string, BuiltinFunctionValue> _methods;
 
         // Methods 'n' with operator.n, operator.__n__, object.__n__ and
@@ -70,14 +70,14 @@ namespace Microsoft.PythonTools.Analysis.Values {
             foreach (var n in ReversibleBinaryObjectOperators) {
                 var dunderN = "__" + n.TrimEnd('_') + "__";
                 methods[dunderN] = methods[n] = new BuiltinFunctionValue(
-                    K(dunderN), "Callable[[Any, Any], Any]", (cs, ct) => Arithmetic(cs, dunderN, "__r" + n .TrimEnd('_') + "__", ct)
+                    K(dunderN), "Callable[[Any, Any], Any]", (cs, r, ct) => Arithmetic(cs, dunderN, "__r" + n .TrimEnd('_') + "__", r, ct)
                 );
             }
 
             foreach (var n in InPlaceBinaryObjectOperators) {
                 var dunderN = "__i" + n + "__";
                 methods[dunderN] = methods["i" + n] = new BuiltinFunctionValue(
-                    K(dunderN), "Callable[[Any, Any], Any]", (cs, ct) => Arithmetic(cs, dunderN, ct)
+                    K(dunderN), "Callable[[Any, Any], Any]", (cs, r, ct) => Arithmetic(cs, dunderN, r, ct)
                 );
             }
 
@@ -91,7 +91,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
 
                 var dunderN = "__" + n + "__";
                 methods[dunderN] = methods[n] = new BuiltinFunctionValue(
-                    K(dunderN), "Callable[" + args + "]", (cs, ct) => Arithmetic(cs, dunderN, ct)
+                    K(dunderN), "Callable[" + args + "]", (cs, r, ct) => Arithmetic(cs, dunderN, r, ct)
                 );
             }
 
@@ -124,6 +124,10 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _methods = methods;
         }
 
+        public async Task<IReadOnlyCollection<string>> GetAttributeNames(CancellationToken cancellationToken) {
+            return _methods.Keys.ToArray();
+        }
+
         public override async Task<IReadOnlyCollection<string>> GetAttributeNames(
             IAnalysisState caller,
             CancellationToken cancellationToken
@@ -131,16 +135,21 @@ namespace Microsoft.PythonTools.Analysis.Values {
             return _methods.Keys.ToArray();
         }
 
-        public override async Task<IAnalysisSet> GetAttribute(
-            IAnalysisState caller,
-            string attribute,
-            CancellationToken cancellationToken
-        ) {
+        public async Task<IAnalysisSet> GetAttribute(string attribute, CancellationToken cancellationToken) {
             BuiltinFunctionValue value;
             if (_methods.TryGetValue(attribute, out value)) {
                 return value;
             }
             return AnalysisSet.Empty;
+        }
+
+        public override async Task GetAttribute(
+            IAnalysisState caller,
+            string attribute,
+            IAssignable result,
+            CancellationToken cancellationToken
+        ) {
+            await result.AddTypesAsync(await GetAttribute(attribute, cancellationToken), cancellationToken);
         }
 
         public static string GetMemberNameForOperator(PythonOperator op) {
@@ -166,24 +175,28 @@ namespace Microsoft.PythonTools.Analysis.Values {
             }
         }
 
-        private static async Task<IAnalysisSet> Arithmetic(
+        private static async Task Arithmetic(
             CallSiteKey callSite,
             string opName,
+            IAssignable result,
             CancellationToken cancellationToken
         ) {
             var arg0 = await callSite.GetArgValue(0, null, cancellationToken);
             var caller = callSite.State;
 
-            var xCls = await arg0.GetAttribute(caller, "__class__", cancellationToken);
-            var op = await xCls.GetAttribute(caller, opName, cancellationToken);
+            var xCls = new LocalAssignable("x.__class__");
+            await arg0.GetAttribute(caller, "__class__", xCls, cancellationToken);
+            var op = new LocalAssignable(opName);
+            await xCls.Values.GetAttribute(caller, opName, op, cancellationToken);
 
-            return await op.Call(callSite, cancellationToken);
+            await op.Values.Call(callSite, result, cancellationToken);
         }
 
-        private static async Task<IAnalysisSet> Arithmetic(
+        private static async Task Arithmetic(
             CallSiteKey callSite,
             string opName,
             string ropName,
+            IAssignable result,
             CancellationToken cancellationToken
         ) {
             var arg0 = await callSite.GetArgValue(0, null, cancellationToken);
@@ -191,23 +204,21 @@ namespace Microsoft.PythonTools.Analysis.Values {
 
             var caller = callSite.State;
 
-            var result = new AnalysisSet();
-            var xCls = await arg0.GetAttribute(caller, "__class__", cancellationToken);
-            var op = await xCls.GetAttribute(caller, opName, cancellationToken);
-            var yCls = await arg1.GetAttribute(caller, "__class__", cancellationToken);
-            var rop = await yCls.GetAttribute(caller, ropName, cancellationToken);
+            var xCls = new LocalAssignable("x.__class__");
+            await arg0.GetAttribute(caller, "__class__", xCls, cancellationToken);
+            var op = new LocalAssignable(opName);
+            await xCls.Values.GetAttribute(caller, opName, op, cancellationToken);
+            var yCls = new LocalAssignable("y.__class__");
+            await arg1.GetAttribute(caller, "__class__", yCls, cancellationToken);
+            var rop = new LocalAssignable(ropName);
+            await yCls.Values.GetAttribute(caller, ropName, rop, cancellationToken);
 
             // Reusing callSite is okay because the args match
-            result.AddRange(await op.Call(callSite, cancellationToken));
-
-            // TODO: Handle NotImplemented
-            //callSite.State.Analyzer.BuiltinsModule.NotImplemented
+            await op.Values.Call(callSite, result, cancellationToken);
 
             // Need to reflect the arguments at this call site
             var rcallSite = new ReflectedCallSiteKey(callSite.CallSite);
-            result.AddRange(await rop.Call(rcallSite, cancellationToken));
-
-            return result;
+            await rop.Values.Call(rcallSite, result, cancellationToken);
         }
 
 
