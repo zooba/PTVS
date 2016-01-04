@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     class BuiltinFunctionValue : CallableValue {
@@ -44,6 +45,16 @@ namespace Microsoft.PythonTools.Analysis.Values {
                 return Task.FromResult<object>(null);
             }
             return _onCall(callSite, result, cancellationToken);
+        }
+
+        public override async Task GetDescriptor(
+            IAnalysisState caller,
+            VariableKey instance,
+            IAssignable result,
+            CancellationToken cancellationToken
+        ) {
+            var self = instance.GetTypes(caller) ?? await instance.GetTypesAsync(cancellationToken);
+            await MethodWrapperValue.Create(result, this, self, cancellationToken);
         }
     }
 }

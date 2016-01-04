@@ -23,9 +23,9 @@ using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     class BuiltinsModule : ModuleValue, IDirectAttributeProvider {
-        private readonly TypeValue _noneType, _code;
+        private readonly TypeValue _noneType, _code, _list;
         private readonly NumericValue _bool, _int, _long, _float, _complex;
-        private readonly StringValue _bytes, _str, _unicode;
+        private readonly StringType _bytes, _str, _unicode;
 
         private readonly Dictionary<string, BuiltinFunctionValue> _functions;
 
@@ -39,9 +39,10 @@ namespace Microsoft.PythonTools.Analysis.Values {
             _long = Key.State.Features.HasLong ? new NumericValue(K("long"), "long") : _int;
             _float = new NumericValue(K("float"), "float");
             _complex = new NumericValue(K("complex"), "complex");
-            _bytes = new StringValue(Key, false);
-            _unicode = new StringValue(Key, true);
+            _bytes = new StringType(Key, false);
+            _unicode = new StringType(Key, true);
             _str = Key.State.Features.IsUnicodeCalledStr ? _unicode : _bytes;
+            _list = ListValue.CreateType(key);
 
             _functions = new Dictionary<string, BuiltinFunctionValue>();
             Action<string, string, BuiltinFunctionValue.CallDelegate> F = (n, sig, fn) => {
@@ -111,8 +112,11 @@ namespace Microsoft.PythonTools.Analysis.Values {
         }
 
         internal static async Task ReturnListOfStr(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
-            //await result.AddTypesAsync(callSite.State.Analyzer.BuiltinsModule.List.Instance, cancellationToken);
-            await result.WithSuffix("[]").AddTypesAsync(callSite.State.Analyzer.BuiltinsModule.Str.Instance, cancellationToken);
+            foreach (var key in result.Keys) {
+                var list = new SequenceValue(key);
+                await result.AddTypeAsync(key, list, cancellationToken);
+                await result.AddTypeAsync(list.ContentsKey, callSite.State.Analyzer.BuiltinsModule.Str.Instance, cancellationToken);
+            }
         }
 
         private async Task CompileCall(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
@@ -123,7 +127,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
             var target = await callSite.GetArgValue(0, null, cancellationToken);
             var key = await callSite.GetArgValue(1, null, cancellationToken);
 
-            foreach (var k in key.OfType<StringValue>()) {
+            foreach (var k in key.OfType<StringType>()) {
                 // TODO: Mark key as deleted
             }
         }
@@ -140,12 +144,15 @@ namespace Microsoft.PythonTools.Analysis.Values {
             var target = await callSite.GetArgValue(0, null, cancellationToken);
             var key = await callSite.GetArgValue(1, null, cancellationToken);
             // Start with the default, or empty if none provided
-            var attr = await callSite.GetArgValue(2, null, cancellationToken);
+            await result.AddTypesAsync(await callSite.GetArgValue(2, null, cancellationToken), cancellationToken);
 
             foreach (var k in key.OfType<StringValue>()) {
-                // TODO: Get original key values
+                var attr = k.AsString();
+                if (string.IsNullOrEmpty(attr)) {
+                    continue;
+                }
+                await target.GetAttribute(callSite.State, attr, result, cancellationToken);
             }
-            await result.AddTypesAsync(attr, cancellationToken);
         }
 
         private async Task GlobalsCall(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
@@ -172,14 +179,15 @@ namespace Microsoft.PythonTools.Analysis.Values {
         internal AnalysisValue None => NoneType.Instance;
         internal TypeValue NoneType => _noneType;
         internal TypeValue Code => _code;
+        internal TypeValue List => _list;
         internal NumericValue Bool => _bool;
         internal NumericValue Int => _int;
         internal NumericValue Long => _long;
         internal NumericValue Float => _float;
         internal NumericValue Complex => _complex;
-        internal StringValue Bytes => _bytes;
-        internal StringValue Str => _str;
-        internal StringValue Unicode => _unicode;
+        internal StringType Bytes => _bytes;
+        internal StringType Str => _str;
+        internal StringType Unicode => _unicode;
 
         public async Task<IAnalysisSet> GetAttribute(string attribute, CancellationToken cancellationToken) {
             return GetAttributeWorker(attribute);
@@ -217,6 +225,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
                 case "str": return Str;
                 case "unicode": return Unicode;
                 case "code": return Code;
+                case "list": return List;
 
                 case "copyright": return Str.Instance;
                 case "credits": return Str.Instance;

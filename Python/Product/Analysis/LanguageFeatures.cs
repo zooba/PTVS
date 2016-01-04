@@ -41,6 +41,7 @@ namespace Microsoft.PythonTools.Analysis {
         public bool HasClassDecorators => _version >= PythonLanguageVersion.V26;
         public bool HasConstantBooleans => _version.Is3x();
         public bool HasDictComprehensions => _version >= PythonLanguageVersion.V27;
+        public bool HasDunderSelfOnMethods => _version.Is3x();
         public bool HasExecStatement => _version.Is2x();
         public bool HasGeneralUnpacking => _version >= PythonLanguageVersion.V35;
         public bool HasGeneratorReturn => _version >= PythonLanguageVersion.V33;
@@ -63,5 +64,6 @@ namespace Microsoft.PythonTools.Analysis {
         public bool IsUnicodeCalledStr => _version.Is3x();
 
         public string BuiltinsName => _version.Is3x() ? "builtins" : "__builtin__";
+
     }
 }

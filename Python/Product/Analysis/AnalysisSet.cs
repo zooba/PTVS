@@ -106,6 +106,9 @@ namespace Microsoft.PythonTools.Analysis {
 
         public IAnalysisSet Trim() {
             var buckets = _buckets;
+            if (buckets == null) {
+                return Empty;
+            }
             AnalysisValue single = null;
             foreach (var b in buckets) {
                 if (b.Key != null && b.Key != Removed.Value) {

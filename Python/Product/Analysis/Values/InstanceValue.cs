@@ -39,12 +39,20 @@ namespace Microsoft.PythonTools.Analysis.Values {
             IAssignable result,
             CancellationToken cancellationToken
         ) {
+            var cls = _type.GetTypes(caller) ?? await _type.GetTypesAsync(cancellationToken);
             if (attribute == "__class__") {
-                var res = _type.GetTypes(caller) ?? await _type.GetTypesAsync(cancellationToken);
-                await result.AddTypesAsync(res, cancellationToken);
+                await result.AddTypesAsync(cls, cancellationToken);
                 return;
             }
-            await base.GetAttribute(caller, attribute, result, cancellationToken);
+
+            if (!Key.IsEmpty) {
+                var attr = Key + ("." + attribute);
+                var res = attr.GetTypes(caller) ?? await attr.GetTypesAsync(cancellationToken) ?? AnalysisSet.Empty;
+                await result.AddTypesAsync(res, cancellationToken);
+            }
+            var clsAttr = new LocalAssignable(_type.Key + "." + attribute);
+            await cls.GetAttribute(caller, attribute, clsAttr, cancellationToken);
+            await clsAttr.Values.GetDescriptor(caller, Key, result, cancellationToken);
         }
 
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {

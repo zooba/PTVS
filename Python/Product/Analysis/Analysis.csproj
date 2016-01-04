@@ -156,11 +156,14 @@
     <Compile Include="Values\FunctionValue.cs" />
     <Compile Include="Values\InstanceValue.cs" />
     <Compile Include="Values\IDirectAttributeProvider.cs" />
+    <Compile Include="Values\ListValue.cs" />
     <Compile Include="Values\MethodWrapperValue.cs" />
     <Compile Include="Values\ModuleValue.cs" />
     <Compile Include="Values\NumericValue.cs" />
     <Compile Include="Values\OperatorModule.cs" />
     <Compile Include="Values\ParameterValue.cs" />
+    <Compile Include="Values\SequenceValue.cs" />
+    <Compile Include="Values\StringType.cs" />
     <Compile Include="Values\StringValue.cs" />
     <Compile Include="Values\TypeValue.cs" />
     <Compile Include="Values\Variable.cs" />

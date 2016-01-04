@@ -30,7 +30,12 @@ namespace Microsoft.PythonTools.Analysis {
             CancellationToken cancellationToken
         ) {
             var names = await values.AsAnnotationsAsync(cancellationToken);
-            return string.Join(", ", names.Ordered());
+            if (names.Count == 0) {
+                return "Any";
+            } else if (names.Count == 1) {
+                return names.First();
+            }
+            return string.Format("Union[{0}]", string.Join(", ", names.Ordered()));
         }
 
         public static async Task<IReadOnlyCollection<string>> AsAnnotationsAsync(
@@ -40,6 +45,29 @@ namespace Microsoft.PythonTools.Analysis {
             var names = new HashSet<string>();
             foreach (var t in values.MaybeEnumerate()) {
                 names.Add(await t.ToAnnotationAsync(cancellationToken));
+            }
+            if (names.Contains("Any")) {
+                names.Clear();
+                names.Add("Any");
+            }
+            return names;
+        }
+
+        public static async Task<string> ToDebugAnnotationAsync(
+            this IEnumerable<AnalysisValue> values,
+            CancellationToken cancellationToken
+        ) {
+            var names = await values.AsDebugAnnotationsAsync(cancellationToken);
+            return string.Join(", ", names.Ordered());
+        }
+
+        public static async Task<IReadOnlyCollection<string>> AsDebugAnnotationsAsync(
+            this IEnumerable<AnalysisValue> values,
+            CancellationToken cancellationToken
+        ) {
+            var names = new HashSet<string>();
+            foreach (var t in values.MaybeEnumerate()) {
+                names.Add(await t.ToDebugAnnotationAsync(cancellationToken));
             }
             return names;
         }
@@ -75,6 +103,18 @@ namespace Microsoft.PythonTools.Analysis {
         ) {
             foreach (var t in values) {
                 await t.GetAttribute(caller, attribute, result, cancellationToken);
+            }
+        }
+
+        public static async Task GetDescriptor(
+            this IEnumerable<AnalysisValue> values,
+            IAnalysisState caller,
+            VariableKey instance,
+            IAssignable result,
+            CancellationToken cancellationToken
+        ) {
+            foreach (var t in values) {
+                await t.GetDescriptor(caller, instance, result, cancellationToken);
             }
         }
 

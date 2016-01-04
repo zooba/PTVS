@@ -169,9 +169,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             } else if (expr.Value is double) {
                 return _builtins.Float.Instance;
             } else if (expr.Value is ByteString) {
-                return _builtins.Bytes.Instance;
+                return _builtins.Bytes.CreateLiteral((ByteString)expr.Value);
             } else if (expr.Value is string) {
-                return _builtins.Unicode.Instance;
+                return _builtins.Unicode.CreateLiteral((string)expr.Value);
             }
             return null;
         }
@@ -194,6 +194,27 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return variable.Types;
             }
             return null;
+        }
+
+        private bool GetListValue(ListExpression expr, IEnumerable<string> targets) {
+            if (expr == null) {
+                return false;
+            }
+            ListValue list = null;
+            foreach (var t in targets) {
+                if (list == null) {
+                    list = new ListValue(new VariableKey(_state, t));
+                    foreach (var item in expr.Items.MaybeEnumerate()) {
+                        Assign(list.ContentsKey.Key, item);
+                    }
+                }
+                Variable variable;
+                if (!_vars.TryGetValue(t, out variable)) {
+                    _vars[t] = variable = new Variable(_state, t);
+                }
+                variable.AddType(list);
+            }
+            return true;
         }
 
         private bool GetVariableValue(NameExpression expr, IEnumerable<string> targets) {
@@ -230,8 +251,29 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 return false;
             }
 
-            // TODO: Implement attribute handling
-            return false;
+            var callKey = string.Format("()@{0}", GetNestingId(expr));
+            Add(callKey, _builtins.GetAttributeWorker("getattr"));
+
+            Assign(string.Format("{0}#$0", callKey), expr.Expression);
+            Add(callKey + "#$1", k => _builtins.Str.CreateLiteral(expr.Name));
+
+            Add(new Rules.ReturnValueLookup(_state, new CallSiteKey(_state, callKey), targets));
+            return true;
+        }
+
+        private bool GetIndexValue(IndexExpression expr, IEnumerable<string> targets) {
+            if (expr == null) {
+                return false;
+            }
+
+            var callKey = string.Format("()@{0}", GetNestingId(expr));
+            Add(new Rules.ImportFromModule(_state, _analyzer.ResolveImport("operator", ""), "getitem", callKey));
+
+            Assign(string.Format("{0}#$0", callKey), expr.Expression);
+            Assign(string.Format("{0}#$1", callKey), expr.Index);
+
+            Add(new Rules.ReturnValueLookup(_state, new CallSiteKey(_state, callKey), targets));
+            return true;
         }
 
         private bool GetBinOpValue(BinaryExpression expr, IEnumerable<string> targets) {
@@ -240,24 +282,40 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             var op = expr.Operator;
-            switch(op) {
+            switch (op) {
                 case PythonOperator.Divide:
                     if (_state.Features.HasTrueDivision) {
                         op = PythonOperator.TrueDivide;
                     }
                     break;
             }
-            var callName = OperatorModule.GetMemberNameForOperator(op);
-            if (string.IsNullOrEmpty(callName)) {
+
+            return HandleBinaryOperator(
+                expr,
+                expr.Left,
+                OperatorModule.GetMemberNameForOperator(op),
+                expr.Right,
+                targets
+            );
+        }
+
+        private bool HandleBinaryOperator(
+            Expression site,
+            Expression left,
+            string op,
+            Expression right,
+            IEnumerable<string> targets
+        ) {
+            if (string.IsNullOrEmpty(op)) {
                 return false;
             }
 
-            var callKey = string.Format("()@{0}", GetNestingId(expr));
+            var callKey = string.Format("()@{0}", GetNestingId(site));
             Add(callKey, null);
-            Add(new Rules.ImportFromModule(_state, _analyzer.ResolveImport("operator", ""), callName, callKey));
+            Add(new Rules.ImportFromModule(_state, _analyzer.ResolveImport("operator", ""), op, callKey));
 
-            Assign(string.Format("{0}#$0", callKey), expr.Left);
-            Assign(string.Format("{0}#$1", callKey), expr.Right);
+            Assign(string.Format("{0}#$0", callKey), left);
+            Assign(string.Format("{0}#$1", callKey), right);
 
             Add(new Rules.ReturnValueLookup(_state, new CallSiteKey(_state, callKey), targets));
             return true;
@@ -339,6 +397,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 GetVariableValue(value as NameExpression, targetNames) ||
                 GetAttributeValue(value as MemberExpression, targetNames) ||
                 GetBinOpValue(value as BinaryExpression, targetNames) ||
+                GetIndexValue(value as IndexExpression, targetNames) ||
+                GetListValue(value as ListExpression, targetNames) ||
                 GetReturnValue(value as CallExpression, targetNames);
         }
 
@@ -349,6 +409,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 Assign(node.Targets, node.Expression);
             }
 
+            return false;
+        }
+
+        public override bool Walk(ExpressionStatement node) {
+            Assign(string.Format("@{0}", node.Span.Start.Line), node.Expression);
             return false;
         }
 

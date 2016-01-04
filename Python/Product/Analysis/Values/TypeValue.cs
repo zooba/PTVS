@@ -26,10 +26,16 @@ namespace Microsoft.PythonTools.Analysis.Values {
     class TypeValue : AnalysisValue {
         private readonly string _name;
         private readonly InstanceValue _instance;
+        private readonly Dictionary<string, IAnalysisSet> _members;
 
         public TypeValue(VariableKey key, string name) : base(key) {
             _name = name;
             _instance = new InstanceValue(key, key);
+            _members = new Dictionary<string, IAnalysisSet>();
+        }
+
+        public void AddMember(string name, Func<VariableKey, IAnalysisSet> value) {
+            _members[name] = value(Key + "." + name);
         }
 
         public AnalysisValue Instance => _instance;
@@ -40,6 +46,19 @@ namespace Microsoft.PythonTools.Analysis.Values {
             CancellationToken cancellationToken
         ) {
             return variable.AddTypesAsync(Instance, cancellationToken);
+        }
+
+        public override Task GetAttribute(
+            IAnalysisState caller,
+            string attribute,
+            IAssignable result,
+            CancellationToken cancellationToken
+        ) {
+            IAnalysisSet value;
+            if (_members.TryGetValue(attribute, out value)) {
+                return result.AddTypesAsync(value, cancellationToken);
+            }
+            return base.GetAttribute(caller, attribute, result, cancellationToken);
         }
 
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {

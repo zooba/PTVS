@@ -423,15 +423,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     v = _variables;
                     r = _ruleResults;
                 }
-                Variable variable;
-                if (v.TryGetValue(name, out variable)) {
-                    if (r != null) {
-                        return variable.Types.Union(r.GetTypes(name));
-                    } else {
-                        return variable.Types;
-                    }
+                Variable fromVariable;
+                v.TryGetValue(name, out fromVariable);
+                var fromRules = r?.GetTypes(name);
+                if (fromVariable != null) {
+                    return fromRules == null ? fromVariable.Types : fromVariable.Types.Union(fromRules);
                 }
-                return AnalysisSet.Empty;
+                return fromRules ?? AnalysisSet.Empty;
             });
         }
 

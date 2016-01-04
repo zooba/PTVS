@@ -14,26 +14,28 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using Microsoft.PythonTools.Analysis.Parsing;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Microsoft.PythonTools.Analysis.Values {
-    class StringValue : InstanceValue {
-        private string _strValue;
-        private ByteString _bytesValue;
+    public class SequenceValue : AnalysisValue {
+        private readonly VariableKey _contentsKey;
 
-        public StringValue(VariableKey key, StringType type) : base(key, type.Key) { }
-
-        public StringValue(VariableKey key, StringType type, string value) : base(key, type.Key) {
-            _strValue = value;
+        public SequenceValue(VariableKey key) : base(key) {
+            _contentsKey = key + "[:]";
         }
 
-        public StringValue(VariableKey key, StringType type, ByteString value) : base(key, type.Key) {
-            _bytesValue = value;
+        internal VariableKey ContentsKey => _contentsKey;
+
+        public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
+            var values = await (await _contentsKey.GetTypesAsync(cancellationToken)).ToAnnotationAsync(cancellationToken);
+            return string.IsNullOrEmpty(values) ?
+                "Sequence" :
+                "Sequence[" + values + "]";
         }
-
-        public string TextValue => _strValue;
-        public ByteString BytesValue => _bytesValue;
-
-        public string AsString() => _strValue ?? _bytesValue?.String;
     }
 }

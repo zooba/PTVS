@@ -38,11 +38,13 @@ namespace Microsoft.PythonTools.Analysis {
 
         public VariableKey Key => _key;
 
-        public override int GetHashCode() => _key.GetHashCode();
+        public override int GetHashCode() => GetType().GetHashCode() ^ _key.GetHashCode();
 
         public override bool Equals(object obj) {
-            var other = obj as AnalysisValue;
-            return other != null && _key == other._key;
+            if (GetType() != obj?.GetType()) {
+                return false;
+            }
+            return _key == ((AnalysisValue)obj)._key;
         }
 
         public virtual Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
@@ -65,6 +67,15 @@ namespace Microsoft.PythonTools.Analysis {
             var attr = Key + ("." + attribute);
             var res = attr.GetTypes(caller) ?? await attr.GetTypesAsync(cancellationToken) ?? AnalysisSet.Empty;
             await result.AddTypesAsync(res, cancellationToken);
+        }
+
+        public virtual async Task GetDescriptor(
+            IAnalysisState caller,
+            VariableKey instance,
+            IAssignable result,
+            CancellationToken cancellationToken
+        ) {
+            await result.AddTypesAsync(this, cancellationToken);
         }
 
         public virtual Task<IReadOnlyCollection<string>> GetAttributeNames(

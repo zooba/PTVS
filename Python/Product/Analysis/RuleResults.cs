@@ -64,7 +64,7 @@ namespace Microsoft.PythonTools.Analysis {
                     "{0}  {1}: {2}",
                     indent,
                     v.Key,
-                    await v.Value.ToAnnotationAsync(cancellationToken)
+                    await v.Value.ToDebugAnnotationAsync(cancellationToken)
                 );
             }
         }

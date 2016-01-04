@@ -201,6 +201,18 @@ z = 3 // 2.".AnalyzeAsync(Configuration);
             await state.AssertAnnotationsAsync("z", "float");
         }
 
+        [TestMethod, Priority(0)]
+        public async Task ListAppend() {
+            var state = await @"x = []
+x.append(1)
+x.append('abc')
+y = x[0]
+".AnalyzeAsync(Configuration);
+
+            await state.AssertAnnotationsAsync("x", "List[Union[int, str]]");
+            await state.AssertAnnotationsAsync("y", "int", "str");
+        }
+
         public virtual IEnumerable<string> BuiltinFunctionNames {
             get {
                 yield return "abs x";
@@ -210,7 +222,7 @@ z = 3 // 2.".AnalyzeAsync(Configuration);
                 yield return "bin str";
                 yield return "callable bool";
                 yield return "compile code";
-                //yield return "dir Sequence[str]";
+                yield return "dir Sequence[str]";
                 //yield return "divmod Tuple[int, int]";
                 //yield return "enumerate ???";
                 yield return "format str";
@@ -252,8 +264,7 @@ z = 3 // 2.".AnalyzeAsync(Configuration);
         public static async Task AssertAnnotationsAsync(this IAnalysisState state, string key, params string[] annotations) {
             var cancel = CancellationTokens.After5s;
             var values = await state.GetTypesAsync(key, cancel);
-            var types = new HashSet<string>();
-            foreach (var v in values) { types.Add(await v.ToAnnotationAsync(cancel)); }
+            var types = new HashSet<string>(await values.AsAnnotationsAsync(cancel));
             if (annotations.Any()) {
                 Assert.IsTrue(types.Any(), "No types returned for " + key);
                 var expected = new HashSet<string>(annotations);
