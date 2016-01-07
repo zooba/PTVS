@@ -89,9 +89,19 @@ namespace Microsoft.PythonTools.Analysis {
             if (Key.IsEmpty) {
                 return;
             }
-            await GetAttribute(callSite.State, "__call__", callSite.CallSite, cancellationToken);
+            var callee = new LocalAssignable("__call__");
+            await GetAttribute(callSite.State, "__call__", callee, cancellationToken);
+            await callee.Values.Call(callSite, result, cancellationToken);
             // TODO: Report uncallable object
             //await _key.State.ReportErrorAsync();
+        }
+
+        public virtual Task AssignWithCallContext(
+            CallSiteKey callSite,
+            IAssignable result,
+            CancellationToken cancellationToken
+        ) {
+            return result.AddTypesAsync(this, cancellationToken);
         }
 
         long IAnalysisSet.Version => 0;

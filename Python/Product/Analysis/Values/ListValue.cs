@@ -25,6 +25,7 @@ using Microsoft.PythonTools.Analysis.Analyzer;
 namespace Microsoft.PythonTools.Analysis.Values {
     class ListValue : InstanceValue {
         private readonly VariableKey _contentsKey;
+        private bool _recursing;
 
         private static VariableKey GetTypeKey(IAnalysisState state) {
             return state.Analyzer.BuiltinsModule.List.Key;
@@ -37,10 +38,33 @@ namespace Microsoft.PythonTools.Analysis.Values {
         internal VariableKey ContentsKey => _contentsKey;
 
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
-            var values = await (await _contentsKey.GetTypesAsync(cancellationToken)).ToAnnotationAsync(cancellationToken);
-            return string.IsNullOrEmpty(values) ?
-                "List" :
-                "List[" + values + "]";
+            if (_recursing) {
+                return "...";
+            }
+            _recursing = true;
+            try {
+                var values = await (await _contentsKey.GetTypesAsync(cancellationToken)).ToAnnotationAsync(cancellationToken);
+                return string.IsNullOrEmpty(values) ?
+                    "List" :
+                    "List[" + values + "]";
+            } finally {
+                _recursing = false;
+            }
+        }
+
+        public override async Task AssignWithCallContext(
+            CallSiteKey callSite,
+            IAssignable result,
+            CancellationToken cancellationToken
+        ) {
+            foreach (var k in result.Keys) {
+                var list = new ListValue(k);
+                await result.AddTypeAsync(k, list, cancellationToken);
+            }
+            var contents = ContentsKey.GetTypes(callSite.State) ?? await ContentsKey.GetTypesAsync(cancellationToken);
+            if (contents != null) {
+                await contents.AssignWithCallContext(callSite, result.WithSuffix("[:]"), cancellationToken);
+            }
         }
 
         public static TypeValue CreateType(VariableKey parent) {
@@ -58,7 +82,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
             var self = await callSite.GetArgValue(0, null, cancellationToken);
             var value = await callSite.GetArgValue(1, null, cancellationToken);
             foreach (var list in self.OfType<ListValue>()) {
-                await list.ContentsKey.AddTypesAsync(value, cancellationToken);
+                await value.AssignWithCallContext(callSite, list.ContentsKey, cancellationToken);
             }
         }
 

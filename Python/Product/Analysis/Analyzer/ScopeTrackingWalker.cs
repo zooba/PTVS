@@ -25,11 +25,9 @@ using Microsoft.PythonTools.Analysis.Parsing.Ast;
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     abstract class ScopeTrackingWalker : PythonWalker {
         private readonly Stack<KeyValuePair<string, string>> _scope;
-        private readonly Stack<List<Node>> _deferredNodes;
 
         protected ScopeTrackingWalker() {
             _scope = new Stack<KeyValuePair<string, string>>();
-            _deferredNodes = new Stack<List<Node>>();
         }
 
         protected virtual void OnEnterScope() { }
@@ -43,30 +41,10 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 var p = _scope.Peek();
                 _scope.Push(new KeyValuePair<string, string>(p.Key + p.Value + name, suffix));
             }
-            _deferredNodes.Push(new List<Node>());
             OnEnterScope();
         }
 
-        protected bool Defer(Node node) {
-            var nodes = _deferredNodes.Peek();
-            if (nodes == null) {
-                return false;
-            }
-            nodes.Add(node);
-            return true;
-        }
-
         protected void LeaveScope(string name, string suffix) {
-            var nodes = _deferredNodes.Pop();
-            _deferredNodes.Push(null);
-            try {
-                foreach (var n in nodes) {
-                    n.Walk(this);
-                }
-            } finally {
-                _deferredNodes.Pop();
-            }
-
             var scope = _scope.Pop();
             if (!scope.Key.EndsWith(name)) {
                 Debug.Fail("Did not pop " + name + " from " + scope.Key);
@@ -81,7 +59,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
         public override bool Walk(PythonAst node) {
             _scope.Clear();
-            _deferredNodes.Clear();
 
             EnterScope("", "");
             return true;

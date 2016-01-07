@@ -14,6 +14,8 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis.Parsing;
 
 namespace Microsoft.PythonTools.Analysis.Values {
@@ -35,5 +37,12 @@ namespace Microsoft.PythonTools.Analysis.Values {
         public ByteString BytesValue => _bytesValue;
 
         public string AsString() => _strValue ?? _bytesValue?.String;
+
+        public override async Task<string> ToDebugAnnotationAsync(CancellationToken cancellationToken) {
+            var str = AsString();
+            return string.IsNullOrEmpty(str) ?
+                await base.ToDebugAnnotationAsync(cancellationToken) :
+                string.Format("{0}(\"{1}\")", await base.ToDebugAnnotationAsync(cancellationToken), str);
+        }
     }
 }

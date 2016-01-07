@@ -31,7 +31,7 @@ namespace Microsoft.PythonTools.Analysis {
         ) {
             var names = await values.AsAnnotationsAsync(cancellationToken);
             if (names.Count == 0) {
-                return "Any";
+                return string.Empty;
             } else if (names.Count == 1) {
                 return names.First();
             }
@@ -126,6 +126,17 @@ namespace Microsoft.PythonTools.Analysis {
         ) {
             foreach (var t in values) {
                 await t.Call(callSite, result, cancellationToken);
+            }
+        }
+
+        public static async Task AssignWithCallContext(
+            this IEnumerable<AnalysisValue> values,
+            CallSiteKey callSite,
+            IAssignable result,
+            CancellationToken cancellationToken
+        ) {
+            foreach (var t in values) {
+                await t.AssignWithCallContext(callSite, result, cancellationToken);
             }
         }
 

@@ -39,8 +39,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         private readonly Stack<int> _nestedIds;
         private readonly Dictionary<Node, int> _knownNestedIds;
 
-        private bool _addRules;
-
         public VariableWalker(
             PythonLanguageService analyzer,
             AnalysisState state,
@@ -67,6 +65,9 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
         }
 
+        public IReadOnlyDictionary<string, Variable> Variables => _vars;
+        public IReadOnlyCollection<AnalysisRule> Rules => _rules;
+
         protected override void OnEnterScope() {
             base.OnEnterScope();
             _nestedIds.Push(0);
@@ -86,22 +87,6 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
             return next;
         }
-
-        public IReadOnlyDictionary<string, Variable> WalkVariables(PythonAst ast) {
-            ast.Walk(this);
-            return _vars;
-        }
-
-        public IReadOnlyCollection<AnalysisRule> WalkRules(PythonAst ast) {
-            _addRules = true;
-            try {
-                ast.Walk(this);
-            } finally {
-                _addRules = false;
-            }
-            return _rules;
-        }
-
 
         private IEnumerable<string> GetFullNames(NameExpression name) {
             foreach (var scope in CurrentScopesWithSuffix) {
@@ -146,9 +131,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
         }
 
         private void Add(AnalysisRule rule) {
-            if (_addRules) {
-                _rules.Add(rule);
-            }
+            _rules.Add(rule);
         }
 
 
@@ -204,6 +187,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             foreach (var t in targets) {
                 if (list == null) {
                     list = new ListValue(new VariableKey(_state, t));
+                    Add(list.ContentsKey, null);
                     foreach (var item in expr.Items.MaybeEnumerate()) {
                         Assign(list.ContentsKey.Key, item);
                     }
@@ -228,22 +212,31 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     break;
                 }
             }
-            if (variable != null) {
-                _rules.Add(new Rules.NameLookup(_state, variable.Key, targets));
-                return true;
-            }
 
-            var builtin = _builtins.GetAttributeWorker(expr.Name);
-            if (builtin != null) {
-                foreach (var t in targets) {
-                    if (!_vars.TryGetValue(t, out variable)) {
-                        _vars[t] = variable = new Variable(_state, t);
+            if (variable == null) {
+                var builtin = _builtins.GetAttributeWorker(expr.Name);
+                if (builtin != null && builtin.Any()) {
+                    foreach (var t in targets) {
+                        if (!_vars.TryGetValue(t, out variable)) {
+                            _vars[t] = variable = new Variable(_state, t);
+                        }
+                        variable.AddTypes(builtin);
                     }
-                    variable.AddTypes(builtin);
+                    return true;
                 }
+
+                // Assume it is a global variable that hasn't been defined yet.
+                // This is the only way to end up here with working code.
+                _vars[expr.Name] = variable = new Variable(_state, expr.Name);
             }
 
-            return false;
+            if (variable == null) {
+                Debug.Fail("Should have created new variable");
+                return false;
+            }
+
+            Add(new Rules.NameLookup(_state, variable.Key, targets));
+            return true;
         }
 
         private bool GetAttributeValue(MemberExpression expr, IEnumerable<string> targets) {
@@ -257,7 +250,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             Assign(string.Format("{0}#$0", callKey), expr.Expression);
             Add(callKey + "#$1", k => _builtins.Str.CreateLiteral(expr.Name));
 
-            Add(new Rules.ReturnValueLookup(_state, new CallSiteKey(_state, callKey), targets));
+            Add(new Rules.ReturnValueLookup(
+                _state,
+                new CallSiteKey(_state, CurrentScopeWithSuffix + callKey),
+                targets
+            ));
             return true;
         }
 
@@ -343,7 +340,11 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                     }
                 }
             }
-            Add(new Rules.ReturnValueLookup(_state, new CallSiteKey(_state, callKey), targets));
+            Add(new Rules.ReturnValueLookup(
+                _state,
+                new CallSiteKey(_state, CurrentScopeWithSuffix + callKey),
+                targets
+            ));
             return true;
         }
 
@@ -393,7 +394,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
 
             var targetNames = targets.Select(t => Add(t, type)).ToList();
 
-            var addedRules = !_addRules ||
+            var addedRules =
                 GetVariableValue(value as NameExpression, targetNames) ||
                 GetAttributeValue(value as MemberExpression, targetNames) ||
                 GetBinOpValue(value as BinaryExpression, targetNames) ||

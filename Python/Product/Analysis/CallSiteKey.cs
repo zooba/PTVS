@@ -48,22 +48,15 @@ namespace Microsoft.PythonTools.Analysis {
             return CallSite.GetTypes(CallSite.State) ?? await CallSite.GetTypesAsync(cancellationToken);
         }
 
-        public virtual async Task<IAnalysisSet> GetArgValue(
-            ParameterValue parameter,
-            CancellationToken cancellationToken
-        ) {
-            var values = parameter.Key.GetTypes(State) ?? await parameter.Key.GetTypesAsync(cancellationToken);
-            var newValues = await GetArgValue(parameter.Index, null, cancellationToken);
-            if (newValues?.Any() ?? false) {
-                if (values.IsReadOnly) {
-                    values = new AnalysisSet(values);
-                }
-                values.AddRange(newValues);
-            }
-            return values;
+        public virtual Task<IAnalysisSet> GetArgValue(ParameterValue parameter, CancellationToken cancellationToken) {
+            return DefaultGetArgValue(parameter.Index, null, cancellationToken);
         }
 
-        public virtual async Task<IAnalysisSet> GetArgValue(
+        public virtual Task<IAnalysisSet> GetArgValue(int index, string name, CancellationToken cancellationToken) {
+            return DefaultGetArgValue(index, name, cancellationToken);
+        }
+
+        protected async Task<IAnalysisSet> DefaultGetArgValue(
             int index,
             string name,
             CancellationToken cancellationToken

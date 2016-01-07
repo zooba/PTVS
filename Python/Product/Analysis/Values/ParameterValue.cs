@@ -17,7 +17,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
+using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     public class ParameterValue : AnalysisValue {
@@ -45,6 +47,25 @@ namespace Microsoft.PythonTools.Analysis.Values {
 
         public ParameterKind Kind => _kind;
         public int Index => _index;
+
+        public override async Task AssignWithCallContext(
+            CallSiteKey callSite,
+            IAssignable result,
+            CancellationToken cancellationToken
+        ) {
+            if (callSite == null) {
+                await base.AssignWithCallContext(callSite, result, cancellationToken);
+                return;
+            }
+
+            foreach (var r in await callSite.GetArgValue(this, cancellationToken)) {
+                if (r == this) {
+                    await result.AddTypesAsync(this, cancellationToken);
+                } else {
+                    await r.AssignWithCallContext(callSite, result, cancellationToken);
+                }
+            }
+        }
 
         public override async Task<string> ToAnnotationAsync(CancellationToken cancellationToken) {
             if (_kind == ParameterKind.List) {

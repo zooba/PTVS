@@ -41,9 +41,8 @@ namespace Microsoft.PythonTools.Analysis.Analyzer.Tasks {
             state.SetAst(ast, errors.Errors);
 
             var walker = new VariableWalker(state.Analyzer, state, state.GetVariables(), state.GetRules());
-            var variables = walker.WalkVariables(ast);
-            var rules = walker.WalkRules(ast);
-            state.SetVariablesAndRules(variables, rules);
+            ast.Walk(walker);
+            state.SetVariablesAndRules(walker.Variables, walker.Rules);
 
             state.Analyzer.Enqueue(state.Context, new UpdateRules(state));
         }

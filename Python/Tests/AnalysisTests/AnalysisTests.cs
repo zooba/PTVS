@@ -133,10 +133,12 @@ def f():
 
 def g():
     y = x
-    x = 1".AnalyzeAsync(Configuration);
+    x = 1
+    z = x".AnalyzeAsync(Configuration);
             await state.AssertAnnotationsAsync("x", "float");
             await state.AssertAnnotationsAsync("f@1#y", "float");
-            await state.AssertAnnotationsAsync("g@2#y", "int");
+            await state.AssertAnnotationsAsync("g@2#y", "float");
+            await state.AssertAnnotationsAsync("g@2#z", "int");
         }
 
         [TestMethod, Priority(0)]
@@ -211,6 +213,36 @@ y = x[0]
 
             await state.AssertAnnotationsAsync("x", "List[Union[int, str]]");
             await state.AssertAnnotationsAsync("y", "int", "str");
+        }
+
+        [TestMethod, Priority(0)]
+        public async Task ListFromFunctionAppend() {
+            var state = await @"def f(a):
+    x = []
+    x.append(a)
+    return x
+
+y = f(0)
+z = f('abc')".AnalyzeAsync(Configuration);
+
+            await state.AssertAnnotationsAsync("y", "List[int]");
+            await state.AssertAnnotationsAsync("z", "List[str]");
+        }
+
+        [TestMethod, Priority(0)]
+        public async Task GlobalListFromFunctionAppend() {
+            var state = await @"x = []
+
+def f(a):
+    x.append(a)
+
+f(0)
+y = x[0]
+f('abc')
+z = x[0]".AnalyzeAsync(Configuration);
+
+            await state.AssertAnnotationsAsync("y", "int");
+            await state.AssertAnnotationsAsync("z", "int", "str");
         }
 
         public virtual IEnumerable<string> BuiltinFunctionNames {

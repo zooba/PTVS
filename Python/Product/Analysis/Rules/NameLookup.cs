@@ -38,9 +38,8 @@ namespace Microsoft.PythonTools.Analysis.Rules {
             CancellationToken cancellationToken
         ) {
             var types = _name.GetTypes(state) ?? await _name.GetTypesAsync(cancellationToken);
-
-            foreach (var target in Targets) {
-                await results.AddTypesAsync(target, types, cancellationToken);
+            foreach (var t in Targets) {
+                await results.AddTypesAsync(t, types, cancellationToken);
             }
         }
 
