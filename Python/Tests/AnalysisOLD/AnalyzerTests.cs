@@ -38,7 +38,7 @@ namespace AnalysisTests {
             PythonTestData.Deploy(includeTestData: false);
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task LogFileEncoding() {
             // Ensure that log messages round-trip correctly.
 
@@ -106,7 +106,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void TemporaryLibTest() {
             string libPath = "C:\\", dbPath = "C:\\";
 
@@ -191,7 +191,7 @@ namespace AnalysisTests {
             "site-packages\\B\\b.py"
         };
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task NoFilesOutOfDate() {
             var files = BasicFiles;
             using (var libDb = new TemporaryLibAndDB(files))
@@ -207,7 +207,7 @@ namespace AnalysisTests {
         }
 
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task AllFilesOutOfDate() {
             var files = BasicFiles;
             using (var libDb = new TemporaryLibAndDB(files))
@@ -223,7 +223,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task FileInStdLibMissing() {
             var files = BasicFiles;
             using (var libDb = new TemporaryLibAndDB(files))
@@ -246,7 +246,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task FileInSitePackageMissing() {
             var files = BasicFiles;
             using (var libDb = new TemporaryLibAndDB(files))
@@ -261,7 +261,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task FileInStdLibOutOfDate() {
             var files = BasicFiles;
             using (var libDb = new TemporaryLibAndDB(files))
@@ -278,7 +278,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task FileInSitePackageOutOfDate() {
             var files = BasicFiles;
             using (var libDb = new TemporaryLibAndDB(files))
@@ -294,7 +294,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task IdbInStdLibMissing() {
             var files = BasicFiles;
             using (var libDb = new TemporaryLibAndDB(files))
@@ -311,7 +311,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task IdbInSitePackageMissing() {
             var files = BasicFiles;
             using (var libDb = new TemporaryLibAndDB(files))
@@ -327,7 +327,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task SitePackageAdded() {
             var files = BasicFiles;
             using (var libDb = new TemporaryLibAndDB(files))
@@ -347,7 +347,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task SitePackageRemoved() {
             var files = BasicFiles;
             using (var libDb = new TemporaryLibAndDB(files))
@@ -365,7 +365,7 @@ namespace AnalysisTests {
         }
 
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task ConflictingPyAndPyd() {
             var files = new[] {
                 "a.py",
@@ -385,7 +385,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task ChangeAllToTrueOnSecondGroup() {
             var files = new[] {
                 "a.py",
@@ -404,7 +404,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public async Task SitePackagesInPthFile() {
             var files = new[] {
                 "a.py",

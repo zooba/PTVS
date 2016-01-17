@@ -31,7 +31,7 @@ using TestUtilities.Python;
 namespace AnalysisTests {
     [TestClass]
     public class ProcessOutputTests {
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void ArgumentQuoting() {
             foreach (var testCase in new[] {
                 new { Source = "Abc", Expected = "Abc" },
@@ -51,7 +51,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void SplitLines() {
             foreach (var testCase in new[] {
                 new { Source = "A\nB\nC\n", Expected = new[] { "A", "B", "C" } },
@@ -95,7 +95,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void RunInterpreterOutput() {
             foreach (var fact in Factories) {
                 using (var output = fact.Run("-c", "import sys; print(sys.version)")) {
@@ -117,7 +117,8 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
+        [TestCategory("10s")]
         public void RunInterpreterError() {
             foreach(var fact in Factories) {
                 using (var output = fact.Run("-c", "assert False")) {
@@ -134,7 +135,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void ProcessOutputEncoding() {
             var testDataPath = TestData.GetTempPath();
             var testData = Path.Combine(testDataPath, "ProcessOutputEncoding.txt");

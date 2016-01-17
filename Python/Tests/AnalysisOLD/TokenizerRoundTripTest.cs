@@ -34,7 +34,7 @@ namespace AnalysisTests {
         // (a, b, [whitespace]
         //  [more whitespace]   c, d)
         //
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void SimpleTest() {
             foreach (var optionSet in new[] { TokenizerOptions.Verbatim }) {
                 foreach (var version in PythonPaths.Versions) {
@@ -77,7 +77,7 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void TrailingBackSlash() {
             var tokens = TestOneString(
                 PythonLanguageVersion.V27, 
@@ -132,13 +132,13 @@ namespace AnalysisTests {
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void BinaryTest() {
             var filename = Path.Combine(System.Environment.GetFolderPath(Environment.SpecialFolder.System), "kernel32.dll");
             TestOneFile(filename, PythonLanguageVersion.V27, TokenizerOptions.Verbatim);
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void TestErrors() {
             TestOneString(PythonLanguageVersion.V27, TokenizerOptions.Verbatim, "http://xkcd.com/353/\")");
             TestOneString(PythonLanguageVersion.V27, TokenizerOptions.Verbatim, "lambda, U+039B");

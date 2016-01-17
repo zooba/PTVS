@@ -1020,6 +1020,9 @@ namespace Microsoft.PythonTools.Analysis {
                 if (_disposeInterpreter && interpreter != null) {
                     interpreter.Dispose();
                 }
+                // Try and acquire the lock before disposing. This helps avoid
+                // some (non-fatal) exceptions.
+                _reloadLock.Wait(TimeSpan.FromSeconds(10));
                 _reloadLock.Dispose();
             }
         }

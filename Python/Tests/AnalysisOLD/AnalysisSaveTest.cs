@@ -187,7 +187,7 @@ Overloaded = test.Overloaded
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void Inheritance() {
             string code = @"
 class WithInstanceMembers(object):
@@ -235,7 +235,7 @@ MultipleInheritance = test.MultipleInheritance
             }
         }
 
-        [TestMethod, Priority(0)]
+        [TestMethod, Priority(1)]
         public void MultiplyDefinedClasses() {
             string code = @"
 class MultiplyDefinedClass(object): pass

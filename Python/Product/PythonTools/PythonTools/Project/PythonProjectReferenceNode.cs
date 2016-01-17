@@ -17,6 +17,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Interpreter;
@@ -71,10 +72,12 @@ namespace Microsoft.PythonTools.Project {
             ProjectMgr.OnInvalidateItems(Parent);
         }
 
-        private void InitializeFileChangeListener() {
+        private async void InitializeFileChangeListener() {
             if (_observing != null) {
                 _fileChangeListener.StopObservingItem(_observing);
             }
+
+            await Task.Delay(500).ConfigureAwait(true);
 
             _observing = ReferencedProjectOutputPath;
             if (_observing != null) {
@@ -105,7 +108,13 @@ namespace Microsoft.PythonTools.Project {
         internal async Task AddAnalyzedAssembly(IPythonInterpreterWithProjectReferences interp) {
             if (interp != null) {
                 var asmName = AssemblyName;
-                var outFile = ReferencedProjectOutputPath;
+                string outFile;
+                try {
+                    outFile = ReferencedProjectOutputPath;
+                } catch (COMException) {
+                    _failedToAnalyze = true;
+                    return;
+                }
                 _failedToAnalyze = false;
                 _curReference = null;
 
