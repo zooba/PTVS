@@ -37,6 +37,19 @@ namespace Microsoft.PythonTools.Analysis.Values {
         internal IReadOnlyCollection<AnalysisRule> Rules { get; set; }
 
         public override async Task Call(CallSiteKey callSite, IAssignable result, CancellationToken cancellationToken) {
+            // Copy all positional args
+            int parameterNumber = 0;
+            foreach (var p in (_node.Parameters?.Parameters).MaybeEnumerate()) {
+                IAnalysisSet arg;
+                if (p.Kind != ParameterKind.KeywordOnly) {
+                    arg = await callSite.GetArgValue(parameterNumber, null, cancellationToken);
+                    await result.AddTypeAsync(Key + string.Format("#${0}", parameterNumber), arg, cancellationToken);
+                    arg = await callSite.GetArgValue(-1, p.Name, cancellationToken);
+                    await result.AddTypeAsync(Key + string.Format("#${0}", parameterNumber++), arg, cancellationToken);
+                }
+
+            }
+
             var returnKey = Key + "#$r";
             var types = returnKey.GetTypes(callSite.State) ?? await returnKey.GetTypesAsync(cancellationToken);
             if (types != null) {

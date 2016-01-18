@@ -330,13 +330,13 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
                 foreach (var a in expr.Args) {
                     var starArg = a.Expression as StarredExpression;
                     if (starArg?.IsStar ?? false) {
-                        Assign(callKey + "#*", starArg.Expression);
+                        Assign(callKey + "#$*", starArg.Expression);
                     } else if (starArg?.IsDoubleStar ?? false) {
-                        Assign(callKey + "#**", starArg.Expression);
+                        Assign(callKey + "#$**", starArg.Expression);
                     } else if (a.NameExpression != null) {
-                        Assign(string.Format("{0}#${1}", callKey, a.Name), a.Expression);
+                        Assign(callKey + "#$" + a.Name, a.Expression);
                     } else {
-                        Assign(string.Format("{0}#${1}", callKey, argIndex++), a.Expression);
+                        Assign(callKey + string.Format("#${0}", argIndex++), a.Expression);
                     }
                 }
             }

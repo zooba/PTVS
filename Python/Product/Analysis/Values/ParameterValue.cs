@@ -17,9 +17,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis.Parsing.Ast;
-using Microsoft.PythonTools.Common.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Values {
     public class ParameterValue : AnalysisValue {
@@ -40,7 +38,7 @@ namespace Microsoft.PythonTools.Analysis.Values {
         }
 
         public ParameterValue(VariableKey callable, ParameterKind kind, int index) :
-            base(GetKey(callable, kind, index)) {
+            base(GetKey(callable, kind, index, "#")) {
             _kind = kind;
             _index = index;
         }
@@ -75,6 +73,10 @@ namespace Microsoft.PythonTools.Analysis.Values {
             } else {
                 return string.Format("Parameter[{0}]", _index);
             }
+        }
+
+        public override async Task<string> ToDebugAnnotationAsync(CancellationToken cancellationToken) {
+            return "Parameter[" + Key + "]";
         }
     }
 }
