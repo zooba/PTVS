@@ -25,6 +25,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.PythonTools.Analysis;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Language;
@@ -82,7 +83,7 @@ namespace Microsoft.PythonTools.Repl {
                 var thread = Interlocked.Exchange(ref _thread, null);
                 if (thread != null) {
                     thread.Dispose();
-                    WriteError(SR.GetString(SR.ReplExited));
+                    WriteError(Strings.ReplExited);
                 }
                 _analyzer?.Dispose();
             }
@@ -275,7 +276,7 @@ namespace Microsoft.PythonTools.Repl {
                     return newerThread;
                 }
                 if (thread == null) {
-                    throw new InvalidOperationException(SR.GetString(SR.ReplNotStarted));
+                    throw new InvalidOperationException(Strings.ReplNotStarted);
                 }
 
                 var scriptsPath = ScriptsPath;
@@ -365,7 +366,7 @@ namespace Microsoft.PythonTools.Repl {
 
             var thread = await EnsureConnectedAsync();
             if (thread == null) {
-                WriteError(SR.GetString(SR.ReplDisconnected));
+                WriteError(Strings.ReplDisconnected);
                 return ExecutionResult.Failure;
             }
 
@@ -376,7 +377,7 @@ namespace Microsoft.PythonTools.Repl {
         public async Task<ExecutionResult> ExecuteFileAsync(string filename, string extraArgs) {
             var thread = await EnsureConnectedAsync();
             if (thread == null) {
-                WriteError(SR.GetString(SR.ReplDisconnected));
+                WriteError(Strings.ReplDisconnected);
                 return ExecutionResult.Failure;
             }
 
@@ -387,7 +388,7 @@ namespace Microsoft.PythonTools.Repl {
         public async Task<ExecutionResult> ExecuteModuleAsync(string name, string extraArgs) {
             var thread = await EnsureConnectedAsync();
             if (thread == null) {
-                WriteError(SR.GetString(SR.ReplDisconnected));
+                WriteError(Strings.ReplDisconnected);
                 return ExecutionResult.Failure;
             }
 
@@ -398,7 +399,7 @@ namespace Microsoft.PythonTools.Repl {
         public async Task<ExecutionResult> ExecuteProcessAsync(string filename, string extraArgs) {
             var thread = await EnsureConnectedAsync();
             if (thread == null) {
-                WriteError(SR.GetString(SR.ReplDisconnected));
+                WriteError(Strings.ReplDisconnected);
                 return ExecutionResult.Failure;
             }
 
@@ -485,8 +486,7 @@ namespace Microsoft.PythonTools.Repl {
                 return ExecutionResult.Success;
             }
 
-            var msg = SR.GetString(
-                SR.ReplInitializationMessage,
+            var msg = Strings.ReplInitializationMessage.FormatUI(
                 DisplayName,
                 AssemblyVersionInfo.Version,
                 AssemblyVersionInfo.VSVersion
@@ -524,7 +524,7 @@ namespace Microsoft.PythonTools.Repl {
             var thread = Interlocked.Exchange(ref _thread, null);
             if (thread == null) {
                 if (!quiet) {
-                    WriteError(SR.GetString(SR.ReplNotStarted));
+                    WriteError(Strings.ReplNotStarted);
                 }
                 return ExecutionResult.Success;
             }
@@ -534,7 +534,7 @@ namespace Microsoft.PythonTools.Repl {
             }
 
             if (!quiet) {
-                WriteOutput(SR.GetString(SR.ReplReset));
+                WriteOutput(Strings.ReplReset);
             }
 
             thread.IsProcessExpectedToExit = quiet;

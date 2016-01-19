@@ -22,18 +22,18 @@ using Microsoft.Win32;
 
 namespace Microsoft.PythonTools.Infrastructure {
     public static class PythonToolsInstallPath {
-        private static string GetFromAssembly(Assembly assembly, string filename) {
+        private static string GetFromAssembly(Assembly assembly, string filename, bool isFile) {
             string path = Path.Combine(
                 Path.GetDirectoryName(assembly.Location),
                 filename
             );
-            if (File.Exists(path)) {
+            if (isFile ? File.Exists(path) : Directory.Exists(path)) {
                 return path;
             }
             return string.Empty;
         }
 
-        private static string GetFromRegistry(string filename) {
+        private static string GetFromRegistry(string filename, bool isFile) {
             const string ROOT_KEY = "Software\\Microsoft\\PythonTools\\" + AssemblyVersionInfo.VSVersion;
 
             string installDir = null;
@@ -53,9 +53,9 @@ namespace Microsoft.PythonTools.Infrastructure {
                 }
             }
 
-            if (!String.IsNullOrEmpty(installDir)) {
+            if (!string.IsNullOrEmpty(installDir)) {
                 var path = Path.Combine(installDir, filename);
-                if (File.Exists(path)) {
+                if (isFile ? File.Exists(path) : Directory.Exists(path)) {
                     return path;
                 }
             }
@@ -64,10 +64,10 @@ namespace Microsoft.PythonTools.Infrastructure {
         }
 
         public static string TryGetFile(string filename) {
-            string path = GetFromAssembly(typeof(PythonToolsInstallPath).Assembly, filename);
+            string path = GetFromAssembly(typeof(PythonToolsInstallPath).Assembly, filename, true);
 
             if (string.IsNullOrEmpty(path)) {
-                path = GetFromRegistry(filename);
+                path = GetFromRegistry(filename, true);
             }
 
             return path;
@@ -80,6 +80,35 @@ namespace Microsoft.PythonTools.Infrastructure {
             if (string.IsNullOrEmpty(path)) {
                 Debugger.Launch();
                 path =  TryGetFile(filename);
+            }
+#endif
+
+            if (string.IsNullOrEmpty(path)) {
+                throw new InvalidOperationException(
+                    "Unable to determine Python Tools installation path"
+                );
+            }
+
+            return path;
+        }
+
+        public static string TryGetDirectory(string filename) {
+            string path = GetFromAssembly(typeof(PythonToolsInstallPath).Assembly, filename, false);
+
+            if (string.IsNullOrEmpty(path)) {
+                path = GetFromRegistry(filename, true);
+            }
+
+            return path;
+        }
+
+        public static string GetDirectory(string filename) {
+            var path = TryGetDirectory(filename);
+
+#if DEBUG
+            if (string.IsNullOrEmpty(path)) {
+                Debugger.Launch();
+                path =  TryGetDirectory(filename);
             }
 #endif
 

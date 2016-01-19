@@ -30,11 +30,10 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Cdp;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudioTools;
-using Microsoft.VisualStudioTools.Project;
-using SR = Microsoft.PythonTools.Project.SR;
 using Task = System.Threading.Tasks.Task;
 
 namespace Microsoft.PythonTools.Repl {
@@ -43,10 +42,10 @@ namespace Microsoft.PythonTools.Repl {
             _serviceProvider.GetUIThread().MustBeCalledFromUIThreadOrThrow();
 
             if (string.IsNullOrWhiteSpace(InterpreterPath)) {
-                WriteError(SR.GetString(SR.ReplEvaluatorInterpreterNotConfigured, DisplayName));
+                WriteError(Strings.ReplEvaluatorInterpreterNotConfigured.FormatUI(DisplayName));
                 return null;
             } else if (!File.Exists(InterpreterPath)) {
-                WriteError(SR.GetString(SR.ReplEvaluatorInterpreterNotFound));
+                WriteError(Strings.ReplEvaluatorInterpreterNotFound);
                 return null;
             }
 
@@ -87,7 +86,7 @@ namespace Microsoft.PythonTools.Repl {
                 }
             }
 
-            var ptvsdPath = PythonToolsInstallPath.GetDirectory("Packages");
+            var ptvsdPath = PythonToolsInstallPath.GetDirectory(@"Packages\ptvsd");
             string pythonPath;
             if (processInfo.Environment.TryGetValue(PythonPathName, out pythonPath) && !string.IsNullOrEmpty(pythonPath)) {
                 processInfo.Environment[PythonPathName] = pythonPath + ";" + ptvsdPath;
@@ -101,7 +100,7 @@ namespace Microsoft.PythonTools.Repl {
             }
 
 
-            args.Add(ProcessOutput.QuoteSingleArgument(PythonToolsInstallPath.GetFile("Packages\\ptvsd\\repl.py")));
+            args.Add(ProcessOutput.QuoteSingleArgument(PythonToolsInstallPath.GetFile("Packages\\ptvsd\\ptvsd\\repl.py")));
             processInfo.Arguments = string.Join(" ", args);
 
             Process process;
@@ -116,9 +115,9 @@ namespace Microsoft.PythonTools.Repl {
                 }
             } catch (Win32Exception e) {
                 if (e.NativeErrorCode == Microsoft.VisualStudioTools.Project.NativeMethods.ERROR_FILE_NOT_FOUND) {
-                    WriteError(SR.GetString(SR.ReplEvaluatorInterpreterNotFound));
+                    WriteError(Strings.ReplEvaluatorInterpreterNotFound);
                 } else {
-                    WriteError(SR.GetString(SR.ErrorStartingInteractiveProcess, e.ToString()));
+                    WriteError(Strings.ErrorStartingInteractiveProcess.FormatUI(e.ToString()));
                 }
                 return null;
             } catch (Exception e) when (!e.IsCriticalException()) {
@@ -298,7 +297,7 @@ namespace Microsoft.PythonTools.Repl {
 
                 if (!IsProcessExpectedToExit) {
                     try {
-                        _eval.WriteError(SR.GetString(SR.ReplExited));
+                        _eval.WriteError(Strings.ReplExited);
                     } catch (Exception ex) when (!ex.IsCriticalException()) {
                     }
                 }
@@ -449,7 +448,7 @@ namespace Microsoft.PythonTools.Repl {
 
             public async Task ExecuteTextAsync(string text, CancellationToken cancellationToken) {
                 if (text.StartsWith("$")) {
-                    _eval.WriteError(SR.GetString(SR.ReplUnknownCommand, text.Trim()));
+                    _eval.WriteError(Strings.ReplUnknownCommand.FormatUI(text.Trim()));
                     return;
                 }
 
