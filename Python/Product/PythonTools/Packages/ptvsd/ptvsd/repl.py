@@ -25,7 +25,7 @@ import sys
 import traceback
 import ptvsd.cdp as cdp
 import ptvsd.util as util
-import ptvsd.variablecache as variablecache
+import ptvsd.variables as variables
 
 from contextlib import contextmanager
 from encodings import utf_8, ascii
@@ -41,7 +41,7 @@ class ReplCDP(cdp.CDP):
         super(ReplCDP, self).__init__(*args, **kwargs)
         self.__state = self.__original_state = {}
         self.__code_flags = 0
-        self.__variables = variablecache.VariableCache()
+        self.__references = []
         self.__sources = []
         self.__state['__output_special'] = self.__output_special
         self.__state['__displayhooks'] = self.__displayhooks = []
@@ -51,27 +51,29 @@ class ReplCDP(cdp.CDP):
             code = compile(expr, '<string>', 'single', self.__code_flags)
             self.__code_flags |= (code.co_flags & FUTURE_BITS)
             exec(code, self.__state)
-            self.__variables.capture_from_state(self.__state, self.__displayhooks)
 
     def on_evaluate(self, request, args):
         expr = args['expression']
         frame_id = int(args.get('frameId', 0))
+        keep_all = bool(args.get('keepAll', False))
+        max_len = int(args.get('maximumLength', 0))
 
-        captured = []
-        with self.__variables.capture_from_displayhook(
-            on_result=captured.append,
-            max_len=int(args.get('maximumLength', 0)),
-            hooks=self.__displayhooks if args.get('allowHooks', False) else None,
-        ):
+        values = []
+        with util.displayhook(values.append):
             self.evaluate_in_state(expr)
 
-        if captured:
-            self.send_response(
-                request,
-                **captured[-1].info
-            )
-        else:
+        if not values:
             self.send_response(request)
+            return
+
+        hooks = self.__displayhooks
+        body = variables.make_info(values[-1], hooks, max_len, references=self.__references)
+        if keep_all:
+            body['all'] = [
+                variables.make_info(v, hooks, max_len, references=self.__references)
+                for v in values
+            ]
+        self.send_response(request, **body)
 
     def __output_special(self, raw_value, value_dict):
         content_type = value_dict.get('contentType', 'console')
@@ -80,6 +82,15 @@ class ReplCDP(cdp.CDP):
         except LookupError:
             value = repr(value_dict)
         self.send_event('output', category=content_type, output=value)
+
+    def __update_last_results(self, value):
+        ln = None
+        for n in PRIOR_RESULT_NAMES:
+            if ln:
+                self.__state[ln] = self.__state.get(n)
+            ln = n
+        if ln:
+            self.__state[ln] = value
 
     def __send_capture_to_output(self, info):
         try:
@@ -97,31 +108,23 @@ class ReplCDP(cdp.CDP):
         module = args.get('moduleName')
         process = args.get('processPath')
         extra_args = args.get('extraArguments') or ''
+        max_len = int(args.get('maximumLength', 0))
 
-        self.__variables.clear_cache()
+        self.__references.clear()
 
         if code:
-            with self.__variables.capture_from_displayhook(
-                on_result=self.__send_capture_to_output,
-                hooks=self.__original_state.get('__displayhooks'),
-                max_len=int(args.get('maximumLength', 0)),
-            ):
+            hooks = self.__displayhooks
+            last_info = {}
+            def hook_to_output(v):
+                self.__update_last_results(v)
+                info = variables.make_info(v, hooks, max_len)
+                last_info = info
+                self.__send_capture_to_output(info)
+
+            with util.displayhook(hook_to_output):
                 self.evaluate_in_state(code)
 
-            if self.__variables.last_capture is not None:
-                ln = None
-                for n in PRIOR_RESULT_NAMES:
-                    if ln:
-                        self.__state[ln] = self.__state.get(n)
-                    ln = n
-                self.__state['_'] = self.__variables.last_capture.value
-
-                self.send_response(
-                    request,
-                    **self.__variables.last_capture.info
-                )
-            else:
-                self.send_response(request)
+            self.send_response(request, **last_info)
 
         elif script:
             old_argv = sys.argv[:]
@@ -215,8 +218,8 @@ class ReplCDP(cdp.CDP):
             self.send_response(request)
         else:
             try:
-                variable = self.__variables.get_info(variable_id)
-                variables = self.__variables.get_members_info(
+                v = self.__references[variable_id]
+                vars = variables.members(v)
                     variable_id,
                     hooks=[],
                     max_len=int(args.get('maximumLength', 0)),

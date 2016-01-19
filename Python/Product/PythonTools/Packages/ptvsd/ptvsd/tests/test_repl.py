@@ -71,7 +71,7 @@ class ReplTestCases(unittest.TestCase):
     def test_variables_reference(self, c):
         yield request(100, 'initialize')
         yield request_succeeded(0)
-        yield request(101, 'evaluate', expression='x=1')
+        yield request(101, 'launch', code='x=1')
         yield request_succeeded(1)
         
         # Get variablesReference for x
@@ -100,6 +100,42 @@ class ReplTestCases(unittest.TestCase):
         
         yield request(106, 'disconnect')
         yield request_succeeded(6)
+
+    @cdp_test
+    def test_clear_cache_on_step(self, c):
+        yield request(100, 'initialize')
+        yield request_succeeded(0)
+        yield request(101, 'launch', code='x=1')
+        yield request_succeeded(1)
+
+        # Get variablesReference for x
+        resp = yield request(102, 'variables', variablesReference=-1)
+        yield request_succeeded(2)
+        x = next(d for d in resp['body']['variables'] if d['name'] == 'x')
+        x_ref = x['variablesReference']
+
+        # Evaluate a variable (should not invalidate ids)
+        resp = yield request(103, 'evaluate', expression='x+1')
+        yield request_succeeded(3)
+        x1_ref = resp['body']['variablesReference']
+        print(x_ref, x1_ref)
+
+        # Ensure x_ref is still valid
+        resp = yield request(104, 'variables', variablesReference=x_ref)
+        yield request_succeeded(4)
+
+        # Launch more code (should invalidate ids)
+        yield request(105, 'launch', code='x=None')
+        yield request_succeeded(5)
+
+        # Should not know about x_ref or x1_ref
+        yield request(106, 'variables', variablesReference=x_ref)
+        yield request_failed(6)
+        yield request(107, 'variables', variablesReference=x1_ref)
+        yield request_failed(7)
+
+        yield request(108, 'disconnect')
+        yield request_succeeded(8)
 
 if __name__ == '__main__':
     unittest.main()

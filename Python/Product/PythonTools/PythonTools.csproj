@@ -864,39 +864,39 @@
     <!-- VSIX -->
     <Compile Include="PythonTools\Repl\PythonInteractiveEvaluator.CommandProcessorThread.cs" />
     <None Include="packages.config" />
-    <Content Include="Packages\ptvsd\cdp.py">
+    <Content Include="Packages\ptvsd\ptvsd\cdp.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
-    <Content Include="Packages\ptvsd\debugger.py">
+    <Content Include="Packages\ptvsd\ptvsd\debugger.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
-    <Content Include="Packages\ptvsd\repl.py">
+    <Content Include="Packages\ptvsd\ptvsd\repl.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
     <Content Include="Packages\ptvsd\setup.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <IncludeInVSIX>true</IncludeInVSIX>
+      <IncludeInVSIX>false</IncludeInVSIX>
     </Content>
-    <Content Include="Packages\ptvsd\util.py">
+    <Content Include="Packages\ptvsd\ptvsd\util.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
-    <Content Include="Packages\ptvsd\variablecache.py">
+    <Content Include="Packages\ptvsd\ptvsd\variablecache.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
-    <None Include="Packages\ptvsd\tests\cdp_helper.py" />
-    <None Include="Packages\ptvsd\tests\test_cdp.py" />
-    <None Include="Packages\ptvsd\tests\test_repl.py" />
-    <None Include="Packages\ptvsd\tests\__init__.py" />
-    <None Include="Packages\ptvsd\tests\__main__.py" />
+    <None Include="Packages\ptvsd\ptvsd\tests\cdp_helper.py" />
+    <None Include="Packages\ptvsd\ptvsd\tests\test_cdp.py" />
+    <None Include="Packages\ptvsd\ptvsd\tests\test_repl.py" />
+    <None Include="Packages\ptvsd\ptvsd\tests\__init__.py" />
+    <None Include="Packages\ptvsd\ptvsd\tests\__main__.py" />
     <None Include="Theme\contrast.vstheme" />
     <None Include="NoSurveyNewsFeed.html" />
     <None Include="NoInterpreters.html" />
-    <Content Include="Packages\ptvsd\attach_server.py">
+    <Content Include="Packages\ptvsd\ptvsd\attach_server.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
@@ -913,7 +913,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
-    <Content Include="Packages\ptvsd\__init__.py">
+    <Content Include="Packages\ptvsd\ptvsd\__init__.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
@@ -921,7 +921,7 @@
     <None Include="Theme\Repl\contrast.vstheme" />
     <None Include="Theme\Repl\dark.vstheme" />
     <None Include="Theme\Repl\light.vstheme" />
-    <Content Include="Packages\ptvsd\__main__.py">
+    <Content Include="Packages\ptvsd\ptvsd\__main__.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>

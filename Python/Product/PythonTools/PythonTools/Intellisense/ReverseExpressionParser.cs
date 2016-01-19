@@ -324,10 +324,12 @@ namespace Microsoft.PythonTools.Intellisense {
                             }
                             if (text == "*" || text == "**") {
                                 if (enumerator.MoveNext()) {
-                                    if (enumerator.Current.ClassificationType == Classifier.Provider.CommaClassification) {
-                                        isParameterName = IsParameterNameComma(enumerator);
-                                    } else if (enumerator.Current.IsOpenGrouping() && enumerator.Current.Span.GetText() == "(") {
-                                        isParameterName = IsParameterNameOpenParen(enumerator);
+                                    if (enumerator.Current != null || enumerator.MoveNext() && enumerator.Current != null) {
+                                        if (enumerator.Current.ClassificationType == Classifier.Provider.CommaClassification) {
+                                            isParameterName = IsParameterNameComma(enumerator);
+                                        } else if (enumerator.Current.IsOpenGrouping() && enumerator.Current.Span.GetText() == "(") {
+                                            isParameterName = IsParameterNameOpenParen(enumerator);
+                                        }
                                     }
                                 }
                             }

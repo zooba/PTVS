@@ -157,6 +157,31 @@ UNICODE_PREFIX = to_bytes('U')
 ASCII_PREFIX = to_bytes('A')
 NONE_PREFIX = to_bytes('N')
 
+class displayhook(object):
+    def __init__(self, hook=None, chain=False):
+        self.chain = chain
+        self.hook = hook
+        self.__old_hook = None
+    
+    def __hook(self, value):
+        self.hook(value)
+        assert self.chain
+        assert self.__old_hook
+        if self.__old_hook:
+            return self.__old_hook(value)
+
+    def __enter__(self):
+        self.__old_hook = sys.displayhook
+        self.values = []
+        sys.displayhook = self.__hook if self.chain else self.hook
+        return self
+
+    def __exit__(self, ex_type, ex_value, ex_tb):
+        sys.displayhook = self.__old_hook
+        self.__old_hook = None
+        self.values = None
+
+
 
 def read_bytes(conn, count):
     b = to_bytes('')
