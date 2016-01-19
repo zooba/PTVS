@@ -358,7 +358,7 @@ namespace Microsoft.PythonTools.Repl {
             // TODO: Check saved preference
 
             var td = new TaskDialog(_serviceProvider) {
-                Title = SR.ProductName,
+                Title = Strings.ProductTitle,
                 MainInstruction = "Really change to " + newEvaluator,
                 VerificationText = "Remember my selection",
                 AllowCancellation = true

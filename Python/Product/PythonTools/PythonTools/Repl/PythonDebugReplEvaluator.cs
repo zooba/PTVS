@@ -25,6 +25,7 @@ using System.Threading.Tasks;
 using Microsoft.PythonTools.Debugger;
 using Microsoft.PythonTools.Debugger.DebugEngine;
 using Microsoft.PythonTools.Debugger.Remote;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.PythonTools.Options;
 using Microsoft.PythonTools.Parsing;
@@ -225,7 +226,7 @@ namespace Microsoft.PythonTools.Repl {
 
         public bool IsExecuting => _activeEvaluator?.IsExecuting ?? false;
 
-        public string DisplayName => SR.GetString(SR.DebugReplDisplayName);
+        public string DisplayName => Strings.DebugReplDisplayName;
 
         public IEnumerable<KeyValuePair<string, bool>> GetAvailableScopesAndKind() {
             if (_activeEvaluator != null) {

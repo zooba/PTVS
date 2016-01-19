@@ -22,20 +22,15 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Windows.Input;
-using Microsoft.PythonTools.Commands;
 using Microsoft.PythonTools.EnvironmentsList;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Interpreter;
-using Microsoft.PythonTools.Options;
 using Microsoft.PythonTools.Project;
-using Microsoft.VisualStudio;
-using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.Shell.Interop;
-using Microsoft.VisualStudioTools;
-using Microsoft.VisualStudioTools.Project;
-using SR = Microsoft.PythonTools.Project.SR;
 using Microsoft.PythonTools.Repl;
 using Microsoft.VisualStudio.Imaging;
 using Microsoft.VisualStudio.InteractiveWindow.Shell;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace Microsoft.PythonTools.InterpreterList {
     [Guid(PythonConstants.InterpreterListToolWindowGuid)]
@@ -57,7 +52,7 @@ namespace Microsoft.PythonTools.InterpreterList {
 
             // TODO: Get PYEnvironment added to image list
             BitmapImageMoniker = KnownMonikers.DockPanel;
-            Caption = SR.GetString(SR.Environments);
+            Caption = Strings.Environments;
 
             _service = _site.GetComponentModel().GetService<IInterpreterOptionsService>();
             
@@ -66,6 +61,7 @@ namespace Microsoft.PythonTools.InterpreterList {
             _statusBar = _site.GetService(typeof(SVsStatusbar)) as IVsStatusbar;
             
             var list = new ToolWindow();
+            list.Site = _site;
             list.ViewCreated += List_ViewCreated;
 
             list.CommandBindings.Add(new CommandBinding(
@@ -136,9 +132,9 @@ namespace Microsoft.PythonTools.InterpreterList {
         private void LogLoadException(IEnvironmentViewExtensionProvider provider, Exception ex) {
             string message;
             if (provider == null) {
-                message = SR.GetString(SR.ErrorLoadingEnvironmentViewExtensions, ex);
+                message = Strings.ErrorLoadingEnvironmentViewExtensions.FormatUI(ex);
             } else {
-                message = SR.GetString(SR.ErrorLoadingEnvironmentViewExtension, provider.GetType().FullName, ex);
+                message = Strings.ErrorLoadingEnvironmentViewExtension.FormatUI(provider.GetType().FullName, ex);
             }
 
             Debug.Fail(message);
@@ -146,7 +142,7 @@ namespace Microsoft.PythonTools.InterpreterList {
             if (log != null) {
                 log.LogEntry(
                     (uint)__ACTIVITYLOG_ENTRYTYPE.ALE_ERROR,
-                    SR.ProductName,
+                    Strings.ProductTitle,
                     message
                 );
             }
@@ -198,7 +194,7 @@ namespace Microsoft.PythonTools.InterpreterList {
             }
 
             var td = TaskDialog.ForException(_site, ex.SourceException, String.Empty, PythonConstants.IssueTrackerUrl);
-            td.Title = SR.ProductName;
+            td.Title = Strings.ProductTitle;
             td.ShowModal();
         }
 
@@ -222,7 +218,7 @@ namespace Microsoft.PythonTools.InterpreterList {
             try {
                 window = service.OpenOrCreate(replId);
             } catch (Exception ex) when (!ex.IsCriticalException()) {
-                MessageBox.Show(SR.GetString(SR.ErrorOpeningInteractiveWindow, ex), SR.ProductName);
+                MessageBox.Show(Strings.ErrorOpeningInteractiveWindow.FormatUI(ex), Strings.ProductTitle);
                 return;
             }
 
@@ -270,7 +266,7 @@ namespace Microsoft.PythonTools.InterpreterList {
         }
 
         private void OnlineHelp_Executed(object sender, ExecutedRoutedEventArgs e) {
-            CommonPackage.OpenVsWebBrowser(_site, PythonToolsPackage.InterpreterHelpUrl);
+            VisualStudioTools.CommonPackage.OpenVsWebBrowser(_site, PythonToolsPackage.InterpreterHelpUrl);
             e.Handled = true;
         }
     }

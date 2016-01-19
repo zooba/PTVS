@@ -21,6 +21,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Editor.Core;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.PythonTools.Project;
 using Microsoft.VisualStudio.InteractiveWindow;
@@ -172,9 +173,9 @@ namespace Microsoft.PythonTools.Repl {
             }
 
             if (!string.IsNullOrEmpty(display)) {
-                twp.Caption = SR.GetString(SR.ReplCaption, display);
+                twp.Caption = Strings.ReplCaption.FormatUI(display);
             } else {
-                twp.Caption = SR.GetString(SR.ReplCaptionNoEvaluator);
+                twp.Caption = Strings.ReplCaptionNoEvaluator;
             }
         }
 

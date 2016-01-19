@@ -31,8 +31,8 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using Microsoft.PythonTools.Analysis;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Interpreter;
-using Microsoft.VisualStudioTools;
 using Resources = Microsoft.PythonTools.EnvironmentsList.Properties.Resources;
 
 namespace Microsoft.PythonTools.EnvironmentsList {
