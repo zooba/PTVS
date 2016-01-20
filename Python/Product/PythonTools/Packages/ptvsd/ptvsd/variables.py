@@ -38,19 +38,20 @@ FUTURE_BITS = 0x3e010   # code flags used to mark future bits
 PRIOR_RESULT_NAMES = ['___', '__', '_']
 
 class CapturedValueInfo(object):
-    def __init__(self, name, value, info, v_id):
+    def __init__(self, name, value, info):
         self.name = name
         self.value = value
         self.info = info
-        self.v_id = v_id
-        self.members = []
+        self.v_id = None
+        self.members = {}
 
-    def get_members(self):
-        if self.members:
-            return self.members
-
-
-    def as_dict(self, with_value=False, with_result=False, with_display=False):
+    def as_dict(
+        self,
+        max_len=0,
+        with_value=False,
+        with_result=False,
+        with_display=False,
+    ):
         r = dict(self.info)
         if not with_value:
             r.pop('value', None)
@@ -61,77 +62,34 @@ class CapturedValueInfo(object):
             r.pop('result', None)
         if not with_display:
             r.pop('display', None)
-        r['variablesReference'] = self.v_id
+        if max_len > 3:
+            for k in ['value', 'str', 'repr', 'result']:
+                if len(r.get(k, '')) > max_len:
+                    r[k] = r[k][:max_len - 3] + '...'
+        if self.v_id:
+            r['variablesReference'] = self.v_id
         return r
 
-def make_info(value, hooks, max_len, name=None, references=None):
-    v_repr = _repr(value, max_len)
-    v_str = _str(value, max_len)
-    res = {
-        'result': v_repr,
-        'value': v_repr,
-        'type': _type_name(value, max_len),
-        'str': v_str,
-        'display': [{'contentType': 'text/plain', 'value': v_str}],
-    }
-    if hooks:
-        res['display'] = [d for d in (h(value) for h in hooks) if d] + res['display']
-    if name:
-        res['name'] = name
-    if references is not None:
-        v_id = len(references)
-        cvi = CapturedValueInfo(name, value, res, v_id)
-        references.append(cvi)
-        if references[v_id] is not cvi:
-            cvi.v_id = v_id = references.index(cvi)
-        res['variablesReference'] = v_id
-    return res
-
-def _capture_value(value, on_result, capture, hooks, max_len, name=None):
-    info = make_info(value, hooks, max_len, name)
-    info['variablesReference'] = v_id = CAPTURE_BASE_INDEX + len(capture)
-    cvi = CapturedValueInfo(name, value, info, v_id)
-    capture.append(cvi)
-
-    if on_result:
-        on_result(cvi)
-
-def _repr(value, max_len=0):
+def _repr(value):
     try:
-        r = repr(value)
+        return repr(value)
     except Exception:
-        r = '<error getting repr>'
-    else:
-        if max_len > 3 and len(r) > max_len:
-            r = r[max_len - 3] + '...'
-        
-    return r
+        return '<error getting repr>'
 
-def _str(value, max_len=0):
+def _str(value):
     try:
-        r = str(value)
+        return str(value)
     except Exception:
-        r = '<error getting str>'
-    else:
-        if max_len > 3 and len(r) > max_len:
-            r = r[max_len - 3] + '...'
-        
-    return r
+        return '<error getting str>'
 
-def _type_name(value, max_len=0):
+def _type_name(value):
     try:
         t = type(value)
         if t.__module__ != BUILTIN_MODULE_NAME:
-            r = '%s.%s' % (t.__module__, t.__name__)
-        else:
-            r = t.__name__
+            return '%s.%s' % (t.__module__, t.__name__)
+        return t.__name__
     except Exception:
-        r = '<error>'
-    else:
-        if max_len > 3 and len(r) > max_len:
-            r = r[max_len - 3] + '...'
-
-    return r
+        return '<error>'
 
 def _callsig(value):
     try:
@@ -160,130 +118,72 @@ def _callsig(value):
 def _docs(value):
     return getattr(value, '__doc__', None) or getattr(type(value), '__doc__', None)
 
-
-def get_members_info(self, v_id, hooks, max_len):
-    try:
-        value = self.get_value(v_id)
-        members = inspect.getmembers(value)
-    except (LookupError, ValueError):
-        return []
-    variables = []
-    for n, v in members:
-        _capture_value(v, variables.append, self.capture, None, max_len, n)
-    return [cvi.as_dict(with_value=True) for cvi in variables]
-
-def _members(value, hooks, max_len, name=None, references=None):
-    name = (name + '.') if name else ''
-
-    result = []
-    for n, o in inspect.getmembers(value):
-        result.append(make_info(o, hooks, max_len, name + n, references))
-    return result
-
-
 class References(object):
-    def __init__(self):
+    def __init__(self, display_hooks):
         self.values = []
-        self.info = []
-        
+        self.names = {}
+        self.hooks = display_hooks
 
-class VariableCache(object):
-    def __init__(self):
-        self.state = {}
-        self.references = []
-        self.exclude_from_state = set(['__builtins__'])
+    def create_info(self, value, name=None):
+        v_repr = _repr(value)
+        v_str = _str(value)
+        res = {
+            'result': v_repr,
+            'value': v_repr,
+            'type': _type_name(value),
+            'str': v_str,
+            'display': [{'contentType': 'text/plain', 'value': v_str}],
+        }
+        if self.hooks:
+            res['display'] = [d for d in (h(value) for h in self.hooks) if d] + res['display']
+        if name:
+            res['name'] = name
 
-    @contextmanager
-    def capture_from_displayhook(self, cache_result=True, on_result=None, hooks=None, max_len=0):
-        old_hook = sys.displayhook
+        return CapturedValueInfo(name, value, res)
 
-        sys.displayhook = partial(
-            _capture_value,
-            on_result=on_result,
-            capture=self.capture,
-            hooks=hooks,
-            max_len=max_len,
-        )
-        try:
-            yield
-        finally:
-            self.displayhook = old_hook
+    def capture(self, value, name=None):
+        cvi = self.create_info(value, name)
+        cvi.v_id = v_id = len(self.values) + 1
+        self.values.append(cvi)
+        if name:
+            self.names[name] = v_id
+        return v_id
 
-    @property
-    def last_capture(self):
-        return self.references[-1] if self.references else None
+    def capture_members(self, handle):
+        cvi = self.values[handle - 1]
+        name = (cvi.name + '.') if cvi.name else ''
 
-    def capture_from_state(self, state, hooks):
-        own_state = self.state
-        id_state_map = self.id_state_map
+        for n, o in inspect.getmembers(cvi.value):
+            if n not in cvi.members:
+                cvi.members[n] = self.capture(o, n)
 
-        removed = set(own_state) - set(state)
-        for key, value in state.items():
-            if key in self.exclude_from_state:
-                continue
-            if key in own_state:
-                v_id = own_state[key].v_id
-            else:
-                v_id = next(self.state_ids)
-            own_state[key] = CapturedValueInfo(
-                key,
-                value,
-                make_info(value, hooks, max_len=0, name=key),
-                v_id,
+    def get_info(self, handle, max_len=0, with_members=False, **kwargs):
+        cvi = self.values[handle - 1]
+        r = cvi.as_dict(max_len, **kwargs)
+        if with_members:
+            r['variables'] = v = sorted(
+                (self.get_info(h, max_len, **kwargs) for h in cvi.members.values()),
+                key=lambda i: i['name']
             )
-            id_state_map[v_id] = key
 
-        for key in removed:
-            cvi = own_state.pop(key, None)
-            if cvi:
-                id_state_map.pop(cvi.v_id, None)
+        return r
 
-    def clear_cache(self):
-        self.capture.clear()
-        #self.state.clear()
+    def get(self, handle):
+        return self.values[handle - 1]
 
-    def get_state(self, with_result=False, with_value=True, with_display=False):
-        for cvi in self.state.values():
-            yield cvi.as_dict(with_result=with_result, with_value=with_value, with_display=with_display)
+    def get_handle_by_name(self, name):
+        return self.names.get(name)
 
-    def get_value(self, v_id):
-        if v_id >= CAPTURE_BASE_INDEX:
-            v_id -= CAPTURE_BASE_INDEX
-            return self.capture[v_id].value
+    def map_to_info(self, key_values, **kwargs):
+        res = {}
+        for k, v in key_values:
+            h = self.names.get(k)
+            if h is None:
+                h = self.capture(v, k)
+            res[k] = self.get_info(h, **kwargs)
+        return [res[k] for k in sorted(res)]
 
-        name = self.id_state_map[v_id]
-        return self.state[name].value
-
-    def get_info(self, v_id, with_result=False, with_value=True, with_display=False):
-        if v_id >= CAPTURE_BASE_INDEX:
-            v_id -= CAPTURE_BASE_INDEX
-            return self.capture[v_id].as_dict(with_result=with_result, with_value=with_value, with_display=with_display)
-
-        name = self.id_state_map[v_id]
-        return self.state[name].as_dict(with_result=with_result, with_value=with_value, with_display=with_display)
-
-    def get_members_info(self, v_id, hooks, max_len):
-        try:
-            value = self.get_value(v_id)
-            members = inspect.getmembers(value)
-        except (LookupError, ValueError):
-            return []
-        variables = []
-        for n, v in members:
-            _capture_value(v, variables.append, self.capture, None, max_len, n)
-        return [cvi.as_dict(with_value=True) for cvi in variables]
-
-    def get_members(self, v_id_or_name):
-        spec = []
-        for n, o in inspect.getmembers(value):
-            try:
-                t = type(o)
-                if t.__module__ != BUILTIN_MODULE_NAME:
-                    n = '%s : %s.%s' % (n, t.__module__, t.__name__)
-                else:
-                    n = '%s : %s' % (n, t.__name__)
-            except Exception:
-                pass
-            spec.append(n)
-        return spec
+    def clear(self):
+        self.values.clear()
+        self.names.clear()
 

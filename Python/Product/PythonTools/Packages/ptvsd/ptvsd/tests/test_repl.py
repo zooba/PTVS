@@ -50,20 +50,25 @@ class ReplTestCases(unittest.TestCase):
         resp = yield request(102, 'variables', variablesReference=-1)
         yield request_succeeded(2)
         variables = resp['body']['variables']
-        yield request(103, 'evaluate', expression='x=1')
+        self.assertNotIn('x', [v['name'] for v in variables])
+
+        yield request(103, 'launch', code='x=1')
         yield request_succeeded(3)
         yield request(104, 'evaluate', expression='x')
         yield request_succeeded(4, value='1', type='int')
-        yield request(105, 'variables', variablesReference=-1)
-        yield request_succeeded(5, variables=variables+[
-            {'name': 'x', 'type': 'int', 'value': '1', 'variablesReference': 3}
-        ])
-        yield request(106, 'evaluate', expression='x="abc"')
+        resp = yield request(105, 'variables', variablesReference=-1)
+        yield request_succeeded(5)
+        print(resp['body']['variables'])
+        x = [v for v in resp['body']['variables'] if v['name'] == 'x'][0]
+        self.assertDictContainsSubset({'name': 'x', 'type': 'int', 'value': '1'}, x)
+
+        yield request(106, 'launch', code='x="abc"')
         yield request_succeeded(6)
-        yield request(107, 'variables', variablesReference=-1)
-        yield request_succeeded(7, variables=variables+[
-            {'name': 'x', 'type': 'str', 'value': "'abc'", 'str': 'abc', 'variablesReference': 3}
-        ])
+        resp = yield request(107, 'variables', variablesReference=-1)
+        yield request_succeeded(7)
+        x = [v for v in resp['body']['variables'] if v['name'] == 'x'][0]
+        self.assertDictContainsSubset({'name': 'x', 'type': 'str', 'value': "'abc'", 'str': 'abc'}, x)
+
         yield request(108, 'disconnect')
         yield request_succeeded(8)
 

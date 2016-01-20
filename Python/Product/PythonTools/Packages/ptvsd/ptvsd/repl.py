@@ -33,6 +33,8 @@ from encodings import utf_8, ascii
 BUILTIN_MODULE_NAME = object.__module__
 FUTURE_BITS = 0x3e010   # code flags used to mark future bits
 
+SENTINEL = object()
+
 PRIOR_RESULT_NAMES = ['___', '__', '_']
 
 
@@ -41,10 +43,10 @@ class ReplCDP(cdp.CDP):
         super(ReplCDP, self).__init__(*args, **kwargs)
         self.__state = self.__original_state = {}
         self.__code_flags = 0
-        self.__references = []
         self.__sources = []
         self.__state['__output_special'] = self.__output_special
         self.__state['__displayhooks'] = self.__displayhooks = []
+        self.__references = variables.References(self.__displayhooks)
 
     def evaluate_in_state(self, expr, if_exists=None):
         if not if_exists or if_exists in self.__state:
@@ -67,12 +69,21 @@ class ReplCDP(cdp.CDP):
             return
 
         hooks = self.__displayhooks
-        body = variables.make_info(values[-1], hooks, max_len, references=self.__references)
+        h = self.__references.capture(values[-1])
+        body = self.__references.get_info(
+            h,
+            max_len,
+            with_value=True,
+            with_display=True,
+        )
         if keep_all:
-            body['all'] = [
-                variables.make_info(v, hooks, max_len, references=self.__references)
-                for v in values
-            ]
+            handles = [self.__references.capture(v) for v in values]
+            body['all'] = [self.__references.get_info(
+                h,
+                max_len,
+                with_value=True,
+                with_display=True,
+            ) for h in handles]
         self.send_response(request, **body)
 
     def __output_special(self, raw_value, value_dict):
@@ -99,7 +110,7 @@ class ReplCDP(cdp.CDP):
             content = entry['value']
         except LookupError:
             content_type = 'text/plain'
-            content = info.info.get('value', repr(value))
+            content = info.info.get('value', variables._repr(value))
         self.send_event('output', category=content_type, output=content)
 
     def on_launch(self, request, args):
@@ -114,17 +125,21 @@ class ReplCDP(cdp.CDP):
 
         if code:
             hooks = self.__displayhooks
-            last_info = {}
+            last_value = SENTINEL
             def hook_to_output(v):
                 self.__update_last_results(v)
-                info = variables.make_info(v, hooks, max_len)
-                last_info = info
+                last_value = v
+                info = self.__references.create_info(v)
                 self.__send_capture_to_output(info)
 
             with util.displayhook(hook_to_output):
                 self.evaluate_in_state(code)
 
-            self.send_response(request, **last_info)
+            if last_value is not SENTINEL:
+                h = self.__references.capture(last_value)
+                self.send_response(request, **self.__references.get_info(h, max_len=max_len))
+            else:
+                self.send_response(request)
 
         elif script:
             old_argv = sys.argv[:]
@@ -208,30 +223,33 @@ class ReplCDP(cdp.CDP):
 
     def on_variables(self, request, args):
         variable_id = int(args.get('variablesReference', -1))
+        max_len = int(args.get('maximumLength', 0))
         if variable_id < 0:
-            # Get all variables
             self.send_response(
                 request,
-                variables=sorted(self.__variables.get_state(), key=lambda d: d['name'])
+                variables=self.__references.map_to_info(
+                    self.__state.items(),
+                    max_len=max_len,
+                    with_value=True,
+                )
             )
         elif variable_id == 0:
             self.send_response(request)
         else:
             try:
-                v = self.__references[variable_id]
-                vars = variables.members(v)
-                    variable_id,
-                    hooks=[],
-                    max_len=int(args.get('maximumLength', 0)),
-                )
+                self.__references.capture_members(variable_id)
             except LookupError:
                 self.send_response(request, success=False)
-
-            self.send_response(
-                request,
-                variables=variables,
-                **variable
-            )
+            else:
+                self.send_response(
+                    request,
+                    **self.__references.get_info(
+                        variable_id,
+                        max_len=max_len,
+                        with_value=True,
+                        with_members=True,
+                    )
+                )
 
     def on_scopes(self, request, args):
         frame_id = int(args.get('frameId', -1))
