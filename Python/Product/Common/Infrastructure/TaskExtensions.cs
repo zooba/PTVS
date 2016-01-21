@@ -85,5 +85,35 @@ namespace Microsoft.PythonTools.Infrastructure {
                 }
             });
         }
+
+        /// <summary>
+        /// Ensures the task is not null and can be awaited.
+        /// </summary>
+        public static Task MaybeAwait(this Task task) {
+            if (task != null) {
+                return task;
+            }
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Ensures the task is not null and can be awaited.
+        /// </summary>
+        public static Task<T> MaybeAwait<T>(this Task<T> task) {
+            if (task != null) {
+                return task;
+            }
+            return Task.FromResult(default(T));
+        }
+
+        /// <summary>
+        /// Ensures the task is not null and can be awaited.
+        /// </summary>
+        public static Task<T> MaybeAwait<T>(this Task<T> task, T defaultValue) {
+            if (task != null) {
+                return task;
+            }
+            return Task.FromResult(defaultValue);
+        }
     }
 }

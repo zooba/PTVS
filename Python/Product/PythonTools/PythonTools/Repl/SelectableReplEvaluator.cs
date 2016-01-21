@@ -237,12 +237,13 @@ namespace Microsoft.PythonTools.Repl {
         }
 
         public Task SetScopeAsync(string scopeName, CancellationToken cancellationToken) {
-            return (_evaluator as IMultipleScopeEvaluator)?.SetScopeAsync(scopeName, cancellationToken);
+            var mse = _evaluator as IMultipleScopeEvaluator;
+            return (mse?.SetScopeAsync(scopeName, cancellationToken)).MaybeAwait();
         }
 
         public async Task<IReadOnlyCollection<string>> GetAvailableScopesAsync(CancellationToken cancellationToken) {
-            return await (_evaluator as IMultipleScopeEvaluator)?.GetAvailableScopesAsync(cancellationToken) ??
-                new string[0];
+            var mse = _evaluator as IMultipleScopeEvaluator;
+            return await (mse?.GetAvailableScopesAsync(cancellationToken)).MaybeAwait() ?? new string[0];
         }
 
         #endregion

@@ -77,7 +77,25 @@ namespace Microsoft.PythonTools.Cdp {
 
         protected int TryGetFromBody(string key, int defaultValue) {
             object obj;
-            return (_data.body.TryGetValue(key, out obj) ? obj as int? : null) ?? defaultValue;
+            if (!_data.body.TryGetValue(key, out obj)) {
+                return defaultValue;
+            }
+            try {
+                return (int)obj;
+            } catch (InvalidCastException) {
+            }
+            try {
+                var lng = (long)obj;
+                if (lng >= int.MinValue && lng <= int.MaxValue) {
+                    return (int)lng;
+                }
+            } catch (InvalidCastException) {
+            }
+            var str = obj as string;
+            if (str != null) {
+                return int.Parse(str);
+            }
+            return defaultValue;
         }
 
         protected IReadOnlyList<T> TryGetListFromBody<T>(string key) {
@@ -128,7 +146,7 @@ namespace Microsoft.PythonTools.Cdp {
         }
 
         public static EvaluateResponse TryCreate(Response from) {
-            if (!from.Success ||
+            if (from == null || !from.Success ||
                 // We can get an EvaluateResponse when launching code
                 (from.Command != "evaluate" && from.Command != "launch") ||
                 from.RawBody == null) {
@@ -165,7 +183,7 @@ namespace Microsoft.PythonTools.Cdp {
         }
 
         public static ScopesResponse TryCreate(Response from) {
-            if (!from.Success || from.Command != "scopes" || from.RawBody == null) {
+            if (from == null || !from.Success || from.Command != "scopes" || from.RawBody == null) {
                 return null;
             }
             if (!from.RawBody.ContainsKey("scopes")) {
@@ -202,7 +220,7 @@ namespace Microsoft.PythonTools.Cdp {
         }
 
         public static VariablesResponse TryCreate(Response from) {
-            if (!from.Success || from.Command != "variables" || from.RawBody == null) {
+            if (from == null || !from.Success || from.Command != "variables" || from.RawBody == null) {
                 return null;
             }
             if (!from.RawBody.ContainsKey("variables")) {
@@ -221,7 +239,7 @@ namespace Microsoft.PythonTools.Cdp {
         public string Content => RawBody["content"] as string;
 
         public static SourceResponse TryCreate(Response from) {
-            if (!from.Success || from.Command != "source" || from.RawBody == null) {
+            if (from == null || !from.Success || from.Command != "source" || from.RawBody == null) {
                 return null;
             }
             if (!from.RawBody.ContainsKey("content")) {

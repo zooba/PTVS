@@ -868,7 +868,6 @@
   <ItemGroup>
     <!-- VSIX -->
     <Compile Include="PythonTools\Repl\PythonInteractiveEvaluator.CommandProcessorThread.cs" />
-    <None Include="packages.config" />
     <Content Include="Packages\ptvsd\ptvsd\cdp.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>

@@ -712,4 +712,7 @@ Your web browser will not be opened.</value>
   <data name="DebugReplDisplayName" xml:space="preserve">
     <value>Current debuggee</value>
   </data>
+  <data name="ReplCannotExecute" xml:space="preserve">
+    <value>Error executing {0}</value>
+  </data>
 </root>

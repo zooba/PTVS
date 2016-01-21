@@ -259,8 +259,10 @@ namespace Microsoft.PythonTools.Repl {
         protected async Task<CommandProcessorThread> EnsureConnectedAsync() {
             var thread = Volatile.Read(ref _thread);
             if (thread != null) {
-                await thread.EnsureConnectedAsync();
-                return thread;
+                if (await thread.EnsureConnectedAsync()) {
+                    return thread;
+                }
+                return null;
             }
 
             return await _serviceProvider.GetUIThread().InvokeTask(async () => {
@@ -272,11 +274,12 @@ namespace Microsoft.PythonTools.Repl {
 
                 var newerThread = Interlocked.CompareExchange(ref _thread, thread, null);
                 if (newerThread != null) {
-                    thread.Dispose();
+                    thread?.Dispose();
                     return newerThread;
                 }
                 if (thread == null) {
-                    throw new InvalidOperationException(Strings.ReplNotStarted);
+                    WriteError(Strings.ReplNotStarted);
+                    return null;
                 }
 
                 var scriptsPath = ScriptsPath;
@@ -287,12 +290,12 @@ namespace Microsoft.PythonTools.Repl {
 
                 if (File.Exists(scriptsPath)) {
                     if (!(await ExecuteFileAsync(scriptsPath, null)).IsSuccessful) {
-                        WriteError("Error executing " + scriptsPath);
+                        WriteError(Strings.ReplCannotExecute.FormatUI(scriptsPath));
                     }
                 } else if (Directory.Exists(scriptsPath)) {
                     foreach (var file in Directory.EnumerateFiles(scriptsPath, "*.py", SearchOption.TopDirectoryOnly)) {
                         if (!(await ExecuteFileAsync(file, null)).IsSuccessful) {
-                            WriteError("Error executing " + file);
+                            WriteError(Strings.ReplCannotExecute.FormatUI(file));
                         }
                     }
                 }
@@ -461,12 +464,12 @@ namespace Microsoft.PythonTools.Repl {
             return "'" + item.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
         }
 
-        public virtual async Task<IReadOnlyCollection<string>> GetAvailableScopesAsync(CancellationToken cancellationToken) {
-            return await _thread?.GetModulesAsync(cancellationToken);
+        public virtual Task<IReadOnlyCollection<string>> GetAvailableScopesAsync(CancellationToken cancellationToken) {
+            return (_thread?.GetModulesAsync(cancellationToken)).MaybeAwait();
         }
 
         public virtual Task SetScopeAsync(string scopeName, CancellationToken cancellationToken) {
-            return _thread?.SetModuleAsync(scopeName, cancellationToken);
+            return (_thread?.SetModuleAsync(scopeName, cancellationToken)).MaybeAwait();
         }
 
         public string GetPrompt() {

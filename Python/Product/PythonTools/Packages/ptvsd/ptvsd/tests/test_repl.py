@@ -19,7 +19,7 @@ import unittest
 
 import ptvsd.repl as repl
 
-from .cdp_helper import *
+from ptvsd.tests.cdp_helper import *
 
 class ReplTestCases(unittest.TestCase):
     class CDP_CLASS(repl.ReplCDP, TestCDP): pass
@@ -58,16 +58,20 @@ class ReplTestCases(unittest.TestCase):
         yield request_succeeded(4, value='1', type='int')
         resp = yield request(105, 'variables', variablesReference=-1)
         yield request_succeeded(5)
-        print(resp['body']['variables'])
         x = [v for v in resp['body']['variables'] if v['name'] == 'x'][0]
-        self.assertDictContainsSubset({'name': 'x', 'type': 'int', 'value': '1'}, x)
+        self.assertEqual('x', x['name'])
+        self.assertEqual('int', x['type'])
+        self.assertEqual('1', x['value'])
 
         yield request(106, 'launch', code='x="abc"')
         yield request_succeeded(6)
         resp = yield request(107, 'variables', variablesReference=-1)
         yield request_succeeded(7)
         x = [v for v in resp['body']['variables'] if v['name'] == 'x'][0]
-        self.assertDictContainsSubset({'name': 'x', 'type': 'str', 'value': "'abc'", 'str': 'abc'}, x)
+        self.assertEqual('x', x['name'])
+        self.assertEqual('str', x['type'])
+        self.assertEqual("'abc'", x['value'])
+        self.assertEqual('abc', x['str'])
 
         yield request(108, 'disconnect')
         yield request_succeeded(8)
@@ -78,33 +82,51 @@ class ReplTestCases(unittest.TestCase):
         yield request_succeeded(0)
         yield request(101, 'launch', code='x=1')
         yield request_succeeded(1)
-        
+
         # Get variablesReference for x
         resp = yield request(102, 'variables', variablesReference=-1)
         yield request_succeeded(2)
-        x = next(d for d in resp['body']['variables'] if d['name'] == 'x')
-        
+        x_ref2 = [d for d in resp['body']['variables'] if d['name'] == 'x'][0]['variablesReference']
+
+        resp = yield request(103, 'evaluate', expression='x')
+        yield request_succeeded(3)
+        x_ref = resp['body']['variablesReference']
+        self.assertEqual(x_ref, x_ref2)
+
         # Get members of x
-        resp = yield request(103, 'variables', variablesReference=x['variablesReference'])
-        yield request_succeeded(3, 
+        resp = yield request(104, 'variables', variablesReference=x_ref)
+        yield request_succeeded(4, 
             value='1',
             variables=[{'name': n, 'type': type(v).__name__} for n, v in inspect.getmembers(1)]
         )
+        def drop_keys(d):
+            d = dict(d)
+            d.pop('variablesReference', None)
+            return d
+
+        members = [drop_keys(d) for d in resp['body']['variables']]
         real = next(d for d in resp['body']['variables'] if d['name'] == 'real')
         _doc = next(d for d in resp['body']['variables'] if d['name'] == '__doc__')
-        
+
         # Get members of x.real
-        resp = yield request(104, 'variables', variablesReference=real['variablesReference'])
-        yield request_succeeded(4, variables=[
+        resp = yield request(105, 'variables', variablesReference=real['variablesReference'])
+        yield request_succeeded(5, variables=[
             {'name': n, 'type': type(v).__name__} for n, v in inspect.getmembers((1).real)
         ])
-        
+
         # Get value of x.__doc__
-        resp = yield request(105, 'variables', variablesReference=_doc['variablesReference'])
-        yield request_succeeded(5, value=repr(int.__doc__), str=int.__doc__, type='str') 
-        
-        yield request(106, 'disconnect')
-        yield request_succeeded(6)
+        resp = yield request(106, 'variables', variablesReference=_doc['variablesReference'])
+        yield request_succeeded(6, value=repr(int.__doc__), str=int.__doc__, type='str') 
+
+        # Get members from variables reference
+        resp = yield request(107, 'variables', variablesReference=x_ref2)
+        yield request_succeeded(7,
+            value='1',
+            variables=members
+        )
+
+        yield request(108, 'disconnect')
+        yield request_succeeded(8)
 
     @cdp_test
     def test_clear_cache_on_step(self, c):
@@ -123,7 +145,6 @@ class ReplTestCases(unittest.TestCase):
         resp = yield request(103, 'evaluate', expression='x+1')
         yield request_succeeded(3)
         x1_ref = resp['body']['variablesReference']
-        print(x_ref, x1_ref)
 
         # Ensure x_ref is still valid
         resp = yield request(104, 'variables', variablesReference=x_ref)

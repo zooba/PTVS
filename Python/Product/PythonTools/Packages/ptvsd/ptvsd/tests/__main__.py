@@ -28,7 +28,7 @@ import unittest
 
 runner = unittest.TextTestRunner(
     buffer=True,
-    verbosity=1 + sum(a == '-v' for a in sys.argv),
+    verbosity=2 + sum(a == '-v' for a in sys.argv),
 )
 
 STARTDIR = os.path.dirname(os.path.abspath(__file__))

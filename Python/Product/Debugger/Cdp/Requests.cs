@@ -135,6 +135,7 @@ namespace Microsoft.PythonTools.Cdp {
 
     public class VariablesRequest : Request {
         public VariablesRequest(int variableId) : base("variables") {
+            VariablesReference = variableId;
         }
 
         public int VariablesReference {

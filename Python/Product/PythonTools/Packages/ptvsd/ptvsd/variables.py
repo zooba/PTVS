@@ -184,6 +184,5 @@ class References(object):
         return [res[k] for k in sorted(res)]
 
     def clear(self):
-        self.values.clear()
-        self.names.clear()
+        self.values, self.names = [], {}
 

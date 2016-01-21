@@ -18,7 +18,7 @@ import json
 import sys
 import unittest
 
-from .cdp_helper import *
+from ptvsd.tests.cdp_helper import *
 
 class CdpTestCases(unittest.TestCase):
     CDP_CLASS = TestCDP

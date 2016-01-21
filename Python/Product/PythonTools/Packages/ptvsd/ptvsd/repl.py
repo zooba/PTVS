@@ -61,19 +61,20 @@ class ReplCDP(cdp.CDP):
         max_len = int(args.get('maximumLength', 0))
 
         values = []
-        with util.displayhook(values.append):
-            self.evaluate_in_state(expr)
+        h = self.__references.get_handle_by_name(expr.strip())
+        if not h:
+            with util.displayhook(values.append):
+                self.evaluate_in_state(expr)
 
-        if not values:
-            self.send_response(request)
-            return
+            if not values:
+                self.send_response(request)
+                return
 
-        hooks = self.__displayhooks
-        h = self.__references.capture(values[-1])
+            h = self.__references.capture(values[-1])
         body = self.__references.get_info(
             h,
             max_len,
-            with_value=True,
+            with_result=True,
             with_display=True,
         )
         if keep_all:
@@ -81,7 +82,7 @@ class ReplCDP(cdp.CDP):
             body['all'] = [self.__references.get_info(
                 h,
                 max_len,
-                with_value=True,
+                with_result=True,
                 with_display=True,
             ) for h in handles]
         self.send_response(request, **body)

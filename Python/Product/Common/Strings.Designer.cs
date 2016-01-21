@@ -1100,6 +1100,15 @@ namespace Microsoft.PythonTools {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Error executing {0}.
+        /// </summary>
+        public static string ReplCannotExecute {
+            get {
+                return ResourceManager.GetString("ReplCannotExecute", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Unable to read file &apos;{0}&apos;.
         /// </summary>
         public static string ReplCannotReadFile {

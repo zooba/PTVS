@@ -124,7 +124,7 @@ namespace Microsoft.PythonTools.Repl {
                 return null;
             }
 
-            return new CommandProcessorThread(this, process);
+            return new CommandProcessorThread(this, process, _serviceProvider);
         }
 
 
@@ -149,7 +149,11 @@ namespace Microsoft.PythonTools.Repl {
             private StringBuilder _preConnectionOutput;
             //private MemberResults _memberResults;
 
-            public CommandProcessorThread(PythonInteractiveEvaluator evaluator, Process process) {
+            public CommandProcessorThread(
+                PythonInteractiveEvaluator evaluator,
+                Process process,
+                IServiceProvider site
+            ) {
 #if DEBUG
                 AllErrors = true;
 #endif
@@ -172,6 +176,7 @@ namespace Microsoft.PythonTools.Repl {
                 _connection.EventReceived += Connection_EventReceived;
 
                 _connecting = ConnectAsync();
+                _connecting.SilenceException<IOException>().HandleAllExceptions(site, GetType()).DoNotWait();
             }
 
             public bool AllErrors { get; set; }
@@ -238,24 +243,31 @@ namespace Microsoft.PythonTools.Repl {
                 }
             }
 
-            public void EnsureConnected(CancellationToken cancellationToken) {
+            public bool EnsureConnected(CancellationToken cancellationToken) {
                 var c = _connecting;
-                if (c == null) {
-                    return;
+                if (c == null || c.IsCanceled || c.IsFaulted) {
+                    return false;
+                } else if (!c.IsCompleted) {
+                    try {
+                        c.Wait(cancellationToken);
+                    } catch (AggregateException ae) {
+                        throw ae.InnerException;
+                    }
                 }
-                try {
-                    c.Wait(cancellationToken);
-                } catch (AggregateException ae) {
-                    throw ae.InnerException;
-                }
+                return c.Status == TaskStatus.RanToCompletion;
             }
 
-            public async Task EnsureConnectedAsync() {
+            public async Task<bool> EnsureConnectedAsync() {
                 var c = _connecting;
-                if (c == null) {
-                    return;
+                if (c == null || c.IsCanceled || c.IsFaulted) {
+                    return false;
+                } else if (!c.IsCompleted) {
+                    try {
+                        await c;
+                    } catch (Exception ex) when (!ex.IsCriticalException()) {
+                    }
                 }
-                await c;
+                return c.Status == TaskStatus.RanToCompletion;
             }
 
             private async Task ConnectAsync() {
@@ -404,7 +416,9 @@ namespace Microsoft.PythonTools.Repl {
             }
 
             public async Task<IReadOnlyCollection<string>> GetModulesAsync(CancellationToken cancellationToken) {
-                await EnsureConnectedAsync();
+                if (!await EnsureConnectedAsync()) {
+                    return null;
+                }
 
                 var resp = await _connection.SendRequestAsync(new EvaluateRequest(GetModulesCode), cancellationToken);
                 if (!resp.Success) {
@@ -421,7 +435,9 @@ namespace Microsoft.PythonTools.Repl {
             }
 
             public async Task SetModuleAsync(string module, CancellationToken cancellationToken) {
-                await EnsureConnectedAsync();
+                if (!await EnsureConnectedAsync()) {
+                    return;
+                }
 
                 var resp = await _connection.SendRequestAsync(new SetModuleRequest(module), cancellationToken);
                 if (resp.Success) {
@@ -433,7 +449,9 @@ namespace Microsoft.PythonTools.Repl {
             }
 
             private async Task<Response> ExecuteAsync(LaunchRequest request, CancellationToken cancellationToken) {
-                await EnsureConnectedAsync();
+                if (!await EnsureConnectedAsync()) {
+                    return null;
+                }
 
                 if (_process != null) {
                     VisualStudioTools.Project.NativeMethods.AllowSetForegroundWindow(_process.Id);
@@ -588,7 +606,9 @@ namespace Microsoft.PythonTools.Repl {
                 Response response;
                 var cancel = After1s;
                 try {
-                    EnsureConnected(cancel);
+                    if (!EnsureConnected(cancel)) {
+                        return null;
+                    }
                     response = _connection.SendRequest(new VariablesRequest(-1), cancel);
                 } catch (OperationCanceledException) {
                     if (AllErrors) {
@@ -618,15 +638,17 @@ namespace Microsoft.PythonTools.Repl {
                 }
 
                 Response response;
-                EvaluateResponse er;
                 var cancel = After1s;
                 try {
-                    EnsureConnected(cancel);
-                    response = _connection.SendRequest(new EvaluateRequest(text), cancel);
-                    if ((er = EvaluateResponse.TryCreate(response)) == null) {
+                    if (!EnsureConnected(cancel)) {
                         return null;
                     }
-                    response = _connection.SendRequest(new VariablesRequest(er.VariablesReference), cancel);
+                    response = _connection.SendRequest(new EvaluateRequest(text), cancel);
+
+                    EvaluateResponse er;
+                    if ((er = EvaluateResponse.TryCreate(response)) != null) {
+                        response = _connection.SendRequest(new VariablesRequest(er.VariablesReference), cancel);
+                    }
                 } catch (OperationCanceledException) {
                     if (AllErrors) {
                         _eval.WriteError("Timed out getting member names");

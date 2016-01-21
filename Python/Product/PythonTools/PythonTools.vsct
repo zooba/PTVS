@@ -683,7 +683,7 @@ permissions and limitations under the License.
       <!--=========================================== Interactive Window toolbar ====================================-->
       <!--===========================================================================================================-->
 
-      <Button guid="guidPythonToolsCmdSet" id="cmdidNewInteractiveWindow" priority="0x0100" type="Button">
+      <Button guid="guidPythonToolsCmdSet" id="cmdidNewInteractiveWindow" priority="0x0600" type="Button">
         <Parent guid="guidInteractiveWindowCmdSet" id="InteractiveToolbarGroup"/>
         <Icon guid="ImageCatalogGuid" id="NewWindow"/>
         <CommandFlag>DefaultInvisible</CommandFlag>
@@ -701,7 +701,7 @@ permissions and limitations under the License.
       <Combo guid="guidPythonToolsCmdSet" 
              id="comboIdReplEvaluators" 
              idCommandList="comboIdReplEvaluatorsGetList" 
-             priority="0x0200" 
+             priority="0x0601" 
              type="DropDownCombo" 
              defaultWidth="150">
         <Parent guid="guidInteractiveWindowCmdSet" id="InteractiveToolbarGroup"/>
@@ -719,7 +719,7 @@ permissions and limitations under the License.
       <Combo guid="guidPythonToolsCmdSet" 
              id="comboIdReplScopes" 
              idCommandList="comboIdReplScopesGetList" 
-             priority="0x0300" 
+             priority="0x0700" 
              type="DropDownCombo" 
              defaultWidth="130">
         <Parent guid="guidInteractiveWindowCmdSet" id="InteractiveToolbarGroup"/>
