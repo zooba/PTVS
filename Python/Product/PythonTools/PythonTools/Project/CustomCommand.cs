@@ -714,17 +714,17 @@ namespace Microsoft.PythonTools.Project {
 
         public void AddArgumentAtStart(string argument) {
             if (string.IsNullOrEmpty(Arguments)) {
-                Arguments = ProcessOutput.QuoteSingleArgument(argument);
+                Arguments = ProcessOutput.Quote(argument);
             } else {
-                Arguments = ProcessOutput.QuoteSingleArgument(argument) + " " + Arguments;
+                Arguments = ProcessOutput.Quote(argument) + " " + Arguments;
             }
         }
 
         public void AddArgumentAtEnd(string argument) {
             if (string.IsNullOrEmpty(Arguments)) {
-                Arguments = ProcessOutput.QuoteSingleArgument(argument);
+                Arguments = ProcessOutput.Quote(argument);
             } else {
-                Arguments += " " + ProcessOutput.QuoteSingleArgument(argument);
+                Arguments += " " + ProcessOutput.Quote(argument);
             }
         }
 
@@ -849,7 +849,7 @@ namespace Microsoft.PythonTools.Project {
                 if (handleConsoleAndPause) {
                     Arguments = string.Format(
                         "/C \"{0}{1}{2}\" & if errorlevel 1 pause",
-                        ProcessOutput.QuoteSingleArgument(Filename),
+                        ProcessOutput.Quote(Filename),
                         string.IsNullOrEmpty(Arguments) ? string.Empty : " ",
                         Arguments ?? string.Empty
                     );
@@ -860,7 +860,7 @@ namespace Microsoft.PythonTools.Project {
                 if (handleConsoleAndPause) {
                     Arguments = string.Format(
                         "/C \"{0}{1}{2}\" & pause",
-                        ProcessOutput.QuoteSingleArgument(Filename),
+                        ProcessOutput.Quote(Filename),
                         string.IsNullOrEmpty(Arguments) ? string.Empty : " ",
                         Arguments ?? string.Empty
                     );

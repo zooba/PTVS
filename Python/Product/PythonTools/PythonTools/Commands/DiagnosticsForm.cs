@@ -84,7 +84,7 @@ namespace Microsoft.PythonTools.Commands {
                     Strings.Cancel
                 );
 
-                Process.Start("explorer.exe", "/select," + ProcessOutput.QuoteSingleArgument(path));
+                Process.Start("explorer.exe", "/select," + ProcessOutput.Quote(path));
             } catch (OperationCanceledException) {
             }
         }

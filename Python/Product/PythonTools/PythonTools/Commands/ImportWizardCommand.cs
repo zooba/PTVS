@@ -41,7 +41,7 @@ namespace Microsoft.PythonTools.Commands {
             try {
                 var path = await dlg.ImportSettings.CreateRequestedProjectAsync();
                 if (File.Exists(path)) {
-                    object outRef = null, pathRef = ProcessOutput.QuoteSingleArgument(path);
+                    object outRef = null, pathRef = ProcessOutput.Quote(path);
                     _serviceProvider.GetDTE().Commands.Raise(
                         VSConstants.GUID_VSStandardCommandSet97.ToString("B"),
                         (int)VSConstants.VSStd97CmdID.OpenProject,

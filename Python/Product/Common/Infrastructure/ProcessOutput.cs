@@ -190,12 +190,7 @@ namespace Microsoft.PythonTools.Infrastructure {
             }
 
             var psi = new ProcessStartInfo(filename);
-            if (quoteArgs) {
-                psi.Arguments = string.Join(" ",
-                    arguments.Where(a => a != null).Select(QuoteSingleArgument));
-            } else {
-                psi.Arguments = string.Join(" ", arguments.Where(a => a != null));
-            }
+            psi.Arguments = quoteArgs ? QuoteArguments(arguments) : JoinArguments(arguments);
             psi.WorkingDirectory = workingDirectory;
             psi.CreateNoWindow = !visible;
             psi.UseShellExecute = false;
@@ -244,17 +239,12 @@ namespace Microsoft.PythonTools.Infrastructure {
             psi.UseShellExecute = true;
             psi.Verb = "runas";
 
-            string args;
-            if (quoteArgs) {
-                args = string.Join(" ", arguments.Where(a => a != null).Select(QuoteSingleArgument));
-            } else {
-                args = string.Join(" ", arguments.Where(a => a != null));
-            }
+            string args = quoteArgs ? QuoteArguments(arguments) : JoinArguments(arguments);
             psi.Arguments = string.Format("/S /C \"{0} {1} >>{2} 2>>{3}\"",
-                QuoteSingleArgument(filename),
+                Quote(filename),
                 args,
-                QuoteSingleArgument(outFile),
-                QuoteSingleArgument(errFile)
+                Quote(outFile),
+                Quote(errFile)
             );
             psi.WorkingDirectory = workingDirectory;
             psi.CreateNoWindow = true;
@@ -334,7 +324,28 @@ namespace Microsoft.PythonTools.Infrastructure {
             }
         }
 
-        public static string QuoteSingleArgument(string arg) {
+        public static string QuoteArguments(params object[] arguments) {
+            return QuoteArguments(arguments.Select(o => o?.ToString()));
+        }
+
+        public static string QuoteArguments(IEnumerable<string> arguments) {
+            // Nulls are skipped; empty strings are added as ""
+            return string.Join(" ", arguments.Where(a => a != null).Select(Quote));
+        }
+
+        public static string JoinArguments(params object[] arguments) {
+            return JoinArguments(arguments.Select(o => o?.ToString()));
+        }
+
+        public static string JoinArguments(IEnumerable<string> arguments) {
+            // Nulls and empties are skipped
+            return string.Join(" ", arguments.Where(a => !string.IsNullOrEmpty(a)));
+        }
+
+        public static string Quote(string arg) {
+            if (arg == null) {
+                return "";
+            }
             if (string.IsNullOrEmpty(arg)) {
                 return "\"\"";
             }
@@ -371,7 +382,7 @@ namespace Microsoft.PythonTools.Infrastructure {
         }
 
         private ProcessOutput(Process process, Redirector redirector) {
-            _arguments = QuoteSingleArgument(process.StartInfo.FileName) + " " + process.StartInfo.Arguments;
+            _arguments = Quote(process.StartInfo.FileName) + " " + process.StartInfo.Arguments;
             _redirector = redirector;
             if (_redirector == null) {
                 _output = new List<string>();

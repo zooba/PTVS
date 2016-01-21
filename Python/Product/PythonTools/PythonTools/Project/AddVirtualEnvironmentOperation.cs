@@ -84,7 +84,7 @@ namespace Microsoft.PythonTools.Project {
             if (await Pip.Install(
                 _project.Site,
                 factory,
-                "-r " + ProcessOutput.QuoteSingleArgument(txt),
+                "-r " + ProcessOutput.Quote(txt),
                 false,  // never elevate for a virtual environment
                 _output
             )) {

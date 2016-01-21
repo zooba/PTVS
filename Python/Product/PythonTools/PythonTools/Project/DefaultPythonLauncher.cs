@@ -77,7 +77,7 @@ namespace Microsoft.PythonTools.Project {
         public string CreateCommandLineNoDebug(string startupFile, IPythonProjectLaunchProperties props) {
             return string.Join(" ", new[] {
                 props.GetInterpreterArguments(),
-                ProcessOutput.QuoteSingleArgument(startupFile),
+                ProcessOutput.Quote(startupFile),
                 props.GetArguments()
             }.Where(s => !string.IsNullOrEmpty(s)));
         }
@@ -88,7 +88,7 @@ namespace Microsoft.PythonTools.Project {
         public string CreateCommandLineDebug(string startupFile, IPythonProjectLaunchProperties props) {
             return string.Join(" ", new[] {
                 (props.GetIsNativeDebuggingEnabled() ?? false) ? props.GetInterpreterArguments() : null,
-                ProcessOutput.QuoteSingleArgument(startupFile),
+                ProcessOutput.Quote(startupFile),
                 props.GetArguments()
             }.Where(s => !string.IsNullOrEmpty(s)));
         }

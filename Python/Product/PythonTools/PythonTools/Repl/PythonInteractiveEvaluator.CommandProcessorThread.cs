@@ -100,7 +100,7 @@ namespace Microsoft.PythonTools.Repl {
             }
 
 
-            args.Add(ProcessOutput.QuoteSingleArgument(PythonToolsInstallPath.GetFile("Packages\\ptvsd\\ptvsd\\repl.py")));
+            args.Add(ProcessOutput.Quote(PythonToolsInstallPath.GetFile("Packages\\ptvsd\\ptvsd\\repl.py")));
             processInfo.Arguments = string.Join(" ", args);
 
             Process process;

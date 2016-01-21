@@ -47,7 +47,7 @@ namespace AnalysisTests {
                 // C:\Program Files\Application Path => "C:\Program Files\Application Path"
                 new { Source = @"C:\Program Files\Application Path", Expected = "\"C:\\Program Files\\Application Path\"" },
             }) {
-                Assert.AreEqual(testCase.Expected, ProcessOutput.QuoteSingleArgument(testCase.Source), string.Format("Source:<{0}>", testCase.Source));
+                Assert.AreEqual(testCase.Expected, ProcessOutput.Quote(testCase.Source), string.Format("Source:<{0}>", testCase.Source));
             }
         }
 

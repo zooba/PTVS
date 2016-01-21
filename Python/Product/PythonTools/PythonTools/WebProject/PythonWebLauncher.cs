@@ -466,7 +466,7 @@ namespace Microsoft.PythonTools.Project.Web {
             }
             if (!string.IsNullOrEmpty(pauseCommand)) {
                 psi.Arguments = string.Format("/c \"{0} {1}\" & {2}",
-                    ProcessOutput.QuoteSingleArgument(psi.FileName),
+                    ProcessOutput.Quote(psi.FileName),
                     psi.Arguments,
                     pauseCommand
                 );

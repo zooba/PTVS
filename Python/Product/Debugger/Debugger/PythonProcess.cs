@@ -103,7 +103,16 @@ namespace Microsoft.PythonTools.Debugger {
             stream.WriteString(debugOptions.ToString());
         }
 
-        public PythonProcess(PythonLanguageVersion languageVersion, string exe, string args, string dir, string env, string interpreterOptions, PythonDebugOptions options = PythonDebugOptions.None, List<string[]> dirMapping = null)
+        public PythonProcess(
+            PythonLanguageVersion languageVersion,
+            string exe,
+            string args,
+            string dir,
+            string env,
+            string interpreterOptions,
+            PythonDebugOptions options = PythonDebugOptions.None,
+            List<string[]> dirMapping = null
+        )
             : this(0, languageVersion) {
 
             ListenForConnection();
@@ -119,24 +128,28 @@ namespace Microsoft.PythonTools.Debugger {
             processInfo.RedirectStandardOutput = false;
             processInfo.RedirectStandardInput = (options & PythonDebugOptions.RedirectInput) != 0;
 
-            processInfo.Arguments = 
-                (String.IsNullOrWhiteSpace(interpreterOptions) ? "" : (interpreterOptions + " ")) +
-                "\"" + PythonToolsInstallPath.GetFile("visualstudio_py_launcher.py") + "\" " +
-                "\"" + dir + "\" " +
-                " " + DebugConnectionListener.ListenerPort + " " +
-                " " + _processGuid + " " +
-                "\"" + options + "\" " +
-                args;
+            processInfo.Arguments = ProcessOutput.JoinArguments(
+                interpreterOptions,
+                ProcessOutput.Quote(PythonToolsInstallPath.GetFile("Packages\\ptvsd\\ptvsd\\__main__.py")),
+                "--wait",
+                "-i 127.0.0.1",
+                "-p", DebugConnectionListener.ListenerPort,
+                "-s", _processGuid,
+                "-o", ProcessOutput.Quote(options.ToString()),
+                args
+            );
+            processInfo.WorkingDirectory = dir;
 
             if (env != null) {
                 string[] envValues = env.Split('\0');
                 foreach (var curValue in envValues) {
                     string[] nameValue = curValue.Split(new[] { '=' }, 2);
                     if (nameValue.Length == 2 && !String.IsNullOrWhiteSpace(nameValue[0])) {
-                        processInfo.EnvironmentVariables[nameValue[0]] = nameValue[1];
+                        processInfo.Environment[nameValue[0]] = nameValue[1];
                     }
                 }
             }
+
 
             Debug.WriteLine(String.Format("Launching: {0} {1}", processInfo.FileName, processInfo.Arguments));
             _process = new Process();

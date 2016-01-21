@@ -2152,13 +2152,13 @@ def intercept_threads(for_attach = False):
     global _INTERCEPTING_FOR_ATTACH
     _INTERCEPTING_FOR_ATTACH = for_attach
 
-def attach_process(port_num, debug_id, debug_options, report = False, block = False):
+def attach_process(secret, address, debug_options, report=False, block=False):
     global conn
     for i in xrange(50):
         try:
             conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            conn.connect(('127.0.0.1', port_num))
-            write_string(conn, debug_id)
+            conn.connect(address)
+            write_string(conn, secret)
             write_int(conn, 0)  # success
             break
         except:
@@ -2168,7 +2168,7 @@ def attach_process(port_num, debug_id, debug_options, report = False, block = Fa
         raise Exception('failed to attach')
     attach_process_from_socket(conn, debug_options, report, block)
 
-def attach_process_from_socket(sock, debug_options, report = False, block = False):
+def attach_process_from_socket(sock, debug_options, report=False, block=False):
     global conn, attach_sent_break, DETACHED, DEBUG_STDLIB, BREAK_ON_SYSTEMEXIT_ZERO, DJANGO_DEBUG
 
     BREAK_ON_SYSTEMEXIT_ZERO = 'BreakOnSystemExitZero' in debug_options
@@ -2435,15 +2435,9 @@ def print_exception(exc_type, exc_value, exc_tb):
 def parse_debug_options(s):
     return set([opt.strip() for opt in s.split(',')])
 
-def debug(file, port_num, debug_id, debug_options, run_as = 'script'):
-    # remove us from modules so there's no trace of us
-    sys.modules['$visualstudio_py_debugger'] = sys.modules['visualstudio_py_debugger']
-    __name__ = '$visualstudio_py_debugger'
-    del sys.modules['visualstudio_py_debugger']
-
-    wait_on_normal_exit = 'WaitOnNormalExit' in debug_options
-
-    attach_process(port_num, debug_id, debug_options, report = True)
+def _enable_debug(debug_id, address, debug_options):
+    opts = parse_debug_options(debug_options)
+    attach_process(debug_id, address, opts, report=True)
 
     # setup the current thread
     cur_thread = new_thread()
@@ -2452,42 +2446,35 @@ def debug(file, port_num, debug_id, debug_options, run_as = 'script'):
     # start tracing on this thread
     sys.settrace(cur_thread.trace_func)
 
-    # now execute main file
-    globals_obj = {'__name__': '__main__'}
-    try:
-        if run_as == 'module':
-            exec_module(file, globals_obj)
-        elif run_as == 'code':
-            exec_code(file, '<string>', globals_obj)
-        else:
-            exec_file(file, globals_obj)
-    finally:
-        sys.settrace(None)
-        THREADS_LOCK.acquire()
-        del THREADS[cur_thread.id]
-        THREADS_LOCK.release()
-        report_thread_exit(cur_thread)
+    # Returned values must match parameter list of _finish_debug
+    return cur_thread, opts
 
-        # Give VS debugger a chance to process commands
-        # by waiting for ack of "last" command
-        global _threading
-        if _threading is None:
-            import threading
-            _threading = threading
-        global last_ack_event
-        last_ack_event = _threading.Event()
-        with _SendLockCtx:
-            write_bytes(conn, LAST)
-        last_ack_event.wait(5)
+def _finish_debug(cur_thread, opts):
+    sys.settrace(None)
+    THREADS_LOCK.acquire()
+    del THREADS[cur_thread.id]
+    THREADS_LOCK.release()
+    report_thread_exit(cur_thread)
 
-    if wait_on_normal_exit:
+    # Give VS debugger a chance to process commands
+    # by waiting for ack of "last" command
+    global _threading
+    if _threading is None:
+        import threading
+        _threading = threading
+    global last_ack_event
+    last_ack_event = _threading.Event()
+    with _SendLockCtx:
+        write_bytes(conn, LAST)
+    last_ack_event.wait(5)
+
+    if 'WaitOnNormalExit' in opts:
         do_wait()
 
 # Code objects for functions which are going to be at the bottom of the stack, right below the first
 # stack frame for user code. When we walk the stack to determine whether to report or block on a given
 # frame, hitting any of these means that we walked all the frames that we needed to look at.
 DEBUG_ENTRYPOINTS = set((
-    get_code(debug),
     get_code(exec_file),
     get_code(exec_module),
     get_code(exec_code),

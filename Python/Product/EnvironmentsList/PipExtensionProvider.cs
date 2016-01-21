@@ -303,10 +303,10 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         }
 
         private static IEnumerable<string> QuotedArgumentsWithPackageName(IEnumerable<string> args, string package) {
-            var quotedArgs = string.Join(" ", args.Select(a => ProcessOutput.QuoteSingleArgument(a))) + " ";
+            var quotedArgs = string.Join(" ", args.Select(a => ProcessOutput.Quote(a))) + " ";
 
             if (Directory.Exists(package) || File.Exists(package)) {
-                yield return quotedArgs + ProcessOutput.QuoteSingleArgument(package);
+                yield return quotedArgs + ProcessOutput.Quote(package);
             } else {
                 yield return quotedArgs + package;
             }

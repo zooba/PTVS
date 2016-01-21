@@ -1637,7 +1637,7 @@ namespace Microsoft.PythonTools.Project {
             GetSelectedInterpreterOrDefault(selectedNodes, args, out selectedInterpreter, out selectedInterpreterFactory);
             var txt = PathUtils.GetAbsoluteFilePath(ProjectHome, "requirements.txt");
             var elevated = Site.GetPythonToolsService().GeneralOptions.ElevatePip;
-            var name = "-r " + ProcessOutput.QuoteSingleArgument(txt);
+            var name = "-r " + ProcessOutput.Quote(txt);
             if (args != null && !args.ContainsKey("y")) {
                 if (!ShouldInstallRequirementsTxt(
                     selectedInterpreterFactory.Description,

@@ -1273,21 +1273,6 @@
   <Target Name="AfterBuild">
   </Target>
   -->
-  <Target Name="_DeployPTVSDFiles" AfterTargets="PrepareForBuild" Returns="@(_PTVSDFiles)">
-    <ItemGroup>
-      <_PTVSDSourceFiles Include="visualstudio_py_*.py;ptvsd\*.py" />
-      <_PTVSDFiles Include="@(_PTVSDSourceFiles->'$(IntermediateOutputPath)ptvsd\%(Filename)%(Extension)')" />
-      <Content Include="@(_PTVSDFiles)">
-        <IncludeInVSIX>true</IncludeInVSIX>
-        <VSIXSubPath>ptvsd</VSIXSubPath>
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        <Link>ptvsd\%(Filename)%(Extension)</Link>
-      </Content>
-    </ItemGroup>
-    <Copy SourceFiles="@(_PTVSDSourceFiles)" DestinationFiles="@(_PTVSDFiles)" SkipUnchangedFiles="true">
-      <Output TaskParameter="CopiedFiles" ItemName="FileWrites" />
-    </Copy>
-  </Target>
   <Target Name="_CalculateSharedTemplateFiles">
     <ItemGroup>
       <_Templates Include="Templates\Projects\EmptyWebRole;Templates\Projects\WebRoleBottle;Templates\Projects\WebRoleFlask">
