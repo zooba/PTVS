@@ -115,7 +115,7 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
         ) {
             var state = analyzer.GetAnalysisState(context, document.Moniker, true);
             using (var sw = new StringWriter()) {
-                await state.DumpAsync(sw);
+                await state.DumpAsync(sw, cancellationToken);
                 Clipboard.SetText(sw.ToString());
             }
         }

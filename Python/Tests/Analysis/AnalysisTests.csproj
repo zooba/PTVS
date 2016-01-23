@@ -26,7 +26,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{8A3812FD-5EBC-4828-A8A6-EEDC07DFC129}</ProjectGuid>
+    <ProjectGuid>{C2C1C6A1-3C1E-45E4-9EE2-1181DB641818}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>AnalysisTests</RootNamespace>

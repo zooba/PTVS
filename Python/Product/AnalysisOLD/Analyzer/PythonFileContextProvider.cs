@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Interpreter;
-using Microsoft.VisualStudioTools;
+using Microsoft.PythonTools.Infrastructure;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     [Export(typeof(PythonFileContextProvider))]
@@ -54,7 +54,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             if (string.IsNullOrEmpty(workspaceLocation)) {
-                workspaceLocation = CommonUtils.GetParent(filePath);
+                workspaceLocation = PathUtils.GetParent(filePath);
             }
             await FindContextsAsync(workspaceLocation, null, cancellationToken);
             return await GetContextsForFileAsync(

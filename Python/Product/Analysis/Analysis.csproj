@@ -29,7 +29,7 @@
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectTypeGuids>{82b43b9b-a64c-4715-b499-d71e9ca2bd60};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <ProjectGuid>{BE50A162-4056-4C3C-AD65-85E0417C73AE}</ProjectGuid>
+    <ProjectGuid>{A85D479D-67A9-4BDB-904A-7D86DAF68A6F}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Microsoft.PythonTools.Analysis</RootNamespace>

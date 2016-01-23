@@ -14,7 +14,6 @@ using Microsoft.PythonTools.Analysis.Values;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Parsing;
 using Microsoft.PythonTools.Parsing.Ast;
-using Microsoft.VisualStudioTools;
 
 namespace Microsoft.PythonTools.Analysis.Analyzer {
     public sealed class PythonLanguageService : IDisposable {

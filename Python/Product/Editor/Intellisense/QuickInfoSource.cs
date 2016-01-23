@@ -49,13 +49,14 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
 
             quickInfoContent.Add("Loading...");
 
-            BeginAugmentQuickInfoSession(session, quickInfoContent, span).DoNotWait();
+            BeginAugmentQuickInfoSession(session, quickInfoContent, span, CancellationTokens.After500ms).DoNotWait();
         }
 
         private async Task BeginAugmentQuickInfoSession(
             IQuickInfoSession session,
             IList<object> quickInfoContent,
-            SnapshotSpan span
+            SnapshotSpan span,
+            CancellationToken cancellationToken
         ) {
             if (span.Length == 0) {
                 session.Dismiss();
@@ -67,7 +68,7 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
             var context = _textBuffer.GetPythonFileContext();
             var document = _textBuffer.GetDocument();
             if (analyzer == null || context == null || document == null) {
-                text = string.Format(Strings.QuickInfo_UnknownType, text);
+                text = Strings.QuickInfo_UnknownType.FormatUI(text);
             } else {
                 var startLine = span.Start.GetContainingLine();
                 var loc = new SourceLocation(
@@ -76,11 +77,12 @@ namespace Microsoft.PythonTools.Editor.Intellisense {
                     (span.Start.Position - startLine.Start.Position) + 1
                 );
                 var state = analyzer.GetAnalysisState(context, document.Moniker, true);
-                var types = await analyzer.GetVariableTypesAsync(state, text, loc, CancellationTokens.After500ms);
-                text = string.Format(Strings.QuickInfo_TypeNoDocs,
-                    text,
-                    string.Join(", ", types.Select(t => t.ToAnnotation(state)))
-                );
+                var types = await analyzer.GetVariableTypesAsync(state, text, loc, cancellationToken);
+                var annotations = new List<string>();
+                foreach (var t in types) {
+                    annotations.Add(await t.ToAnnotationAsync(cancellationToken));
+                }
+                text = Strings.QuickInfo_TypeNoDocs.FormatUI(text, string.Join(", ", annotations));
             }
 
             quickInfoContent.Clear();

@@ -92,7 +92,7 @@ namespace Microsoft.PythonTools.Analysis.Analyzer {
             }
 
             if (string.IsNullOrEmpty(workspaceLocation)) {
-                workspaceLocation = CommonUtils.GetParent(filePath);
+                workspaceLocation = PathUtils.GetParent(filePath);
             }
 
             if (!Directory.Exists(workspaceLocation)) {

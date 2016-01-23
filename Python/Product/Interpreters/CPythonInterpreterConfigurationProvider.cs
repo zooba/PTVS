@@ -195,7 +195,7 @@ namespace Microsoft.PythonTools.Interpreter {
                     continue;
                 }
                 string basePath = basePathObj.ToString();
-                if (!CommonUtils.IsValidPath(basePath)) {
+                if (!PathUtils.IsValidPath(basePath)) {
                     // Invalid path in registry
                     continue;
                 }
