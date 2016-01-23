@@ -334,7 +334,7 @@ namespace Microsoft.PythonTools.Infrastructure {
             }
         }
 
-        internal static string QuoteSingleArgument(string arg) {
+        public static string QuoteSingleArgument(string arg) {
             if (string.IsNullOrEmpty(arg)) {
                 return "\"\"";
             }

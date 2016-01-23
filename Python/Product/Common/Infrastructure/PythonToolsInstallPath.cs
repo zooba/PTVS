@@ -21,7 +21,7 @@ using System.Reflection;
 using Microsoft.Win32;
 
 namespace Microsoft.PythonTools.Infrastructure {
-    static class PythonToolsInstallPath {
+    public static class PythonToolsInstallPath {
         private static string GetFromAssembly(Assembly assembly, string filename) {
             string path = Path.Combine(
                 Path.GetDirectoryName(assembly.Location),
@@ -63,25 +63,33 @@ namespace Microsoft.PythonTools.Infrastructure {
             return string.Empty;
         }
 
-        public static string GetFile(string filename, bool retry = true) {
+        public static string TryGetFile(string filename) {
             string path = GetFromAssembly(typeof(PythonToolsInstallPath).Assembly, filename);
-            if (!string.IsNullOrEmpty(path)) {
-                return path;
+
+            if (string.IsNullOrEmpty(path)) {
+                path = GetFromRegistry(filename);
             }
 
-            path = GetFromRegistry(filename);
-            if (!string.IsNullOrEmpty(path)) {
-                return path;
+            return path;
+        }
+
+        public static string GetFile(string filename) {
+            var path = TryGetFile(filename);
+
+#if DEBUG
+            if (string.IsNullOrEmpty(path)) {
+                Debugger.Launch();
+                path =  TryGetFile(filename);
+            }
+#endif
+
+            if (string.IsNullOrEmpty(path)) {
+                throw new InvalidOperationException(
+                    "Unable to determine Python Tools installation path"
+                );
             }
 
-            if (retry) {
-                System.Diagnostics.Debugger.Launch();
-                return GetFile(filename, false);
-            }
-
-            throw new InvalidOperationException(
-                "Unable to determine Python Tools installation path"
-            );
+            return path;
         }
     }
 }

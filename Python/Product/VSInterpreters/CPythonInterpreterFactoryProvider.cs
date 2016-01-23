@@ -24,6 +24,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.PythonTools.Analysis;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudioTools;
 using Microsoft.Win32;
@@ -190,7 +191,7 @@ namespace Microsoft.PythonTools.Interpreter {
                             continue;
                         }
                         string basePath = basePathObj.ToString();
-                        if (!CommonUtils.IsValidPath(basePath)) {
+                        if (!PathUtils.IsValidPath(basePath)) {
                             // Invalid path in registry
                             continue;
                         }

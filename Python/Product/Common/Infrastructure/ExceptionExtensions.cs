@@ -15,6 +15,7 @@
 // permissions and limitations under the License.
 
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Microsoft.PythonTools.Infrastructure {
@@ -29,6 +30,29 @@ namespace Microsoft.PythonTools.Infrastructure {
                 ex is AccessViolationException ||
                 ex is CriticalException;
         }
+
+        public static string ToUnhandledExceptionMessage(
+            this Exception ex,
+            Type callerType,
+            [CallerFilePath] string callerFile = null,
+            [CallerLineNumber] int callerLineNumber = 0,
+            [CallerMemberName] string callerName = null
+        ) {
+            if (string.IsNullOrEmpty(callerName)) {
+                callerName = callerType != null ? callerType.FullName : string.Empty;
+            } else if (callerType != null) {
+                callerName = callerType.FullName + "." + callerName;
+            }
+
+            return string.Format(
+                Strings.UnhandledException,
+                ex,
+                callerFile ?? String.Empty,
+                callerLineNumber,
+                callerName
+            );
+        }
+
     }
 
     /// <summary>

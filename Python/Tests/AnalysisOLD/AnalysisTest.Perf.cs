@@ -24,6 +24,7 @@ using System.Text;
 using System.Threading;
 using analysis::Microsoft.PythonTools.Analysis.Analyzer;
 using Microsoft.PythonTools.Analysis;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Parsing;

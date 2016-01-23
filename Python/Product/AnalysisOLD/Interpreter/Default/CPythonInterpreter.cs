@@ -21,8 +21,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
-using Microsoft.PythonTools.Parsing;
-using Microsoft.VisualStudioTools;
+using Microsoft.PythonTools.Infrastructure;
 
 namespace Microsoft.PythonTools.Interpreter.Default {
     class CPythonInterpreter : IPythonInterpreter, IPythonInterpreterWithProjectReferences2, IDisposable {
@@ -33,7 +32,7 @@ namespace Microsoft.PythonTools.Interpreter.Default {
         private readonly object _referencesLock = new object();
 
         public CPythonInterpreter(PythonInterpreterFactoryWithDatabase factory) {
-            _langVersion = factory.Configuration.Version.ToVersion();
+            _langVersion = factory.Configuration.Version;
             _factory = factory;
             _typeDb = _factory.GetCurrentDatabase();
             _factory.NewDatabaseAvailable += OnNewDatabaseAvailable;
