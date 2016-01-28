@@ -314,9 +314,22 @@ namespace Microsoft.PythonTools.Repl {
                     return;
                 }
 
-                string id;
-                if (_currentEvaluators.TryGetValue(text, out id) && QuerySetEvaluator(text, id)) {
-                    _selectEval.SetEvaluator(id);
+                try {
+                    var id = _currentEvaluators[text];
+                    var q = QuerySetEvaluator(text, id);
+                    if (q == true) {
+                        // Switch this window
+                        _selectEval.SetEvaluator(id);
+                    } else if (q == false) {
+                        // Open a new window
+                        var provider = _componentModel.GetService<InteractiveWindowProvider>();
+                        var wnd = provider.Create(id);
+                        wnd.Show(true);
+                    }
+                } catch(KeyNotFoundException ex) {
+                    // Should never be missing an item, but if we are, report it
+                    // now for maximum context.
+                    ex.ReportUnhandledException(_serviceProvider, GetType());
                 }
             }
         }
@@ -354,41 +367,41 @@ namespace Microsoft.PythonTools.Repl {
             _interactive.InsertCode(activeCode);
         }
 
-        private bool QuerySetEvaluator(string newEvaluator, string newEvaluatorId) {
-            // TODO: Check saved preference
+        private bool? QuerySetEvaluator(string newEvaluator, string newEvaluatorId) {
+            var opts = _serviceProvider.GetPythonToolsService().SuppressDialogOptions;
+            var opt = opts.SwitchEvaluator;
+            if (opt == "AlwaysSwitch") {
+                return true;
+            } else if (opt == "AlwaysOpenNew") {
+                return false;
+            }
 
             var td = new TaskDialog(_serviceProvider) {
                 Title = Strings.ProductTitle,
-                MainInstruction = "Really change to " + newEvaluator,
-                VerificationText = "Remember my selection",
+                MainInstruction = Strings.ReplQuerySwitchEvaluator.FormatUI(newEvaluator),
+                Content = Strings.ReplQuerySwitchEvaluatorHint,
+                VerificationText = Strings.RememberMySelection,
                 AllowCancellation = true
             };
-            var sameWin = new TaskDialogButton(
-                "Change this tab",
-                "Your previous work may be lost when we change environment."
-            );
-            var newWin = new TaskDialogButton(
-                "Open in new tab",
-                "Your existing state will still be available when you switch windows."
-            );
+            var sameWin = new TaskDialogButton(Strings.ReplQuerySwitchThisTab, Strings.ReplQuerySwitchThisTabHint);
+            var newWin = new TaskDialogButton(Strings.ReplQuerySwitchNewTab, Strings.ReplQuerySwitchNewTabHint);
             td.Buttons.Add(sameWin);
             td.Buttons.Add(newWin);
             var result = td.ShowModal();
             if (result == sameWin) {
                 if (td.SelectedVerified) {
-                    // TODO: Save preference
+                    opts.SwitchEvaluator = "AlwaysSwitch";
+                    opts.Save();
                 }
                 return true;
             } else if (result == newWin) {
                 if (td.SelectedVerified) {
-                    // TODO: Save preference
+                    opts.SwitchEvaluator = "AlwaysOpenNew";
+                    opts.Save();
                 }
-
-                var provider = _componentModel.GetService<InteractiveWindowProvider>();
-                var wnd = provider.Create(newEvaluatorId);
-                wnd.Show(true);
+                return false;
             }
-            return false;
+            return null;
         }
 
         private int CloneInteractiveWindow() {
@@ -399,7 +412,7 @@ namespace Microsoft.PythonTools.Repl {
             return VSConstants.S_OK;
         }
 
-        private static async System.Threading.Tasks.Task PasteReplCode(
+        private static async Task PasteReplCode(
             IInteractiveWindow window,
             string pasting,
             PythonLanguageVersion version

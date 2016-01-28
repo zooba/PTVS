@@ -264,6 +264,7 @@ class _ReplOutput(object):
     """File-like object which redirects output to the REPL window."""
     errors = None
     encoding = 'utf-8'
+    closed = False
 
     def __init__(self, io, category, old_out=None):
         self.name = '<%s>' % category

@@ -313,8 +313,8 @@ Try moving your source code to a location where you can read and write files.</v
   </data>
   <data name="ReplEvaluatorInterpreterNotFound" xml:space="preserve">
     <value>The interactive window could not be started because the associated Python environment could not be found.
-If this version of Python has recently been uninstalled, you can close this window.
-</value>
+
+If this version of Python has recently been uninstalled, you can close this window.</value>
   </data>
   <data name="ReplEvaluatorInterpreterNotConfigured" xml:space="preserve">
     <value>{0} cannot be started because the path to the interpreter has not been configured.
@@ -714,5 +714,27 @@ Your web browser will not be opened.</value>
   </data>
   <data name="ReplCannotExecute" xml:space="preserve">
     <value>Error executing {0}</value>
+  </data>
+  <data name="RememberMySelection" xml:space="preserve">
+    <value>&amp;Remember my selection</value>
+  </data>
+  <data name="ReplQuerySwitchEvaluator" xml:space="preserve">
+    <value>Changing to {0} will reset your current state, including variables and imported modules.</value>
+    <comment>{0} is the user-provided description of the Python interpreter</comment>
+  </data>
+  <data name="ReplQuerySwitchEvaluatorHint" xml:space="preserve">
+    <value>History items will be preserved.</value>
+  </data>
+  <data name="ReplQuerySwitchNewTab" xml:space="preserve">
+    <value>&amp;Open a new tab</value>
+  </data>
+  <data name="ReplQuerySwitchNewTabHint" xml:space="preserve">
+    <value>Your existing state will still be available in this window.</value>
+  </data>
+  <data name="ReplQuerySwitchThisTab" xml:space="preserve">
+    <value>&amp;Switch this tab</value>
+  </data>
+  <data name="ReplQuerySwitchThisTabHint" xml:space="preserve">
+    <value>Your previous work will be lost when you change environment.</value>
   </data>
 </root>
