@@ -12,6 +12,7 @@
     <ProjectFile Include="Analysis\Analysis.csproj"/>
     <ProjectFile Include="VSInterpreters\VSInterpreters.csproj"/>
     <ProjectFile Include="Analyzer\Analyzer.csproj"/>
+    <ProjectFile Include="Workspace\Workspace.csproj"/>
 
     <ProjectFile Include="XamlDesignerSupport\XamlDesignerSupport.csproj"/>
 
