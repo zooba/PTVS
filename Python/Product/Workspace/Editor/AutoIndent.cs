@@ -234,7 +234,7 @@ namespace Microsoft.PythonTools.Editor {
         }
 
         private static bool PythonContentTypePrediciate(ITextSnapshot snapshot) {
-            return snapshot.ContentType.IsOfType(PythonCoreConstants.ContentType);
+            return snapshot.ContentType.IsOfType(PythonContentType.Name);
         }
 
         internal static int? GetLineIndentation(ITextSnapshotLine line, ITextView textView) {
@@ -245,7 +245,7 @@ namespace Microsoft.PythonTools.Editor {
             SkipPreceedingBlankLines(line, out baselineText, out baseline);
 
             ITextBuffer targetBuffer = textView.TextBuffer;
-            if (!targetBuffer.ContentType.IsOfType(PythonCoreConstants.ContentType)) {
+            if (!targetBuffer.ContentType.IsOfType(PythonContentType.Name)) {
                 var match = textView.BufferGraph.MapDownToFirstMatch(line.Start, PointTrackingMode.Positive, PythonContentTypePrediciate, PositionAffinity.Successor);
                 if (match == null) {
                     return 0;

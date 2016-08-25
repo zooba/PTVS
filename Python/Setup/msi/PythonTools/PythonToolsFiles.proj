@@ -31,6 +31,8 @@
                    !(bindpath.bin)\Newtonsoft.Json.dll;
                    !(bindpath.bin)\Microsoft.PythonTools.XamlDesignerSupport.dll;
                    !(bindpath.bin)\Microsoft.PythonTools.RunElevated.exe;
+                   !(bindpath.bin)\Microsoft.PythonTools.Settings.dll;
+                   !(bindpath.bin)\Microsoft.PythonTools.Workspace.dll;
                    pip_downloader.py" />
 
     <!-- Analyzer -->

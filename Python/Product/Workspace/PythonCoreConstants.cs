@@ -15,15 +15,13 @@
 // permissions and limitations under the License.
 
 using System.ComponentModel.Composition;
-using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Utilities;
 
 namespace Microsoft.PythonTools {
-    internal static class PythonCoreConstants {
-        public const string ContentType = "Python";
-        public const string BaseRegistryKey = "PythonTools";
+    internal static class PythonContentType {
+        public const string Name = "Python";
         
-        [Export, Name(ContentType), BaseDefinition("code")]
+        [Export, Name(Name), BaseDefinition("code")]
         internal static ContentTypeDefinition ContentTypeDefinition = null;
     }
 }

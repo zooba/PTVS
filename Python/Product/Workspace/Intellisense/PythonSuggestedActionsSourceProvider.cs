@@ -25,7 +25,7 @@ using Microsoft.VisualStudio.Utilities;
 namespace Microsoft.PythonTools.Intellisense {
     [Export(typeof(ISuggestedActionsSourceProvider))]
     [Name("Python Suggested Actions")]
-    [ContentType(PythonCoreConstants.ContentType)]
+    [ContentType(PythonContentType.Name)]
     [TextViewRole(PredefinedTextViewRoles.Analyzable)]
     [TextViewRole(PredefinedTextViewRoles.Editable)]
     class PythonSuggestedActionsSourceProvider : ISuggestedActionsSourceProvider {

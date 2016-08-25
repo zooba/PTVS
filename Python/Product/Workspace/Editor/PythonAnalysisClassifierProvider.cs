@@ -27,8 +27,8 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
 
-namespace Microsoft.PythonTools {
-    [Export(typeof(IClassifierProvider)), ContentType(PythonCoreConstants.ContentType)]
+namespace Microsoft.PythonTools.Editor {
+    [Export(typeof(IClassifierProvider)), ContentType(PythonContentType.Name)]
     internal class PythonAnalysisClassifierProvider : IClassifierProvider {
         private Dictionary<string, IClassificationType> _categoryMap;
         private readonly IContentType _type;
@@ -37,7 +37,7 @@ namespace Microsoft.PythonTools {
 
         [ImportingConstructor]
         public PythonAnalysisClassifierProvider(IContentTypeRegistryService contentTypeRegistryService, [Import(typeof(SVsServiceProvider))]IServiceProvider serviceProvider) {
-            _type = contentTypeRegistryService.GetContentType(PythonCoreConstants.ContentType);
+            _type = contentTypeRegistryService.GetContentType(PythonContentType.Name);
             _serviceProvider = serviceProvider;
             var options = serviceProvider.GetPythonToolsService()?.AdvancedOptions;
             if (options != null) {

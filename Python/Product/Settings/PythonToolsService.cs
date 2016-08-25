@@ -30,10 +30,8 @@ using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Logging;
-using Microsoft.PythonTools.Navigation;
 using Microsoft.PythonTools.Options;
 using Microsoft.PythonTools.Parsing;
-using Microsoft.PythonTools.Project;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.VisualStudio.Language.Intellisense;
@@ -55,7 +53,6 @@ namespace Microsoft.PythonTools {
         private IPythonToolsOptionsService _optionsService;
         internal readonly IInterpreterRegistryService _interpreterRegistry;
         internal readonly IInterpreterOptionsService _interpreterOptionsService;
-        private VsProjectAnalyzer _analyzer;
         private readonly PythonToolsLogger _logger;
         private readonly AdvancedEditorOptions _advancedOptions;
         private readonly DebuggerOptions _debuggerOptions;
@@ -65,7 +62,6 @@ namespace Microsoft.PythonTools {
         private readonly PythonInteractiveOptions _interactiveOptions;
         internal readonly Dictionary<string, InterpreterOptions> _interpreterOptions = new Dictionary<string, InterpreterOptions>();
         private readonly SuppressDialogOptions _suppressDialogOptions;
-        private readonly SurveyNewsService _surveyNews;
         private readonly IdleManager _idleManager;
         private Func<CodeFormattingOptions> _optionsFactory;
         private const string _formattingCat = "Formatting";
@@ -178,23 +174,23 @@ namespace Microsoft.PythonTools {
             _logger.LogEvent(PythonLogEvent.SurveyNewsFrequency, GeneralOptions.SurveyNewsCheck);
         }
 
-        private void UpdateDefaultAnalyzer(object sender, EventArgs args) {
-            // no need to update if analyzer isn't created yet.
-            if (_analyzer == null) {
-                return;
-            }
+        //private void UpdateDefaultAnalyzer(object sender, EventArgs args) {
+        //    // no need to update if analyzer isn't created yet.
+        //    if (_analyzer == null) {
+        //        return;
+        //    }
 
-            _container.GetUIThread().InvokeAsync(() => {
-                var analyzer = CreateAnalyzer();
-                var oldAnalyzer = Interlocked.Exchange(ref _analyzer, analyzer);
-                if (oldAnalyzer != null) {
-                    analyzer.SwitchAnalyzers(oldAnalyzer);
-                    if (oldAnalyzer.RemoveUser()) {
-                        oldAnalyzer.Dispose();
-                    }
-                }
-            }).DoNotWait();
-        }
+        //    _container.GetUIThread().InvokeAsync(() => {
+        //        var analyzer = CreateAnalyzer();
+        //        var oldAnalyzer = Interlocked.Exchange(ref _analyzer, analyzer);
+        //        if (oldAnalyzer != null) {
+        //            analyzer.SwitchAnalyzers(oldAnalyzer);
+        //            if (oldAnalyzer.RemoveUser()) {
+        //                oldAnalyzer.Dispose();
+        //            }
+        //        }
+        //    }).DoNotWait();
+        //}
 
         /// <summary>
         /// Asks the interpreter to generate its completion database if the
@@ -209,24 +205,18 @@ namespace Microsoft.PythonTools {
             }
         }
 
-        private VsProjectAnalyzer CreateAnalyzer() {
-            var defaultFactory = _interpreterOptionsService.DefaultInterpreter;
-            EnsureCompletionDb(defaultFactory);
-            return new VsProjectAnalyzer(
-                _container,
-                defaultFactory
-            );
-        }
+        //private VsProjectAnalyzer CreateAnalyzer() {
+        //    var defaultFactory = _interpreterOptionsService.DefaultInterpreter;
+        //    EnsureCompletionDb(defaultFactory);
+        //    return new VsProjectAnalyzer(
+        //        _container,
+        //        defaultFactory
+        //    );
+        //}
 
         internal PythonToolsLogger Logger {
             get {
                 return _logger;
-            }
-        }
-
-        internal SurveyNewsService SurveyNews {
-            get {
-                return _surveyNews;
             }
         }
 
@@ -238,14 +228,14 @@ namespace Microsoft.PythonTools {
             }
         }
 
-        public VsProjectAnalyzer DefaultAnalyzer {
-            get {
-                if (_analyzer == null) {
-                    _analyzer = _container.GetUIThread().Invoke(() => CreateAnalyzer());
-                }
-                return _analyzer;
-            }
-        }
+        //public VsProjectAnalyzer DefaultAnalyzer {
+        //    get {
+        //        if (_analyzer == null) {
+        //            _analyzer = _container.GetUIThread().Invoke(() => CreateAnalyzer());
+        //        }
+        //        return _analyzer;
+        //    }
+        //}
 
         public AdvancedEditorOptions AdvancedOptions {
             get {
@@ -706,26 +696,6 @@ namespace Microsoft.PythonTools {
         internal void CodeWindowClosed(IVsCodeWindow window) {
             _codeWindowManagers.Remove(window);
         }
-        #endregion
-
-        #region Intellisense
-
-        public CompletionAnalysis GetCompletions(ICompletionSession session, ITextView view, ITextSnapshot snapshot, ITrackingSpan span, ITrackingPoint point, CompletionOptions options) {
-            return VsProjectAnalyzer.GetCompletions(_container, session, view, snapshot, span, point, options);
-        }
-
-        public SignatureAnalysis GetSignatures(ITextView view, ITextSnapshot snapshot, ITrackingSpan span) {
-            return VsProjectAnalyzer.GetSignaturesAsync(_container, view, snapshot, span).WaitOrDefault(1000);
-        }
-
-        public Task<SignatureAnalysis> GetSignaturesAsync(ITextView view, ITextSnapshot snapshot, ITrackingSpan span) {
-            return VsProjectAnalyzer.GetSignaturesAsync(_container, view, snapshot, span);
-        }
-
-        public ExpressionAnalysis AnalyzeExpression(ITextView view, ITextSnapshot snapshot, ITrackingSpan span, bool forCompletion = true) {
-            return VsProjectAnalyzer.AnalyzeExpressionAsync(_container, view, span.GetStartPoint(snapshot)).WaitOrDefault(1000);
-        }
-
         #endregion
 
         public Dictionary<string, string> GetFullEnvironment(LaunchConfiguration config) {

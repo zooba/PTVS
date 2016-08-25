@@ -22,7 +22,7 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Utilities;
 
 namespace Microsoft.PythonTools.Intellisense {
-    [Export(typeof(ICompletionSourceProvider)), ContentType(PythonCoreConstants.ContentType), Order, Name("CompletionProvider")]
+    [Export(typeof(ICompletionSourceProvider)), ContentType(PythonContentType.Name), Order, Name("CompletionProvider")]
     internal class CompletionSourceProvider : ICompletionSourceProvider {
         internal readonly IGlyphService _glyphService;
         internal readonly PythonToolsService _pyService;

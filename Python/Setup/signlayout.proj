@@ -30,11 +30,13 @@
         Microsoft.PythonTools.Profiling.dll;
         Microsoft.PythonTools.ProjectWizards.dll;
         Microsoft.PythonTools.RunElevated.exe;
+        Microsoft.PythonTools.Settings.dll;
         Microsoft.PythonTools.TestAdapter.dll;
         Microsoft.PythonTools.TestAdapter.Analysis.dll;
         Microsoft.PythonTools.TestAdapter.Executor.dll;
         Microsoft.PythonTools.VSCommon.dll;
         Microsoft.PythonTools.VSInterpreters.dll;
+        Microsoft.PythonTools.Workspace.dll;
         Microsoft.PythonTools.WebRole.dll;
         Microsoft.PythonTools.XamlDesignerSupport.dll;
         "/>

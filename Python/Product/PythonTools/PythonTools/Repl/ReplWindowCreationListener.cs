@@ -18,7 +18,6 @@ using System;
 using System.ComponentModel.Composition;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.PythonTools.Language;
-using Microsoft.PythonTools.Repl;
 using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.PythonTools.InteractiveWindow;
 using Microsoft.PythonTools.InteractiveWindow.Shell;
@@ -27,7 +26,7 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Utilities;
 using IOleCommandTarget = Microsoft.VisualStudio.OLE.Interop.IOleCommandTarget;
 
-namespace Microsoft.PythonTools.Editor {
+namespace Microsoft.PythonTools.Repl {
     [Export(typeof(IVsInteractiveWindowOleCommandTargetProvider))]
     [ContentType(PythonCoreConstants.ContentType)]
     public class PythonOleCommandTargetProvider : IVsInteractiveWindowOleCommandTargetProvider {

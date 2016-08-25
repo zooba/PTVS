@@ -31,12 +31,14 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.IncrementalSearch;
 using Microsoft.VisualStudio.Text.Operations;
+using Microsoft.VisualStudio.Text.Projection;
 using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudio.Utilities;
 using IServiceProvider = System.IServiceProvider;
 
 namespace Microsoft.PythonTools.Intellisense {
-    [Export(typeof(IIntellisenseControllerProvider)), ContentType(PythonCoreConstants.ContentType), Order]
+    [Export(typeof(IIntellisenseControllerProvider)), ContentType(PythonContentType.Name)]
+    [Name("Microsoft.PythonTools.Intellisense.IntellisenseControllerProvider")]
     [TextViewRole(PredefinedTextViewRoles.Analyzable)]
     [TextViewRole(PredefinedTextViewRoles.Editable)]
     class IntellisenseControllerProvider : IIntellisenseControllerProvider {
@@ -53,22 +55,16 @@ namespace Microsoft.PythonTools.Intellisense {
         [Import]
         internal IIncrementalSearchFactoryService _IncrementalSearch = null; // Set via MEF
         internal IServiceProvider _ServiceProvider;
-        internal PythonToolsService PythonService;
 
         [ImportingConstructor]
         public IntellisenseControllerProvider([Import(typeof(SVsServiceProvider))] IServiceProvider serviceProvider) {
             _ServiceProvider = serviceProvider;
-            PythonService = serviceProvider.GetPythonToolsService();
         }
 
-        readonly Dictionary<ITextView, Tuple<BufferParser, PythonLanguageService>> _hookedCloseEvents =
-            new Dictionary<ITextView, Tuple<BufferParser, PythonLanguageService>>();
-
         public IIntellisenseController TryCreateIntellisenseController(ITextView textView, IList<ITextBuffer> subjectBuffers) {
-            IntellisenseController controller;
-            if (!textView.Properties.TryGetProperty(typeof(IntellisenseController), out controller)) {
-                controller = new IntellisenseController(this, textView, _ServiceProvider);
-            }
+            var controller = textView.Properties.GetOrCreateSingletonProperty(typeof(IntellisenseController), () => {
+                return new IntellisenseController(this, textView, _ServiceProvider);
+            });
 
             foreach (var subjectBuffer in subjectBuffers) {
                 controller.ConnectSubjectBuffer(subjectBuffer);
@@ -93,7 +89,7 @@ namespace Microsoft.PythonTools.Intellisense {
                 var intellisenseControllerProvider = (
                    from export in model.DefaultExportProvider.GetExports<IIntellisenseControllerProvider, IContentTypeMetadata>()
                    from exportedContentType in export.Metadata.ContentTypes
-                   where exportedContentType == PythonCoreConstants.ContentType && export.Value.GetType() == typeof(IntellisenseControllerProvider)
+                   where exportedContentType == PythonContentType.Name && export.Value.GetType() == typeof(IntellisenseControllerProvider)
                    select export.Value
                 ).First();
                 controller = new IntellisenseController((IntellisenseControllerProvider)intellisenseControllerProvider, textView, serviceProvider);
@@ -110,7 +106,7 @@ namespace Microsoft.PythonTools.Intellisense {
     /// because the adapter does not exist.
     /// </summary>
     [Export(typeof(IVsTextViewCreationListener))]
-    [ContentType(PythonCoreConstants.ContentType)]
+    [ContentType(PythonContentType.Name)]
     [TextViewRole(PredefinedTextViewRoles.Editable)]
     class TextViewCreationListener : IVsTextViewCreationListener {
         internal readonly IVsEditorAdaptersFactoryService _adaptersFactory;
@@ -120,18 +116,14 @@ namespace Microsoft.PythonTools.Intellisense {
             _adaptersFactory = adaptersFactory;
         }
 
-        #region IVsTextViewCreationListener Members
-
-        public void VsTextViewCreated(VisualStudio.TextManager.Interop.IVsTextView textViewAdapter) {
+        public void VsTextViewCreated(IVsTextView textViewAdapter) {
             var textView = _adaptersFactory.GetWpfTextView(textViewAdapter);
             IntellisenseController controller;
-            if (textView.Properties.TryGetProperty<IntellisenseController>(typeof(IntellisenseController), out controller)) {
+            if (textView.Properties.TryGetProperty(typeof(IntellisenseController), out controller)) {
                 controller.AttachKeyboardFilter();
             }
             InitKeyBindings(textViewAdapter);
         }
-
-        #endregion
 
         public void InitKeyBindings(IVsTextView vsTextView) {
             var os = vsTextView as IObjectWithSite;

@@ -16,11 +16,10 @@
 
 using System;
 using System.IO;
-using Microsoft.PythonTools.Intellisense;
 using Microsoft.VisualStudio.Text;
 
-namespace Microsoft.PythonTools {
-    internal partial class SnapshotSpanSourceCodeReader : TextReader, ISnapshotTextReader {
+namespace Microsoft.PythonTools.Editor {
+    internal class SnapshotSpanSourceCodeReader : TextReader {
         private readonly SnapshotSpan _span;
         private ITextSnapshot _snapshot;
         private int _position;
@@ -33,8 +32,6 @@ namespace Microsoft.PythonTools {
             _snapshot = span.Snapshot;
             _position = span.Start.Position;
         }
-
-        #region TextReader
 
         public override void Close() {
             Dispose(true);
@@ -99,8 +96,6 @@ namespace Microsoft.PythonTools {
             return text;
         }
 
-        #endregion
-
         internal int Position {
             get { return _position; }
         }
@@ -120,12 +115,8 @@ namespace Microsoft.PythonTools {
             get { return _span.End.Position; }
         }
 
-        #region ISnapshotTextReader Members
-
         public ITextSnapshot Snapshot {
             get { return _snapshot; }
         }
-
-        #endregion
     }
 }

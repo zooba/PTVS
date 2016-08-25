@@ -48,6 +48,47 @@ namespace Microsoft.PythonTools.Intellisense {
             return group;
         }
 
+        internal static bool IsPythonContent(this ITextBuffer buffer) {
+            return buffer.ContentType.IsOfType(PythonContentType.Name);
+        }
+
+        internal static bool IsPythonContent(this ITextSnapshot buffer) {
+            return buffer.ContentType.IsOfType(PythonContentType.Name);
+        }
+
+        /// <summary>
+        /// Returns the ITextBuffer whose content type is Python for the current caret position in the text view.
+        /// 
+        /// Returns null if the caret isn't in a Python buffer.
+        /// </summary>
+        internal static ITextBuffer GetPythonBufferAtCaret(this ITextView textView) {
+            return GetPythonCaret(textView)?.Snapshot.TextBuffer;
+        }
+
+        /// <summary>
+        /// Gets the point where the caret is currently located in a Python buffer, or null if the caret
+        /// isn't currently positioned in a Python buffer.
+        /// </summary>
+        internal static SnapshotPoint? GetPythonCaret(this ITextView textView) {
+            return textView.BufferGraph.MapDownToFirstMatch(
+                textView.Caret.Position.BufferPosition,
+                PointTrackingMode.Positive,
+                IsPythonContent,
+                PositionAffinity.Successor
+            );
+        }
+
+        /// <summary>
+        /// Gets the current selection in a text view mapped down to the Python buffer(s).
+        /// </summary>
+        internal static NormalizedSnapshotSpanCollection GetPythonSelection(this ITextView textView) {
+            return textView.BufferGraph.MapDownToFirstMatch(
+                textView.Selection.StreamSelectionSpan.SnapshotSpan,
+                SpanTrackingMode.EdgeInclusive,
+                IsPythonContent
+            );
+        }
+
         internal static bool TryGetAnalyzer(this ITextView view, ITextBuffer buffer, IServiceProvider provider, out PythonLanguageService analyzer) {
             analyzer = null;
 

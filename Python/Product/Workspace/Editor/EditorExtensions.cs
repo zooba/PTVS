@@ -69,14 +69,6 @@ namespace Microsoft.PythonTools.Editor.Core {
             return false;
         }
 
-        internal static bool IsPythonContent(this ITextBuffer buffer) {
-            return buffer.ContentType.IsOfType(PythonCoreConstants.ContentType);
-        }
-
-        internal static bool IsPythonContent(this ITextSnapshot buffer) {
-            return buffer.ContentType.IsOfType(PythonCoreConstants.ContentType);
-        }
-
         private static SnapshotPoint? MapPoint(ITextView view, SnapshotPoint point) {
             return view.BufferGraph.MapDownToFirstMatch(
                point,

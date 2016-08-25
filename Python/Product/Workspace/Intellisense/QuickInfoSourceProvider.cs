@@ -22,7 +22,7 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Utilities;
 
 namespace Microsoft.PythonTools.Intellisense {
-    [Export(typeof(IQuickInfoSourceProvider)), ContentType(PythonCoreConstants.ContentType), Order, Name("Python Quick Info Source")]
+    [Export(typeof(IQuickInfoSourceProvider)), ContentType(PythonContentType.Name), Order, Name("Python Quick Info Source")]
     class QuickInfoSourceProvider : IQuickInfoSourceProvider {
         internal readonly IServiceProvider _serviceProvider;
 

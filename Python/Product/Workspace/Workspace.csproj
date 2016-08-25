@@ -58,13 +58,19 @@
     <Reference Include="Microsoft.VisualStudio.ComponentModelHost, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.CoreUtility, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
     <Reference Include="Microsoft.VisualStudio.OLE.Interop" />
+    <Reference Include="Microsoft.VisualStudio.Editor, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.Language.Intellisense, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.Language.NavigateTo.Interfaces, Version=$(VSTarget).0.0, Culture=neutral" />
     <Reference Include="Microsoft.VisualStudio.Language.StandardClassification, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
+    <Reference Include="Microsoft.VisualStudio.Package.LanguageService.$(VSTarget), Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.Text.Data, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.Text.Logic, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.Text.UI, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.Text.UI.Wpf, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
+    <Reference Include="Microsoft.VisualStudio.TextManager.Interop" />
+    <Reference Include="Microsoft.VisualStudio.TextManager.Interop.8.0, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+      <EmbedInteropTypes>False</EmbedInteropTypes>
+    </Reference>
     <Reference Include="Microsoft.VisualStudio.Threading, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.PythonTools.InteractiveWindow" />
     <Reference Include="Microsoft.PythonTools.VsInteractiveWindow" />
@@ -100,6 +106,10 @@
       <Project>{e1e1613d-0c96-42f9-9f2d-052c72533297}</Project>
       <Name>Ipc.Json</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Settings\Settings.csproj">
+      <Project>{106c4255-668b-4121-9c43-91ddea6c3400}</Project>
+      <Name>Settings</Name>
+    </ProjectReference>
     <ProjectReference Include="..\VSInterpreters\VSInterpreters.csproj">
       <Project>{815db0cd-c0dd-4997-b43c-abee4dbeffe7}</Project>
       <Name>Microsoft.PythonTools.VSInterpreters</Name>
@@ -120,6 +130,23 @@
     <Compile Include="..\..\..\Common\Product\SharedProject\DebugTimer.cs">
       <Link>DebugTimer.cs</Link>
     </Compile>
+    <Compile Include="Editor\AutoIndent.cs" />
+    <Compile Include="Editor\BraceCompletion\BraceCompletionContext.cs" />
+    <Compile Include="Editor\BraceCompletion\BraceCompletionContextProvider.cs" />
+    <Compile Include="Editor\BraceMatcher.cs" />
+    <Compile Include="Editor\EditorExtensions.cs" />
+    <Compile Include="Editor\OutliningTaggerProvider.cs" />
+    <Compile Include="Editor\PythonAnalysisClassifier.cs" />
+    <Compile Include="Editor\PythonAnalysisClassifierProvider.cs" />
+    <Compile Include="Editor\PythonClassifier.cs" />
+    <Compile Include="Editor\PythonClassifierProvider.cs" />
+    <Compile Include="Editor\PythonPredefinedClassificationTypeNames.cs" />
+    <Compile Include="Editor\SmartIndentProvider.cs" />
+    <Compile Include="Editor\SnapshotSpanSourceCodeReader.cs" />
+    <Compile Include="Editor\TokenCache.cs" />
+    <Compile Include="Editor\PythonDropdownBars.cs" />
+    <Compile Include="PythonLanguageService.cs" />
+    <Compile Include="Workspace\FileSourceDocument.cs" />
     <Compile Include="Intellisense\AbnormalAnalysisExitEventArgs.cs" />
     <Compile Include="Intellisense\AnalysisEntry.cs" />
     <Compile Include="Intellisense\AnalysisLocation.cs" />
@@ -177,21 +204,24 @@
     <Compile Include="Intellisense\SignatureHelpSource.cs" />
     <Compile Include="Intellisense\SignatureHelpSourceProvider.cs" />
     <Compile Include="Intellisense\SnapshotCookie.cs" />
+    <Compile Include="Intellisense\TextBufferSourceDocument.cs" />
     <Compile Include="Intellisense\StringLiteralCompletionList.cs" />
     <Compile Include="Intellisense\TaskProvider.cs" />
     <Compile Include="Intellisense\UnresolvedImportSquiggleProvider.cs" />
     <Compile Include="Intellisense\VersionedResponse.cs" />
     <Compile Include="Intellisense\XamlTextViewCreationListener.cs" />
-    <Compile Include="PathSet.cs" />
+    <Compile Include="Workspace\ISourceDocument.cs" />
+    <Compile Include="Workspace\PathSet.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="PythonDebugLaunchProvider.cs" />
-    <Compile Include="PythonFileContext.cs" />
-    <Compile Include="PythonFileContextExtensions.cs" />
-    <Compile Include="PythonFileContextProvider.cs" />
-    <Compile Include="PythonFileContextProviderFactory.cs" />
-    <Compile Include="PythonLanguageServiceProvider.cs" />
-    <Compile Include="PythonLanguageServiceProviderFactory.cs" />
-    <Compile Include="PythonSymbolScanner.cs" />
+    <Compile Include="PythonCoreConstants.cs" />
+    <Compile Include="Workspace\PythonDebugLaunchProvider.cs" />
+    <Compile Include="Workspace\PythonFileContext.cs" />
+    <Compile Include="Workspace\PythonFileContextExtensions.cs" />
+    <Compile Include="Workspace\PythonFileContextProvider.cs" />
+    <Compile Include="Workspace\PythonFileContextProviderFactory.cs" />
+    <Compile Include="Workspace\PythonLanguageServiceProvider.cs" />
+    <Compile Include="Workspace\PythonLanguageServiceProviderFactory.cs" />
+    <Compile Include="Workspace\PythonSymbolScanner.cs" />
     <Compile Include="Intellisense\IntellisenseExtensions.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -35,7 +35,7 @@ using Task = System.Threading.Tasks.Task;
 namespace Microsoft.PythonTools.Intellisense {
     [Export(typeof(ISuggestedActionsSourceProvider))]
     [Name("Python Extract Method Suggested Action")]
-    [ContentType(PythonCoreConstants.ContentType)]
+    [ContentType(PythonContentType.Name)]
     [TextViewRole(PredefinedTextViewRoles.Analyzable)]
     [TextViewRole(PredefinedTextViewRoles.Editable)]
     class ExtractMethodSuggestedActionSourceProvider : ISuggestedActionsSourceProvider {

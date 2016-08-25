@@ -50,6 +50,7 @@
     <Reference Include="envdte90, Version=9.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </Reference>
+    <Reference Include="Microsoft.VisualStudio.ComponentModelHost, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.CoreUtility, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.OLE.Interop, Version=7.1.40304.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
     <Reference Include="Microsoft.VisualStudio.Settings.$(VSTarget), Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=x86" />
@@ -86,6 +87,7 @@
     <Compile Include="Infrastructure\TaskDialog.cs" />
     <Compile Include="Infrastructure\TextExtensions.cs" />
     <Compile Include="Infrastructure\VisualStudioApp.cs" />
+    <Compile Include="Infrastructure\VSExtensions.cs" />
     <Compile Include="Infrastructure\VSTaskExtensions.cs" />
     <Compile Include="Infrastructure\UIThreadBase.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

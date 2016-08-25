@@ -25,7 +25,7 @@ using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 
-namespace Microsoft.PythonTools {
+namespace Microsoft.PythonTools.Editor {
     /// <summary>
     /// Provides classification based upon the DLR TokenCategory enum.
     /// </summary>
@@ -60,7 +60,7 @@ namespace Microsoft.PythonTools {
                 _tokenCache.Clear();
 
                 Debug.Assert(analyzer != null);
-                _version = analyzer.InterpreterFactory.GetLanguageVersion();
+                _version = analyzer.Interpreter.Version.ToLanguageVersion();
 
                 var changed = ClassificationChanged;
                 if (changed != null) {
@@ -70,8 +70,6 @@ namespace Microsoft.PythonTools {
                 }
             }
         }
-
-        #region IDlrClassifier
 
         // This event gets raised if the classification of existing test changes.
         public event EventHandler<ClassificationChangedEventArgs> ClassificationChanged;
@@ -109,10 +107,6 @@ namespace Microsoft.PythonTools {
                 return _provider;
             }
         }
-
-        #endregion
-
-        #region Private Members
 
         private Dictionary<TokenCategory, IClassificationType> CategoryMap {
             get {
@@ -381,8 +375,6 @@ namespace Microsoft.PythonTools {
             var tokenSpan = new Span(index, token.SourceSpan.Length);
             return tokenSpan;
         }
-
-        #endregion
     }
 
     internal static partial class ClassifierExtensions {

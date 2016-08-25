@@ -22,7 +22,7 @@ using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Utilities;
 
 namespace Microsoft.PythonTools.Intellisense {
-    [Export(typeof(ISignatureHelpSourceProvider)), ContentType(PythonCoreConstants.ContentType), Order, Name("Python Signature Help Source")]
+    [Export(typeof(ISignatureHelpSourceProvider)), ContentType(PythonContentType.Name), Order, Name("Python Signature Help Source")]
     class SignatureHelpSourceProvider : ISignatureHelpSourceProvider {
         internal readonly IServiceProvider _serviceProvider;
 

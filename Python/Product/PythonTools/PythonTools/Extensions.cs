@@ -299,39 +299,6 @@ namespace Microsoft.PythonTools {
         }
 
         /// <summary>
-        /// Returns the ITextBuffer whose content type is Python for the current caret position in the text view.
-        /// 
-        /// Returns null if the caret isn't in a Python buffer.
-        /// </summary>
-        internal static ITextBuffer GetPythonBufferAtCaret(this ITextView textView) {
-            return GetPythonCaret(textView)?.Snapshot.TextBuffer;
-        }
-
-        /// <summary>
-        /// Gets the point where the caret is currently located in a Python buffer, or null if the caret
-        /// isn't currently positioned in a Python buffer.
-        /// </summary>
-        internal static SnapshotPoint? GetPythonCaret(this ITextView textView) {
-            return textView.BufferGraph.MapDownToFirstMatch(
-                textView.Caret.Position.BufferPosition,
-                PointTrackingMode.Positive,
-                EditorExtensions.IsPythonContent,
-                PositionAffinity.Successor
-            );
-        }
-
-        /// <summary>
-        /// Gets the current selection in a text view mapped down to the Python buffer(s).
-        /// </summary>
-        internal static NormalizedSnapshotSpanCollection GetPythonSelection(this ITextView textView) {
-            return textView.BufferGraph.MapDownToFirstMatch(
-                textView.Selection.StreamSelectionSpan.SnapshotSpan,
-                SpanTrackingMode.EdgeInclusive,
-                EditorExtensions.IsPythonContent
-            );
-        }
-
-        /// <summary>
         /// Gets the Python project node associatd with the buffer where the caret is located.
         /// 
         /// This maps down to the current Python buffer, determines its filename, and then resolves
@@ -518,13 +485,6 @@ namespace Microsoft.PythonTools {
             return pyService;
         }
 
-        internal static IComponentModel GetComponentModel(this IServiceProvider serviceProvider) {
-            if (serviceProvider == null) {
-                return null;
-            }
-            return (IComponentModel)serviceProvider.GetService(typeof(SComponentModel));
-        }
-
         public static string BrowseForFileSave(this IServiceProvider provider, IntPtr owner, string filter, string initialPath = null) {
             if (string.IsNullOrEmpty(initialPath)) {
                 initialPath = Environment.GetFolderPath(Environment.SpecialFolder.Personal) + Path.DirectorySeparatorChar;
@@ -635,92 +595,6 @@ namespace Microsoft.PythonTools {
 
         internal static IContentType GetPythonContentType(this IServiceProvider provider) {
             return provider.GetComponentModel().GetService<IContentTypeRegistryService>().GetContentType(PythonCoreConstants.ContentType);
-        }
-
-        internal static EnvDTE.DTE GetDTE(this IServiceProvider provider) {
-            return (EnvDTE.DTE)provider.GetService(typeof(EnvDTE.DTE));
-        }
-
-        internal static IVsShell GetShell(this IServiceProvider provider) {
-            return (IVsShell)provider.GetService(typeof(SVsShell));
-        }
-
-        internal static bool TryGetShellProperty<T>(this IServiceProvider provider, __VSSPROPID propId, out T value) {
-            object obj;
-            if (ErrorHandler.Failed(provider.GetShell().GetProperty((int)propId, out obj))) {
-                value = default(T);
-                return false;
-            }
-            try {
-                value = (T)obj;
-                return true;
-            } catch (InvalidCastException) {
-                Debug.Fail("Expected property of type {0} but got value of type {1}".FormatUI(typeof(T).FullName, obj.GetType().FullName));
-                value = default(T);
-                return false;
-            }
-        }
-
-        internal static bool IsShellInitialized(this IServiceProvider provider) {
-            bool isInitialized;
-            return provider.TryGetShellProperty((__VSSPROPID)__VSSPROPID4.VSSPROPID_ShellInitialized, out isInitialized) &&
-                isInitialized;
-        }
-
-        class ShellInitializedNotification : IVsShellPropertyEvents {
-            private readonly IVsShell _shell;
-            private readonly uint _cookie;
-            private readonly TaskCompletionSource<object> _tcs;
-
-            public ShellInitializedNotification(IVsShell shell) {
-                _shell = shell;
-                _tcs = new TaskCompletionSource<object>();
-                ErrorHandler.ThrowOnFailure(_shell.AdviseShellPropertyChanges(this, out _cookie));
-
-                // Check again in case we raised with initialization
-                object value;
-                if (ErrorHandler.Succeeded(_shell.GetProperty((int)__VSSPROPID4.VSSPROPID_ShellInitialized, out value)) &&
-                    CheckProperty((int)__VSSPROPID4.VSSPROPID_ShellInitialized, value)) {
-                    return;
-                }
-
-                if (ErrorHandler.Succeeded(_shell.GetProperty((int)__VSSPROPID6.VSSPROPID_ShutdownStarted, out value)) &&
-                    CheckProperty((int)__VSSPROPID6.VSSPROPID_ShutdownStarted, value)) {
-                    return;
-                }
-            }
-
-            private bool CheckProperty(int propid, object var) {
-                if (propid == (int)__VSSPROPID4.VSSPROPID_ShellInitialized && var is bool && (bool)var) {
-                    _shell.UnadviseShellPropertyChanges(_cookie);
-                    _tcs.TrySetResult(null);
-                    return true;
-                } else if (propid == (int)__VSSPROPID6.VSSPROPID_ShutdownStarted && var is bool && (bool)var) {
-                    _shell.UnadviseShellPropertyChanges(_cookie);
-                    _tcs.TrySetCanceled();
-                    return true;
-                }
-                return false;
-            }
-
-            public Task Task => _tcs.Task;
-
-            int IVsShellPropertyEvents.OnShellPropertyChange(int propid, object var) {
-                CheckProperty(propid, var);
-                return VSConstants.S_OK;
-            }
-        }
-
-        internal static Task WaitForShellInitializedAsync(this IServiceProvider provider) {
-            if (provider.IsShellInitialized()) {
-                return Task.FromResult<object>(null);
-            }
-            return new ShellInitializedNotification(provider.GetShell()).Task;
-        }
-
-        [Conditional("DEBUG")]
-        internal static void AssertShellIsInitialized(this IServiceProvider provider) {
-            Debug.Assert(provider.IsShellInitialized(), "Shell is not yet initialized");
         }
 
         internal static IVsDebugger GetShellDebugger(this IServiceProvider provider) {

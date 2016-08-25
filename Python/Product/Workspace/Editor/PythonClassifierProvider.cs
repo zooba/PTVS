@@ -19,14 +19,13 @@ using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Windows.Media;
 using Microsoft.PythonTools.Parsing;
-using Microsoft.PythonTools.Project;
 using Microsoft.VisualStudio.Language.StandardClassification;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
 
-namespace Microsoft.PythonTools {
+namespace Microsoft.PythonTools.Editor {
     /// <summary>
     /// Implements classification of text by using a ScriptEngine which supports the
     /// TokenCategorizer service.
@@ -35,7 +34,7 @@ namespace Microsoft.PythonTools {
     /// should then export the provider using MEF indicating the content type 
     /// which it is applicable to.
     /// </summary>
-    [Export(typeof(IClassifierProvider)), ContentType(PythonCoreConstants.ContentType)]
+    [Export(typeof(IClassifierProvider)), ContentType(PythonContentType.Name)]
     internal class PythonClassifierProvider : IClassifierProvider {
         private Dictionary<TokenCategory, IClassificationType> _categoryMap;
         private IClassificationType _comment;
@@ -50,7 +49,7 @@ namespace Microsoft.PythonTools {
 
         [ImportingConstructor]
         public PythonClassifierProvider(IContentTypeRegistryService contentTypeRegistryService, [Import(typeof(SVsServiceProvider))]IServiceProvider serviceProvider) {
-            _type = contentTypeRegistryService.GetContentType(PythonCoreConstants.ContentType);
+            _type = contentTypeRegistryService.GetContentType(PythonContentType.Name);
             _serviceProvider = serviceProvider;
         }
 

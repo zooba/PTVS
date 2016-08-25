@@ -28,7 +28,7 @@ namespace Microsoft.PythonTools.Editor.BraceCompletion {
     [BracePair('{', '}')]
     [BracePair('"', '"')]
     [BracePair('\'', '\'')]
-    [ContentType(PythonCoreConstants.ContentType)]
+    [ContentType(PythonContentType.Name)]
     internal sealed class BraceCompletionContextProvider : IBraceCompletionContextProvider {
         public bool TryCreateContext(ITextView textView, SnapshotPoint openingPoint, char openingBrace, char closingBrace, out IBraceCompletionContext context) {
             if (IsValidBraceCompletionContext(openingPoint)) {

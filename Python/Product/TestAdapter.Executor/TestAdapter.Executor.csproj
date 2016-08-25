@@ -79,7 +79,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\PythonTools\PythonConstants.cs">
+    <Compile Include="..\Settings\PythonConstants.cs">
       <Link>PythonConstants.cs</Link>
     </Compile>
     <Compile Include="..\VSCommon\Infrastructure\VisualStudioApp.cs">

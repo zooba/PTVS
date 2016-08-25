@@ -22,10 +22,9 @@ using Microsoft.PythonTools.Intellisense;
 using Microsoft.VisualStudio.Language.StandardClassification;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
+using AP = Microsoft.PythonTools.Intellisense.AnalysisProtocol;
 
-namespace Microsoft.PythonTools {
-    using AP = AnalysisProtocol;
-
+namespace Microsoft.PythonTools.Editor {
     struct CachedClassification {
         public ITrackingSpan Span;
         public string Classification;

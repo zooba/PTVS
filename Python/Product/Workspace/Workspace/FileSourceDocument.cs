@@ -16,24 +16,44 @@
 
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Analysis;
 
 namespace Microsoft.PythonTools.Workspace {
-    public sealed class FileSourceDocument : ISourceDocument {
+    sealed class FileSourceDocument : ISourceDocument {
+        private int _version;
+
         public FileSourceDocument(string fullPath) {
             Moniker = fullPath;
+            _version = 0;
         }
 
         public string Moniker { get; }
-        public int Version => 0;
+        public int Version => Volatile.Read(ref _version);
 
-        public async Task<Stream> ReadAsync(CancellationToken cancellationToken) {
-            return new FileStream(Moniker, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, true);
+        internal void IncrementVersion() {
+            Interlocked.Increment(ref _version);
         }
 
-        public Task<TextReader> TryReadTextAsync(CancellationToken cancellationToken) {
-            return Task.FromResult<TextReader>(null);
+        public async Task<ISourceDocumentSnapshot> ReadAsync(CancellationToken cancellationToken) {
+            return new Snapshot(Moniker);
+        }
+
+        sealed class Snapshot : ISourceDocumentSnapshot {
+            public Snapshot(string path) {
+                Stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, true);
+            }
+
+            public void Dispose() {
+                Stream.Dispose();
+            }
+
+            public IAnalysisCookie Cookie => null;
+            public TextReader Reader => null;
+
+            public Stream Stream { get; }
         }
     }
 }

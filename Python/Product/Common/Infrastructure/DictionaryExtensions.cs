@@ -18,6 +18,22 @@ using System.Collections.Generic;
 
 namespace Microsoft.PythonTools.Infrastructure {
     public static class DictionaryExtensions {
+        public static TValue Get<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key) {
+            TValue v;
+            if (dict.TryGetValue(key, out v)) {
+                return v;
+            }
+            return default(TValue);
+        }
+
+        public static TValue Get<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key, TValue defaultValue) {
+            TValue v;
+            if (dict.TryGetValue(key, out v)) {
+                return v;
+            }
+            return defaultValue;
+        }
+
         public static TValue Get<TKey, TValue>(this IDictionary<TKey, TValue> dict, TKey key) {
             TValue v;
             if (dict.TryGetValue(key, out v)) {
@@ -46,6 +62,26 @@ namespace Microsoft.PythonTools.Infrastructure {
             TValue v;
             if (dict.TryGetValue(key, out v)) {
                 return v;
+            }
+            return defaultValue;
+        }
+
+        public static TValue LockAndGet<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key) {
+            TValue v;
+            lock (dict) {
+                if (dict.TryGetValue(key, out v)) {
+                    return v;
+                }
+            }
+            return default(TValue);
+        }
+
+        public static TValue LockAndGet<TKey, TValue>(this Dictionary<TKey, TValue> dict, TKey key, TValue defaultValue) {
+            TValue v;
+            lock (dict) {
+                if (dict.TryGetValue(key, out v)) {
+                    return v;
+                }
             }
             return defaultValue;
         }

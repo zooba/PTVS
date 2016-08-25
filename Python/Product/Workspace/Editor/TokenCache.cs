@@ -14,20 +14,13 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System.Collections.Generic;
-
-using Microsoft.VisualStudio.Text;
-using Microsoft.VisualStudio.Text.Tagging;
-using System.Diagnostics.Contracts;
-using System.Diagnostics;
-using System.Collections;
 using System;
+using System.Diagnostics;
 using System.Text;
-using Microsoft.PythonTools;
 using Microsoft.PythonTools.Parsing;
-using Microsoft.VisualStudioTools.Project;
+using Microsoft.VisualStudio.Text.Tagging;
 
-namespace Microsoft.PythonTools {
+namespace Microsoft.PythonTools.Editor {
     [DebuggerDisplay("{GetDebugView(),nq}")]
     internal struct LineTokenization : ITag {
         public readonly TokenInfo[] Tokens;
@@ -69,7 +62,11 @@ namespace Microsoft.PythonTools {
             if (line < 0) {
                 throw new ArgumentOutOfRangeException("line", "Must be 0 or greater");
             }
-            Utilities.CheckNotNull(_map);
+            if (_map == null) {
+                Debug.Fail("Token cache was not initialized");
+                tokenization = default(LineTokenization);
+                return minLine - 1;
+            }
 
             line--;
             while (line >= minLine) {
@@ -87,7 +84,11 @@ namespace Microsoft.PythonTools {
             if (line < 0) {
                 throw new ArgumentOutOfRangeException("line", "Must be 0 or greater");
             }
-            Utilities.CheckNotNull(_map);
+            if (_map == null) {
+                Debug.Fail("Token cache was not initialized");
+                tokenization = default(LineTokenization);
+                return false;
+            }
 
             if (_map[line].Tokens != null) {
                 tokenization = _map[line];
@@ -120,7 +121,11 @@ namespace Microsoft.PythonTools {
         }
 
         internal void DeleteLines(int index, int count) {
-            Utilities.CheckNotNull(_map);
+            if (_map == null) {
+                Debug.Fail("Token cache was not initialized");
+                return;
+            }
+
             if (index > _map.Length - count) {
                 throw new ArgumentOutOfRangeException("line", "Must be 'count' less than the size of the cache");
             }
@@ -132,7 +137,10 @@ namespace Microsoft.PythonTools {
         }
 
         internal void InsertLines(int index, int count) {
-            Utilities.CheckNotNull(_map);
+            if (_map == null) {
+                Debug.Fail("Token cache was not initialized");
+                return;
+            }
 
             Array.Copy(_map, index, _map, index + count, _map.Length - index - count);
             for (int i = 0; i < count; i++) {

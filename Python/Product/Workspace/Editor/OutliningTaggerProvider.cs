@@ -33,7 +33,7 @@ using Microsoft.VisualStudio.Text.Tagging;
 using Microsoft.VisualStudio.Utilities;
 
 namespace Microsoft.PythonTools {
-    [Export(typeof(ITaggerProvider)), ContentType(PythonCoreConstants.ContentType)]
+    [Export(typeof(ITaggerProvider)), ContentType(PythonContentType.Name)]
     [TagType(typeof(IOutliningRegionTag))]
     class OutliningTaggerProvider : ITaggerProvider {
         private readonly PythonToolsService _pyService;

@@ -41,7 +41,6 @@ using IServiceProvider = System.IServiceProvider;
 using VSConstants = Microsoft.VisualStudio.VSConstants;
 
 namespace Microsoft.PythonTools.Intellisense {
-
     internal sealed class IntellisenseController : IIntellisenseController, IOleCommandTarget {
         private readonly ITextView _textView;
         private readonly IntellisenseControllerProvider _provider;
@@ -68,17 +67,14 @@ namespace Microsoft.PythonTools.Intellisense {
             _incSearch = provider._IncrementalSearch.GetIncrementalSearch(textView);
             _textView.MouseHover += TextViewMouseHover;
             _serviceProvider = serviceProvider;
-            if (textView.TextBuffer.IsPythonContent()) {
-                try {
-                    _expansionClient = new ExpansionClient(textView, provider._adaptersFactory, provider._ServiceProvider);
-                    var textMgr = (IVsTextManager2)_serviceProvider.GetService(typeof(SVsTextManager));
-                    textMgr.GetExpansionManager(out _expansionMgr);
-                } catch (ArgumentException) {
-                    // No expansion client for this buffer, but we can continue without it
-                }
+            try {
+                _expansionClient = new ExpansionClient(textView, provider._adaptersFactory, provider._ServiceProvider);
+                var textMgr = (IVsTextManager2)_serviceProvider.GetService(typeof(SVsTextManager));
+                textMgr.GetExpansionManager(out _expansionMgr);
+            } catch (ArgumentException) {
+                // No expansion client for this buffer, but we can continue without it
             }
 
-            textView.Properties.AddProperty(typeof(IntellisenseController), this);  // added so our key processors can get back to us
             _textView.Closed += TextView_Closed;
         }
 
@@ -101,7 +97,7 @@ namespace Microsoft.PythonTools.Intellisense {
                 _quickInfoSession.Dismiss();
             }
 
-            var pt = e.TextPosition.GetPoint(EditorExtensions.IsPythonContent, PositionAffinity.Successor);
+            var pt = e.TextPosition.GetPoint(IntellisenseExtensions.IsPythonContent, PositionAffinity.Successor);
             if (pt != null) {
                 if (_textView.TextBuffer.GetInteractiveWindow() != null &&
                     pt.Value.Snapshot.Length > 1 &&

@@ -28,7 +28,7 @@ namespace Microsoft.PythonTools.Intellisense {
     [Export(typeof(IUIElementProvider<CompletionSet, ICompletionSession>))]
     [Name("Python Completion UI Provider")]
     [Order(Before="Default Completion Presenter")]
-    [ContentType(PythonCoreConstants.ContentType)]
+    [ContentType(PythonContentType.Name)]
     internal class CompletionUIElementProvider : IUIElementProvider<CompletionSet, ICompletionSession> {
         [ImportMany]
         internal List<Lazy<IUIElementProvider<CompletionSet, ICompletionSession>, IOrderableContentTypeMetadata>> UnOrderedCompletionSetUIElementProviders { get; set; }

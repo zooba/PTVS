@@ -59,7 +59,6 @@
     <Compile Include="AggregateProjectEntry.cs" />
     <Compile Include="AnalysisDictionary.cs" />
     <Compile Include="Analyzer\PythonSourceStreamReader.cs" />
-    <Compile Include="FileSourceDocument.cs" />
     <Compile Include="IHasRichDescription.cs" />
     <Compile Include="Interpreter\InterpreterArchitecture.cs" />
     <Compile Include="Interpreter\IPackageManager.cs" />
@@ -68,7 +67,6 @@
     <Compile Include="Interpreter\NoPackageManager.cs" />
     <Compile Include="Interpreter\PackageSpec.cs" />
     <Compile Include="Interpreter\PackageVersion.cs" />
-    <Compile Include="ISourceDocument.cs" />
     <Compile Include="Projects\AnalysisExtensionNameAttribute.cs" />
     <Compile Include="AnalysisExtensions.cs" />
     <Compile Include="AnalysisHashSet.cs" />
