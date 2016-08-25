@@ -61,8 +61,8 @@ namespace Microsoft.PythonTools.Intellisense {
             PythonService = serviceProvider.GetPythonToolsService();
         }
 
-        readonly Dictionary<ITextView, Tuple<BufferParser, VsProjectAnalyzer>> _hookedCloseEvents =
-            new Dictionary<ITextView, Tuple<BufferParser, VsProjectAnalyzer>>();
+        readonly Dictionary<ITextView, Tuple<BufferParser, PythonLanguageService>> _hookedCloseEvents =
+            new Dictionary<ITextView, Tuple<BufferParser, PythonLanguageService>>();
 
         public IIntellisenseController TryCreateIntellisenseController(ITextView textView, IList<ITextBuffer> subjectBuffers) {
             IntellisenseController controller;

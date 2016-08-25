@@ -15,20 +15,25 @@
 // permissions and limitations under the License.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio.Workspace;
 
 namespace Microsoft.PythonTools.Workspace {
-    [ExportFileContextProvider(ProviderType, ProviderPriority.Normal, PythonFileContext.ContextType)]
-    class PythonFileContextProviderFactory : IWorkspaceProviderFactory<IFileContextProvider> {
-        public const string ProviderType = "080EA385-656C-4097-A7A5-690655164708";
-        public static readonly Guid ProviderGuid = new Guid(ProviderType);
+    public sealed class FileSourceDocument : ISourceDocument {
+        public FileSourceDocument(string fullPath) {
+            Moniker = fullPath;
+        }
 
-        public IFileContextProvider CreateProvider(IWorkspace workspaceContext) {
-            return new PythonFileContextProvider(workspaceContext);
+        public string Moniker { get; }
+        public int Version => 0;
+
+        public async Task<Stream> ReadAsync(CancellationToken cancellationToken) {
+            return new FileStream(Moniker, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 4096, true);
+        }
+
+        public Task<TextReader> TryReadTextAsync(CancellationToken cancellationToken) {
+            return Task.FromResult<TextReader>(null);
         }
     }
 }

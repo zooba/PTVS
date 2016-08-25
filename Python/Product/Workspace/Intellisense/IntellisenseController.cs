@@ -111,7 +111,7 @@ namespace Microsoft.PythonTools.Intellisense {
                     return;
                 }
 
-                var quickInfo = await VsProjectAnalyzer.GetQuickInfoAsync(
+                var quickInfo = await PythonLanguageService.GetQuickInfoAsync(
                     _serviceProvider,
                     _textView,
                     pt.Value,
@@ -150,7 +150,7 @@ namespace Microsoft.PythonTools.Intellisense {
             _subjectBuffers.Add(subjectBuffer);
 
             bool isTemporaryFile = false;
-            VsProjectAnalyzer analyzer;
+            PythonLanguageService analyzer;
             if (!_textView.TryGetAnalyzer(subjectBuffer, _serviceProvider, out analyzer)) {
                 // there's no analyzer for this file, but we can analyze it against either
                 // the default analyzer or some other analyzer (e.g. if it's a diff view, we want

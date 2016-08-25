@@ -14,7 +14,7 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-namespace Microsoft.PythonTools.Logging {
+namespace Microsoft.PythonTools.Infrastructure {
     /// <summary>
     /// Defines the list of events which PTVS will log to a IPythonToolsLogger.
     /// </summary>

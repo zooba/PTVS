@@ -53,12 +53,12 @@ namespace Microsoft.PythonTools.Intellisense {
             public string[] mefExtensions;
             public string interpreterId, projectFile, projectHome;
 
-            public DerivedInterpreter[] derivedInterpreters;
+            public InterpreterConfig projectInterpreter;
 
         }
 
-        public sealed class DerivedInterpreter {
-            public string name, id, description, version, baseInterpreter, path, windowsPath, libPath, pathEnvVar, arch;
+        public sealed class InterpreterConfig {
+            public string name, id, description, version, baseInterpreter, path, windowsPath, pathEnvVar, arch;
         }
 
         public sealed class InitializeResponse : Response {

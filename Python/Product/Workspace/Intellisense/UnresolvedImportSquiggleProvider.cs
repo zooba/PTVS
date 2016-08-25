@@ -60,7 +60,7 @@ namespace Microsoft.PythonTools.Intellisense {
 
         private async void OnNewAnalysis(AnalysisEntry entry, ITextBuffer buffer) {
             if (!_enabled && !_alwaysCreateSquiggle) {
-                _taskProvider.Clear(entry, VsProjectAnalyzer.UnresolvedImportMoniker);
+                _taskProvider.Clear(entry, PythonLanguageService.UnresolvedImportMoniker);
                 return;
             }
 
@@ -75,7 +75,7 @@ namespace Microsoft.PythonTools.Intellisense {
 
                         _taskProvider.ReplaceItems(
                             entry,
-                            VsProjectAnalyzer.UnresolvedImportMoniker,
+                            PythonLanguageService.UnresolvedImportMoniker,
                             missingImports.Data.unresolved.Select(t => f.FromUnresolvedImport(
                                 _serviceProvider,
                                 entry.Analyzer.InterpreterFactory as IPythonInterpreterFactoryWithDatabase,
@@ -88,7 +88,7 @@ namespace Microsoft.PythonTools.Intellisense {
                         );
                     }
                 } else {
-                    _taskProvider.Clear(entry, VsProjectAnalyzer.UnresolvedImportMoniker);
+                    _taskProvider.Clear(entry, PythonLanguageService.UnresolvedImportMoniker);
                 }
             }
         }

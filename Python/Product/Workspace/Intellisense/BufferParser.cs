@@ -22,13 +22,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Infrastructure;
+using Microsoft.PythonTools.InteractiveWindow;
 using Microsoft.PythonTools.Parsing;
-using Microsoft.PythonTools.Repl;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudioTools;
+using AP = Microsoft.PythonTools.Intellisense.AnalysisProtocol;
 
 namespace Microsoft.PythonTools.Intellisense {
-    using AP = AnalysisProtocol;
 
     [SuppressMessage("Microsoft.Design", "CA1001:TypesThatOwnDisposableFieldsShouldBeDisposable",
         Justification = "ownership is unclear")]
@@ -36,7 +36,7 @@ namespace Microsoft.PythonTools.Intellisense {
         private readonly Timer _timer;
         internal readonly AnalysisEntry AnalysisEntry;
 
-        internal VsProjectAnalyzer _parser;
+        internal PythonLanguageService _parser;
         private IList<ITextBuffer> _buffers;
         private bool _parsing, _requeue, _textChange;
         private ITextDocument _document;
@@ -58,7 +58,7 @@ namespace Microsoft.PythonTools.Intellisense {
 
         public static readonly object DoNotParse = new object();
 
-        public static async Task<BufferParser> CreateAsync(AnalysisEntry analysis, VsProjectAnalyzer parser, ITextBuffer buffer) {
+        public static async Task<BufferParser> CreateAsync(AnalysisEntry analysis, PythonLanguageService parser, ITextBuffer buffer) {
             var res = new BufferParser(analysis, parser, buffer);
 
             using (new DebugTimer("BufferParser.ParseBuffers", 100)) {
@@ -69,7 +69,7 @@ namespace Microsoft.PythonTools.Intellisense {
             return res;
         }
 
-        private BufferParser(AnalysisEntry analysis, VsProjectAnalyzer parser, ITextBuffer buffer) {
+        private BufferParser(AnalysisEntry analysis, PythonLanguageService parser, ITextBuffer buffer) {
             Debug.Assert(analysis != null);
 
             _parser = parser;
@@ -301,6 +301,12 @@ namespace Microsoft.PythonTools.Intellisense {
             }
         }
 
+        private static bool IsReplBufferWithCommand(ITextSnapshot snapshot) {
+            return snapshot.TextBuffer.Properties.ContainsProperty(typeof(IInteractiveEvaluator)) &&
+                   snapshot.Length != 0 &&
+                   (snapshot[0] == '%' || snapshot[0] == '$'); // IPython and normal repl commands
+        }
+
         private async Task ParseBuffers(ITextSnapshot[] snapshots, BufferInfo[] bufferInfos) {
             var indentationSeverity = _parser.PyService.GeneralOptions.IndentationInconsistencySeverity;
             AnalysisEntry entry = AnalysisEntry;
@@ -312,7 +318,7 @@ namespace Microsoft.PythonTools.Intellisense {
                     var bufferInfo = bufferInfos[i];
 
                     if (snapshot.TextBuffer.Properties.ContainsProperty(DoNotParse) ||
-                        snapshot.IsReplBufferWithCommand()) {
+                        IsReplBufferWithCommand(snapshot)) {
                         continue;
                     }
 

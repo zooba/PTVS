@@ -25,26 +25,24 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Infrastructure;
+using Microsoft.PythonTools.InteractiveWindow;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Ipc.Json;
 using Microsoft.PythonTools.Parsing;
 using Microsoft.PythonTools.Parsing.Ast;
 using Microsoft.PythonTools.Projects;
-using Microsoft.PythonTools.Repl;
-using Microsoft.PythonTools.InteractiveWindow;
+using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.VisualStudio.Language.Intellisense;
+using Microsoft.VisualStudio.Language.StandardClassification;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
 using Microsoft.VisualStudioTools;
-using MSBuild = Microsoft.Build.Evaluation;
+using AP = Microsoft.PythonTools.Intellisense.AnalysisProtocol;
 
 namespace Microsoft.PythonTools.Intellisense {
-    using VisualStudio.Language.StandardClassification;
-    using AP = AnalysisProtocol;
-
-    public sealed class VsProjectAnalyzer : ProjectAnalyzer, IDisposable {
+    public sealed class PythonLanguageService : ProjectAnalyzer, IDisposable {
         internal readonly Process _analysisProcess;
         private Connection _conn;
         // For entries that were loaded from a .zip file, IProjectEntry.Properties[_zipFileName] contains the full path to that archive.
@@ -56,7 +54,9 @@ namespace Microsoft.PythonTools.Intellisense {
         private readonly bool _implicitProject;
         private readonly StringBuilder _stdErr = new StringBuilder();
 
-        private readonly IPythonInterpreterFactory _interpreterFactory;
+        internal readonly IServiceProvider _serviceProvider;
+        private readonly IPythonToolsLogger _logger;
+        private readonly InterpreterConfiguration _interpreter;
 
         private readonly ConcurrentDictionary<string, AnalysisEntry> _projectFiles;
         private readonly ConcurrentDictionary<int, AnalysisEntry> _projectFilesById;
@@ -74,8 +74,6 @@ namespace Microsoft.PythonTools.Intellisense {
         private int _userCount;
 
         private readonly UnresolvedImportSquiggleProvider _unresolvedSquiggles;
-        private readonly PythonToolsService _pyService;
-        internal readonly IServiceProvider _serviceProvider;
         private readonly CancellationTokenSource _processExitedCancelSource = new CancellationTokenSource();
         private readonly HashSet<ProjectReference> _references = new HashSet<ProjectReference>();
         private bool _disposing;
@@ -83,29 +81,12 @@ namespace Microsoft.PythonTools.Intellisense {
         internal Task ReloadTask;
         internal int _parsePending;
 
-        internal async Task<VersionedResponse<AP.UnresolvedImportsResponse>> GetMissingImportsAsync(AnalysisEntry analysisEntry, ITextBuffer textBuffer) {
-            var lastVersion = analysisEntry.GetAnalysisVersion(textBuffer);
-
-            var resp = await SendRequestAsync(
-                new AP.UnresolvedImportsRequest() {
-                    fileId = analysisEntry.FileId,
-                    bufferId = analysisEntry.GetBufferId(textBuffer)
-                },
-                null
-            ).ConfigureAwait(false);
-
-            if (resp != null) {
-                return VersionedResponse(resp, textBuffer, lastVersion);
-            }
-
-            return null;
-        }
-
-        internal VsProjectAnalyzer(
+        internal PythonLanguageService(
             IServiceProvider serviceProvider,
-            IPythonInterpreterFactory factory,
+            InterpreterConfiguration config,
             bool implicitProject = true,
-            MSBuild.Project projectFile = null
+            InMemoryProject projectFile = null,
+            Severity indentationSeverity = Severity.Ignore
         ) {
             _errorProvider = (ErrorTaskProvider)serviceProvider.GetService(typeof(ErrorTaskProvider));
             _commentTaskProvider = (CommentTaskProvider)serviceProvider.GetService(typeof(CommentTaskProvider));
@@ -115,12 +96,12 @@ namespace Microsoft.PythonTools.Intellisense {
 
             _implicitProject = implicitProject;
             _serviceProvider = serviceProvider;
-            _interpreterFactory = factory;
+            _logger = (IPythonToolsLogger)_serviceProvider.GetService(typeof(IPythonToolsLogger));
+
+            _interpreter = config;
 
             _projectFiles = new ConcurrentDictionary<string, AnalysisEntry>();
             _projectFilesById = new ConcurrentDictionary<int, AnalysisEntry>();
-
-            _pyService = serviceProvider.GetPythonToolsService();
 
             if (_commentTaskProvider != null) {
                 _commentTaskProvider.TokensChanged += CommentTaskTokensChanged;
@@ -134,61 +115,75 @@ namespace Microsoft.PythonTools.Intellisense {
 
             Task.Run(() => _conn.ProcessMessages());
 
+            DoInitializeAsync(projectFile, indentationSeverity)
+                .HandleAllExceptions(_serviceProvider, GetType())
+                .DoNotWait();
+
+            CommentTaskTokensChanged(null, EventArgs.Empty);
+        }
+
+        private async Task DoInitializeAsync(InMemoryProject projectFile, Severity indentationSeverity) {
             // load the interpreter factories available inside of VS into the remote process
             var providers = new HashSet<string>(
-                    serviceProvider.GetComponentModel().GetExtensions<IPythonInterpreterFactoryProvider>()
-                        .Select(x => x.GetType().Assembly.Location),
-                    StringComparer.OrdinalIgnoreCase
+                GetComponentModelExtensions<IPythonInterpreterFactoryProvider>()
+                    .Select(x => x.GetType().Assembly.Location),
+                StringComparer.OrdinalIgnoreCase
             );
             providers.Add(typeof(IInterpreterOptionsService).Assembly.Location);
 
 
             var initialize = new AP.InitializeRequest() {
-                interpreterId = factory.Configuration.Id,
+                interpreterId = _interpreter.Id,
                 mefExtensions = providers.ToArray()
             };
 
             if (projectFile != null) {
                 initialize.projectFile = projectFile.FullPath;
-                initialize.projectHome = CommonUtils.GetAbsoluteDirectoryPath(
+                initialize.projectHome = PathUtils.GetAbsoluteDirectoryPath(
                     Path.GetDirectoryName(projectFile.FullPath),
-                    projectFile.GetPropertyValue(CommonConstants.ProjectHome)
+                    projectFile.Properties.Get(CommonConstants.ProjectHome) as string ?? ""
                 );
-                initialize.derivedInterpreters = projectFile.GetItems(MSBuildConstants.InterpreterItem).Select(
-                    interp => new AP.DerivedInterpreter() {
-                        name = interp.EvaluatedInclude,
-                        id = interp.GetMetadataValue(MSBuildConstants.IdKey),
-                        description = interp.GetMetadataValue(MSBuildConstants.DescriptionKey),
-                        version = interp.GetMetadataValue(MSBuildConstants.VersionKey),
-                        baseInterpreter = interp.GetMetadataValue(MSBuildConstants.BaseInterpreterKey),
-                        path = interp.GetMetadataValue(MSBuildConstants.InterpreterPathKey),
-                        windowsPath = interp.GetMetadataValue(MSBuildConstants.WindowsPathKey),
-                        arch = interp.GetMetadataValue(MSBuildConstants.ArchitectureKey),
-                        libPath = interp.GetMetadataValue(MSBuildConstants.LibraryPathKey),
-                        pathEnvVar = interp.GetMetadataValue(MSBuildConstants.PathEnvVarKey)
-                    }
-                ).ToArray();
+                var interp = (projectFile.Properties.Get(MSBuildConstants.InterpreterItem) as IEnumerable<IDictionary<string, string>>)
+                    ?.FirstOrDefault(i => i.Get(MSBuildConstants.IdKey) == initialize.interpreterId);
+                initialize.projectInterpreter = new AP.InterpreterConfig() {
+                    name = interp.Get("EvaluatedInclude"),
+                    id = interp.Get(MSBuildConstants.IdKey),
+                    description = interp.Get(MSBuildConstants.DescriptionKey),
+                    version = interp.Get(MSBuildConstants.VersionKey),
+                    path = interp.Get(MSBuildConstants.InterpreterPathKey),
+                    windowsPath = interp.Get(MSBuildConstants.WindowsPathKey),
+                    arch = interp.Get(MSBuildConstants.ArchitectureKey),
+                    pathEnvVar = interp.Get(MSBuildConstants.PathEnvVarKey)
+                };
             }
 
-            SendRequestAsync(initialize).ContinueWith(
-                task => {
-                    var result = task.Result;
-                    if (result == null) {
-                        _conn = null;
-                    } else if (!String.IsNullOrWhiteSpace(result.error)) {
-                        _pyService.Logger.LogEvent(Logging.PythonLogEvent.AnalysisOperationFailed, "Initialization: " + result.error);
-                        _conn = null;
-                    } else {
-                        SendEventAsync(
-                            new AP.OptionsChangedEvent() {
-                                indentation_inconsistency_severity = _pyService.GeneralOptions.IndentationInconsistencySeverity
-                            }
-                        ).Wait();
+            var result = await SendRequestAsync(initialize);
+            if (result == null) {
+                _conn = null;
+            } else if (!string.IsNullOrWhiteSpace(result.error)) {
+                LogEvent(PythonLogEvent.AnalysisOperationFailed, "Initialization: " + result.error);
+                _conn = null;
+            } else {
+                await SendEventAsync(
+                    new AP.OptionsChangedEvent() {
+                        indentation_inconsistency_severity = indentationSeverity
                     }
-                }
-            );
+                );
+            }
+        }
 
-            CommentTaskTokensChanged(null, EventArgs.Empty);
+        private T GetComponentModelService<T>() where T : class {
+            var model = (IComponentModel)_serviceProvider.GetService(typeof(SComponentModel));
+            return model.GetService<T>();
+        }
+
+        private IEnumerable<T> GetComponentModelExtensions<T>() where T : class {
+            var model = (IComponentModel)_serviceProvider.GetService(typeof(SComponentModel));
+            return model.GetExtensions<T>();
+        }
+
+        private void LogEvent(PythonLogEvent logEvent, object data = null) {
+            _logger?.LogEvent(logEvent, data);
         }
 
         #region ProjectAnalyzer overrides
@@ -241,7 +236,7 @@ namespace Microsoft.PythonTools.Intellisense {
 
         public PythonLanguageVersion LanguageVersion {
             get {
-                return _interpreterFactory.GetLanguageVersion();
+                return _interpreter.Version.ToLanguageVersion();
             }
         }
 
@@ -420,14 +415,7 @@ namespace Microsoft.PythonTools.Intellisense {
             var analysisComplete = (AP.FileAnalysisCompleteEvent)e.Event;
             AnalysisEntry entry;
             if (_projectFilesById.TryGetValue(analysisComplete.fileId, out entry)) {
-                var bufferParser = entry.BufferParser;
-                if (bufferParser != null) {
-                    foreach (var version in analysisComplete.versions) {
-                        bufferParser.Analyzed(version.bufferId, version.version);
-                    }
-                }
-
-                entry.OnAnalysisComplete();
+                entry.OnAnalysisComplete(analysisComplete.versions);
                 AnalysisComplete?.Invoke(this, new AnalysisCompleteEventArgs(entry.Path));
             }
         }
@@ -511,7 +499,7 @@ namespace Microsoft.PythonTools.Intellisense {
             _commentTaskProvider?.RemoveBufferForErrorSource(entry, ParserTaskMoniker, textBuffer);
         }
 
-        internal void SwitchAnalyzers(VsProjectAnalyzer oldAnalyzer) {
+        internal void SwitchAnalyzers(PythonLanguageService oldAnalyzer) {
             BufferParser[] parsers = oldAnalyzer._projectFiles
                 .Select(x => x.Value.BufferParser)
                 .Where(x => x != null)
@@ -524,6 +512,49 @@ namespace Microsoft.PythonTools.Intellisense {
 
         internal void OnAnalysisStarted() {
             AnalysisStarted?.Invoke(this, EventArgs.Empty);
+        }
+
+        public async Task<AnalysisEntry> AddFileAsync(string path, ITextBuffer textBuffer, bool isTemporaryFile) {
+            if (_conn == null) {
+                // We aren't able to analyze code, so don't create an entry.
+                return null;
+            }
+
+            AnalysisEntry entry;
+            if (!_projectFiles.TryGetValue(path, out entry)) {
+                _analysisComplete = false;
+                Interlocked.Increment(ref _parsePending);
+
+                var res = await SendRequestAsync(new AP.AddFileRequest {
+                    path = path
+                }).ConfigureAwait(false);
+
+                if (res != null && res.fileId != -1) {
+                    OnAnalysisStarted();
+
+                    var id = res.fileId;
+                    // we awaited between the check and the AddFileRequest, another add could
+                    // have snuck in.  So we check again here...
+                    if (!_projectFilesById.TryGetValue(id, out entry)) {
+                        entry = _projectFilesById[id] = _projectFiles[path] =
+                            new AnalysisEntry(this, path, id, isTemporaryFile);
+                    }
+                }
+
+                if (entry == null) {
+                    Interlocked.Decrement(ref _parsePending);
+                }
+            }
+
+            if (textBuffer != null) {
+                entry.AddBuffer(textBuffer);
+            }
+
+            if (entry != null) {
+                entry.AnalysisCookie = new SnapshotCookie(textBuffer.CurrentSnapshot);
+            }
+
+            return entry;
         }
 
         /// <summary>
@@ -596,47 +627,6 @@ namespace Microsoft.PythonTools.Intellisense {
             }
             return path;
         }
-
-        private async Task<AnalysisEntry> CreateProjectEntryAsync(ITextBuffer textBuffer, bool isTemporaryFile) {
-            if (_conn == null) {
-                // We aren't able to analyze code, so don't create an entry.
-                return null;
-            }
-
-            string path = GetFilePath(textBuffer);
-
-            AnalysisEntry entry;
-            if (!_projectFiles.TryGetValue(path, out entry)) {
-                _analysisComplete = false;
-                Interlocked.Increment(ref _parsePending);
-
-                var res = await SendRequestAsync(
-                    new AP.AddFileRequest() {
-                        path = path
-                    }).ConfigureAwait(false);
-
-                if (res != null && res.fileId != -1) {
-                    OnAnalysisStarted();
-
-                    var id = res.fileId;
-                    if (!_projectFilesById.TryGetValue(id, out entry)) {
-                        // we awaited between the check and the AddFileRequest, another add could
-                        // have snuck in.  So we check again here...
-                        entry = _projectFilesById[id] = _projectFiles[path] = new AnalysisEntry(this, path, id, isTemporaryFile);
-                    }
-                } else {
-                    Interlocked.Decrement(ref _parsePending);
-                }
-
-            }
-
-            if (entry != null) {
-                entry.AnalysisCookie = new SnapshotCookie(textBuffer.CurrentSnapshot);
-            }
-
-            return entry;
-        }
-
 
         internal async Task<AnalysisEntry> AnalyzeFileAsync(string path, string addingFromDirectory = null) {
             if (_conn == null) {
@@ -1039,21 +1029,7 @@ namespace Microsoft.PythonTools.Intellisense {
             }
         }
 
-        /// <summary>
-        /// True if the project is an implicit project and it should model files on disk in addition
-        /// to files which are explicitly added.
-        /// </summary>
-        internal bool ImplicitProject {
-            get {
-                return _implicitProject;
-            }
-        }
-
-        internal IPythonInterpreterFactory InterpreterFactory {
-            get {
-                return _interpreterFactory;
-            }
-        }
+        internal InterpreterConfiguration Interpreter => _interpreter;
 
         private void UpdateErrorsAndWarnings(AnalysisEntry entry, AP.FileParsedEvent parsedEvent) {
             bool hasErrors = false;
@@ -1221,10 +1197,22 @@ namespace Microsoft.PythonTools.Intellisense {
             return res;
         }
 
-        internal PythonToolsService PyService {
-            get {
-                return _pyService;
+        internal async Task<VersionedResponse<AP.UnresolvedImportsResponse>> GetMissingImportsAsync(AnalysisEntry analysisEntry, ITextBuffer textBuffer) {
+            var lastVersion = analysisEntry.GetAnalysisVersion(textBuffer);
+
+            var resp = await SendRequestAsync(
+                new AP.UnresolvedImportsRequest() {
+                    fileId = analysisEntry.FileId,
+                    bufferId = analysisEntry.GetBufferId(textBuffer)
+                },
+                null
+            ).ConfigureAwait(false);
+
+            if (resp != null) {
+                return VersionedResponse(resp, textBuffer, lastVersion);
             }
+
+            return null;
         }
 
         internal bool ShouldEvaluateForCompletion(string source) {

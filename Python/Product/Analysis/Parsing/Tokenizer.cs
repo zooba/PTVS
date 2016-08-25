@@ -24,6 +24,7 @@ using System.Globalization;
 using System.IO;
 using System.Numerics;
 using System.Text;
+using Microsoft.PythonTools.Analysis.Analyzer;
 
 namespace Microsoft.PythonTools.Parsing {
 
@@ -2513,7 +2514,7 @@ namespace Microsoft.PythonTools.Parsing {
                     _errors.Add(
                         String.Format(
                             "(unicode error) '{0}' codec can't decode byte 0x{1:x} in position {2}",
-                            Parser.NormalizeEncodingName(streamReader.CurrentEncoding.WebName),
+                            PythonSourceStreamReader.CodecsInfo.NormalizeEncodingName(streamReader.CurrentEncoding.WebName),
                             bse.BadByte,
                             bse.Index + CurrentIndex
                         ),

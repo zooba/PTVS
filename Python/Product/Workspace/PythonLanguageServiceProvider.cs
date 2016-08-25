@@ -16,19 +16,26 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.Composition;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.PythonTools.Infrastructure;
+using Microsoft.PythonTools.Intellisense;
+using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.Workspace;
 using Microsoft.VisualStudio.Workspace.Intellisense;
 
 namespace Microsoft.PythonTools.Workspace {
-    class PythonLanguageServiceProvider : ILanguageServiceProvider {
+    class PythonLanguageServiceProvider : ILanguageServiceProvider, IDisposable {
         private readonly IWorkspace _workspace;
+        private readonly PathSet<PythonLanguageService> _services;
+        private bool _isDisposed;
 
-        internal PythonLanguageServiceProvider(IWorkspace workspace) {
+        public PythonLanguageServiceProvider(IWorkspace workspace) {
             _workspace = workspace;
+            _services = new PathSet<PythonLanguageService>(null);
         }
 
         public Task InitializeAsync(
@@ -41,6 +48,20 @@ namespace Microsoft.PythonTools.Workspace {
 
         public Task UninitializeAsync(string filePath) {
             throw new NotImplementedException();
+        }
+
+        public void Dispose() {
+            if (_isDisposed) {
+                return;
+            }
+            _isDisposed = true;
+
+            lock (_services) {
+                var toDispose = _services.GetValues().ToArray();
+                foreach (var v in toDispose) {
+                    v.Dispose();
+                }
+            }
         }
     }
 }

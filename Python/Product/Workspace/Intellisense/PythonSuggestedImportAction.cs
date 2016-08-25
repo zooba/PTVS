@@ -111,7 +111,7 @@ namespace Microsoft.PythonTools.Intellisense {
         public async void Invoke(CancellationToken cancellationToken) {
             Debug.Assert(!string.IsNullOrEmpty(_name));
 
-            await VsProjectAnalyzer.AddImportAsync(
+            await PythonLanguageService.AddImportAsync(
                 _source._view.GetAnalysisEntry(_buffer, _source._provider),
                 _fromModule,
                 _name,

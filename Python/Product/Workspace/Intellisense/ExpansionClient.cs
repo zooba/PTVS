@@ -231,7 +231,7 @@ namespace Microsoft.PythonTools.Intellisense {
                         );
 
                         if (isMissing) {
-                            await VsProjectAnalyzer.AddImportAsync(
+                            await PythonLanguageService.AddImportAsync(
                                 projEntry,
                                 null,
                                 import,

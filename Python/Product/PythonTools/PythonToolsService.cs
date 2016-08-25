@@ -118,6 +118,8 @@ namespace Microsoft.PythonTools {
             _debuggerOptions.Load();
             _factoryProviders = ComponentModel.DefaultExportProvider.GetExports<IPythonInterpreterFactoryProvider, Dictionary<string, object>>();
             _logger = new PythonToolsLogger(ComponentModel.GetExtensions<IPythonToolsLogger>().ToArray());
+            container.AddService(typeof(IPythonToolsLogger), _logger);
+
             InitializeLogging();
         }
 

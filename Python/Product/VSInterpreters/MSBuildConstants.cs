@@ -24,12 +24,10 @@ namespace Microsoft.PythonTools.Interpreter {
         public const string IdKey = "Id";
         public const string InterpreterPathKey = "InterpreterPath";
         public const string WindowsPathKey = "WindowsInterpreterPath";
-        public const string LibraryPathKey = "LibraryPath";
         public const string ArchitectureKey = "Architecture";
         public const string VersionKey = "Version";
         public const string PathEnvVarKey = "PathEnvironmentVariable";
         public const string DescriptionKey = "Description";
-        public const string BaseInterpreterKey = "BaseInterpreter";
 
         public const string InterpreterReferenceItem = "InterpreterReference";
         private static readonly Regex InterpreterReferencePath = new Regex(

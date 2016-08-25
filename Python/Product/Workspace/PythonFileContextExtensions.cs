@@ -14,21 +14,12 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.VisualStudio.Workspace;
 
 namespace Microsoft.PythonTools.Workspace {
-    [ExportFileContextProvider(ProviderType, ProviderPriority.Normal, PythonFileContext.ContextType)]
-    class PythonFileContextProviderFactory : IWorkspaceProviderFactory<IFileContextProvider> {
-        public const string ProviderType = "080EA385-656C-4097-A7A5-690655164708";
-        public static readonly Guid ProviderGuid = new Guid(ProviderType);
-
-        public IFileContextProvider CreateProvider(IWorkspace workspaceContext) {
-            return new PythonFileContextProvider(workspaceContext);
+    static class PythonFileContextExtensions {
+        public static PythonFileContext GetPythonContext(this FileContext context) {
+            return context?.Context as PythonFileContext;
         }
     }
 }

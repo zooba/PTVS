@@ -1,4 +1,4 @@
-// Python Tools for Visual Studio
+﻿// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -14,19 +14,14 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-namespace Microsoft.PythonTools.Logging {
-    /// <summary>
-    /// Provides an interface for logging events and statistics inside of PTVS.
-    /// 
-    /// Multiple loggers can be created which send stats to different locations.
-    /// 
-    /// By default there is one logger which shows the stats in 
-    /// Tools->Python Tools->Diagnostic Info.
-    /// </summary>
-    public interface IPythonToolsLogger {
-        /// <summary>
-        /// Informs the logger of an event.  Unknown events should be ignored.
-        /// </summary>
-        void LogEvent(PythonLogEvent logEvent, object argument);
+namespace Microsoft.PythonTools.Intellisense {
+    internal sealed class AbnormalAnalysisExitEventArgs {
+        public readonly string StdErr;
+        public readonly int ExitCode;
+
+        public AbnormalAnalysisExitEventArgs(string stdOut, int exitCode) {
+            StdErr = stdOut;
+            ExitCode = exitCode;
+        }
     }
 }

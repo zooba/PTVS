@@ -83,7 +83,7 @@ namespace Microsoft.PythonTools.Intellisense {
                 SpanTrackingMode.EdgePositive,
                 TrackingFidelityMode.Forward
             );
-            var imports = await _uiThread.InvokeTask(() => VsProjectAnalyzer.GetMissingImportsAsync(_provider, _view, textBuffer.CurrentSnapshot, span));
+            var imports = await _uiThread.InvokeTask(() => PythonLanguageService.GetMissingImportsAsync(_provider, _view, textBuffer.CurrentSnapshot, span));
 
             if (imports == MissingImportAnalysis.Empty) {
                 return false;

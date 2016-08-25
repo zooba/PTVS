@@ -36,6 +36,7 @@ using Microsoft.PythonTools.Parsing.Ast;
 using Microsoft.PythonTools.Projects;
 
 namespace Microsoft.PythonTools.Intellisense {
+    using Analysis.Analyzer;
     using AP = AnalysisProtocol;
 
     /// <summary>
@@ -62,7 +63,6 @@ namespace Microsoft.PythonTools.Intellisense {
         private readonly ProjectEntryMap _projectFiles;
         private PythonAnalyzer _pyAnalyzer;
         private readonly AutoResetEvent _queueActivityEvent = new AutoResetEvent(false);
-        private InterpreterConfiguration[] _allConfigs;
         private volatile Dictionary<string, AP.TaskPriority> _commentPriorityMap = new Dictionary<string, AP.TaskPriority>() {
             { "TODO", AP.TaskPriority.normal },
             { "HACK", AP.TaskPriority.high },
@@ -220,6 +220,7 @@ namespace Microsoft.PythonTools.Intellisense {
             }
 
             if (request.projectFile != null) {
+                var interp = request.projectInterpreter;
                 var projectContextProvider = _container.GetExportedValue<OutOfProcProjectContextProvider>();
                 projectContextProvider.AddContext(
                     new InMemoryProject(
@@ -227,22 +228,16 @@ namespace Microsoft.PythonTools.Intellisense {
                         new Dictionary<string, object>() {
                             { "InterpreterId", request.interpreterId },
                             { "ProjectHome", request.projectHome },
-                            {  "Interpreters",
-                                request.derivedInterpreters.Select(
-                                    interp => new Dictionary<string, string>() {
-                                        { "EvaluatedInclude", interp.name },
-                                        { MSBuildConstants.IdKey,              interp.id },
-                                        { MSBuildConstants.VersionKey,         interp.version },
-                                        { MSBuildConstants.DescriptionKey,     interp.description },
-                                        { MSBuildConstants.BaseInterpreterKey, interp.baseInterpreter },
-                                        { MSBuildConstants.InterpreterPathKey, interp.path },
-                                        { MSBuildConstants.WindowsPathKey,     interp.windowsPath },
-                                        { MSBuildConstants.LibraryPathKey,     interp.libPath },
-                                        { MSBuildConstants.PathEnvVarKey,      interp.pathEnvVar },
-                                        { MSBuildConstants.ArchitectureKey,    interp.arch }
-                                    }
-                                ).ToArray()
-                            }
+                            { "Interpreters", new[] { new Dictionary<string, string>() {
+                                { "EvaluatedInclude",                  interp.name },
+                                { MSBuildConstants.IdKey,              interp.id },
+                                { MSBuildConstants.VersionKey,         interp.version },
+                                { MSBuildConstants.DescriptionKey,     interp.description },
+                                { MSBuildConstants.InterpreterPathKey, interp.path },
+                                { MSBuildConstants.WindowsPathKey,     interp.windowsPath },
+                                { MSBuildConstants.PathEnvVarKey,      interp.pathEnvVar },
+                                { MSBuildConstants.ArchitectureKey,    interp.arch }
+                            } } }
                         }
                     )
                 );
@@ -277,7 +272,6 @@ namespace Microsoft.PythonTools.Intellisense {
             }
 
             _interpreterFactory = factory;
-            _allConfigs = registry.Configurations.ToArray();
 
             var interpreter = factory.CreateInterpreter();
             if (interpreter != null) {
@@ -1553,7 +1547,7 @@ namespace Microsoft.PythonTools.Intellisense {
             }
 
             public override TextReader GetReader() {
-                return new StreamReader(_stream);
+                return new PythonSourceStreamReader(_stream, false, null);
             }
         }
 
@@ -1762,16 +1756,6 @@ namespace Microsoft.PythonTools.Intellisense {
             foreach (var entry in _pyAnalyzer.ModulesByFilename) {
                 _analysisQueue.Enqueue(entry.Value.ProjectEntry, AnalysisPriority.Normal);
             }
-        }
-
-        private bool ShouldAnalyzePath(string path) {
-            foreach (var config in _allConfigs) {
-                if (PathUtils.IsValidPath(config.InterpreterPath) &&
-                    PathUtils.IsSubpathOf(Path.GetDirectoryName(config.InterpreterPath), path)) {
-                    return false;
-                }
-            }
-            return true;
         }
 
         internal IProjectEntry AnalyzeFile(string path, string addingFromDirectory = null) {
