@@ -9,7 +9,9 @@ $packages = @(
     @{ name="Microsoft.VisualStudio.Shell.Interop.12.1.DesignTime"; version=@{ "14.0"="12.1.30328"; "15.0"="12.1.30328" }; required=$true },
     @{ name="Microsoft.VisualStudio.Shell.Interop.14.0.DesignTime"; version=@{ "14.0"="14.2.25123"; "15.0"="14.2.25123" }; required=$true },
     @{ name="Microsoft.VisualStudio.TextManager.Interop.12.1.DesignTime"; version=@{ "14.0"="12.1.30328"; "15.0"="12.1.30328" }; required=$true },
-    @{ name="Python"; version=@{ "14.0"="3.5.2"; "15.0"="3.5.2" }; required=$true }
+    @{ name="Python"; version=@{ "14.0"="3.5.2"; "15.0"="3.5.2" }; required=$true },
+    @{ name="Microsoft.VisualStudio.InteractiveWindow"; version=@{ "14.0"="pre"; "15.0"="pre" }; required=$true },
+    @{ name="Microsoft.VisualStudio.VsInteractiveWindow"; version=@{ "14.0"="pre"; "15.0"="pre" }; required=$true }
 )
 
 if ($full) {
@@ -28,6 +30,7 @@ if (-not $vstarget) {
 
 $buildroot = $MyInvocation.MyCommand.Definition | Split-Path -Parent | Split-Path -Parent
 pushd "$buildroot\Build"
+.\nuget.exe sources add -Name DotNetMyGet -Source https://dotnet.myget.org/F/interactive-window/api/v3/index.json
 if ($source) {
     .\nuget.exe sources add -Name PreBuildSource -Source $source
 }
@@ -43,7 +46,13 @@ if ($clean) {
 }
 
 $packages | %{
-    $arglist = "install", $_.name, "-Version", $_.version[$vstarget], "-ExcludeVersion", "-OutputDirectory", $outdir
+    $arglist = "install", $_.name, "-ExcludeVersion", "-OutputDirectory", $outdir
+    if ($_.version[$vstarget] -eq "pre") {
+        rmdir -r -fo -ea 0 "$outdir\$($_.name)"
+        $arglist += "-Prerelease"
+    } elseif ($_.version[$vstarget]) {
+        $arglist += "-Version", $_.version[$vstarget]
+    }
     if ($_.required) {
         Start-Process -Wait -NoNewWindow .\nuget.exe -ErrorAction Stop -ArgumentList $arglist
     } else {
@@ -51,6 +60,7 @@ $packages | %{
     }
 }
 
+.\nuget.exe sources remove -Name DotNetMyGet
 if ($source) {
     .\nuget.exe sources remove -Name PreBuildSource
 }

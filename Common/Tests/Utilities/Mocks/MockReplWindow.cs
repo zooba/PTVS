@@ -1,4 +1,4 @@
-﻿// Visual Studio Shared Project
+// Visual Studio Shared Project
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -23,7 +23,7 @@ using System.Windows;
 #if NTVS_FEATURE_INTERACTIVEWINDOW
 using Microsoft.NodejsTools.Repl;
 #elif DEV14_OR_LATER
-using Microsoft.PythonTools.InteractiveWindow;
+using Microsoft.VisualStudio.InteractiveWindow;
 #else
 using Microsoft.VisualStudio.Repl;
 #endif

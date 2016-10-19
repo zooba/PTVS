@@ -18,7 +18,7 @@ using System;
 using System.ComponentModel.Design;
 using Microsoft.PythonTools;
 using Microsoft.PythonTools.Intellisense;
-using Microsoft.PythonTools.InteractiveWindow.Commands;
+using Microsoft.VisualStudio.InteractiveWindow.Commands;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Options;
 using Microsoft.VisualStudio.Text.Adornments;

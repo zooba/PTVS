@@ -1,4 +1,4 @@
-﻿// Python Tools for Visual Studio
+// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -21,8 +21,8 @@ using System.Threading.Tasks;
 using Microsoft.PythonTools.Editor.Core;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
-using Microsoft.PythonTools.InteractiveWindow;
-using Microsoft.PythonTools.InteractiveWindow.Commands;
+using Microsoft.VisualStudio.InteractiveWindow;
+using Microsoft.VisualStudio.InteractiveWindow.Commands;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Utilities;

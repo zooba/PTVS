@@ -27,7 +27,7 @@ using System.Windows.Interop;
 using EnvDTE;
 using Microsoft.PythonTools;
 using Microsoft.PythonTools.Infrastructure;
-using Microsoft.PythonTools.InteractiveWindow.Shell;
+using Microsoft.VisualStudio.InteractiveWindow.Shell;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Options;
 using Microsoft.PythonTools.Parsing;
