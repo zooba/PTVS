@@ -9,9 +9,7 @@ $packages = @(
     @{ name="Microsoft.VisualStudio.Shell.Interop.12.1.DesignTime"; version=@{ "14.0"="12.1.30328"; "15.0"="12.1.30328" }; required=$true },
     @{ name="Microsoft.VisualStudio.Shell.Interop.14.0.DesignTime"; version=@{ "14.0"="14.2.25123"; "15.0"="14.2.25123" }; required=$true },
     @{ name="Microsoft.VisualStudio.TextManager.Interop.12.1.DesignTime"; version=@{ "14.0"="12.1.30328"; "15.0"="12.1.30328" }; required=$true },
-    @{ name="Python"; version=@{ "14.0"="3.5.2"; "15.0"="3.5.2" }; required=$true },
-    @{ name="Microsoft.VisualStudio.InteractiveWindow"; version=@{ "14.0"="pre"; "15.0"="pre" }; required=$true },
-    @{ name="Microsoft.VisualStudio.VsInteractiveWindow"; version=@{ "14.0"="pre"; "15.0"="pre" }; required=$true }
+    @{ name="Python"; version=@{ "14.0"="3.5.2"; "15.0"="3.5.2" }; required=$true }
 )
 
 if ($full) {
