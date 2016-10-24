@@ -26,7 +26,6 @@ namespace Microsoft.CookiecutterTools.ViewModel {
         private string _description;
         private bool _isSearchTerm;
         private bool _isUpdateAvailable;
-        private ImageMoniker _image;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -46,6 +45,10 @@ namespace Microsoft.CookiecutterTools.ViewModel {
         /// </summary>
         public string RepositoryName {
             get {
+                if (string.IsNullOrEmpty(RemoteUrl)) {
+                    return string.Empty;
+                }
+
                 string owner;
                 string name;
                 ParseUtils.ParseGitHubRepoOwnerAndName(RemoteUrl, out owner, out name);
@@ -58,6 +61,10 @@ namespace Microsoft.CookiecutterTools.ViewModel {
         /// </summary>
         public string RepositoryOwner {
             get {
+                if (string.IsNullOrEmpty(RemoteUrl)) {
+                    return string.Empty;
+                }
+
                 string owner;
                 string name;
                 ParseUtils.ParseGitHubRepoOwnerAndName(RemoteUrl, out owner, out name);
@@ -70,6 +77,10 @@ namespace Microsoft.CookiecutterTools.ViewModel {
         /// </summary>
         public string RepositoryFullName {
             get {
+                if (string.IsNullOrEmpty(RemoteUrl)) {
+                    return string.Empty;
+                }
+
                 string owner;
                 string name;
                 ParseUtils.ParseGitHubRepoOwnerAndName(RemoteUrl, out owner, out name);
@@ -154,19 +165,6 @@ namespace Microsoft.CookiecutterTools.ViewModel {
                 if (value != _isUpdateAvailable) {
                     _isUpdateAvailable = value;
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsUpdateAvailable)));
-                }
-            }
-        }
-
-        public ImageMoniker Image {
-            get {
-                return _image;
-            }
-
-            set {
-                if (value.Guid != _image.Guid || value.Id != _image.Id) {
-                    _image = value;
-                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Image)));
                 }
             }
         }

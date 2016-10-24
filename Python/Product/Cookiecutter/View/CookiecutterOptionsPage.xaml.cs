@@ -14,10 +14,13 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.CookiecutterTools.Infrastructure;
+using Microsoft.CookiecutterTools.Model;
 using Microsoft.CookiecutterTools.ViewModel;
 using WpfCommands = Microsoft.VisualStudioTools.Wpf.Commands;
 
@@ -38,6 +41,14 @@ namespace Microsoft.CookiecutterTools.View {
 
         private void Browse_Executed(object sender, ExecutedRoutedEventArgs e) {
             WpfCommands.Executed(null, sender, e);
+        }
+
+        private void Odbc_CanExecute(object sender, CanExecuteRoutedEventArgs e) {
+            SqlCommands.CanExecute(null, sender, e);
+        }
+
+        private void Odbc_Executed(object sender, ExecutedRoutedEventArgs e) {
+            SqlCommands.Executed(null, sender, e);
         }
 
         private void Home_CanExecute(object sender, CanExecuteRoutedEventArgs e) {
@@ -76,8 +87,16 @@ namespace Microsoft.CookiecutterTools.View {
             var element = container as FrameworkElement;
             var p = item as ContextItemViewModel;
             if (element != null && p != null) {
-                var templateName = p.Items.Count == 0 ? "textTemplate" : "listTemplate";
-                return element.FindResource(templateName) as DataTemplate;
+                string selector = p.Selector?.ToLowerInvariant()?.Truncate(30);
+                if (selector == null || !Regex.IsMatch(selector, "^[a-z]+$")) {
+                    selector = Selectors.String;
+                }
+
+                try {
+                    return element.FindResource(selector + "Template") as DataTemplate;
+                } catch (ResourceReferenceKeyNotFoundException) {
+                    return element.FindResource("stringTemplate") as DataTemplate;
+                }
             }
             return base.SelectTemplate(item, container);
         }

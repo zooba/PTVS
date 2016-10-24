@@ -79,6 +79,7 @@ namespace Microsoft.PythonTools.Repl {
             _analysisFilename = Guid.NewGuid().ToString() + ".py";
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2213:DisposableFieldsShouldBeDisposed", MessageId = "_analyzer")]
         protected void Dispose(bool disposing) {
             if (_isDisposed) {
                 return;
@@ -848,26 +849,6 @@ namespace Microsoft.PythonTools.Repl {
             }
             return color;
         }
-
-        #endregion
-
-        #region Compatibility
-
-        private static Version _vsInteractiveVersion;
-
-        internal static Version VSInteractiveVersion {
-            get {
-                if (_vsInteractiveVersion == null) {
-                    _vsInteractiveVersion = typeof(IInteractiveWindow).Assembly
-                        .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
-                        .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
-                        .Select(a => { Version v; return Version.TryParse(a.InformationalVersion, out v) ? v : null; })
-                        .FirstOrDefault(v => v != null) ?? new Version();
-                }
-                return _vsInteractiveVersion;
-            }
-        }
-
 
         #endregion
     }

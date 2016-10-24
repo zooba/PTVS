@@ -99,7 +99,7 @@ namespace Microsoft.PythonTools.TestAdapter {
                     project.GetAttribute("workingDir", ""),
                     project.GetAttribute("interpreter", ""),
                     project.GetAttribute("pathEnv", ""),
-                    ParseBoolAttribute(project, "nativeDebugging")
+                    project.GetAttribute("nativeDebugging", "").IsTrue()
                 );
 
                 foreach (XPathNavigator environment in project.Select("Environment/Variable")) {
@@ -122,17 +122,6 @@ namespace Microsoft.PythonTools.TestAdapter {
                 }
             }
             return res;
-        }
-
-        private static bool ParseBoolAttribute(XPathNavigator project, string name) {
-            var nativeDebugging = project.GetAttribute(name, "");
-            bool enabled = false;
-            bool enableNative;
-            if (bool.TryParse(nativeDebugging, out enableNative)) {
-                enabled = true;
-            }
-
-            return enabled;
         }
 
         public void RunTests(IEnumerable<TestCase> tests, IRunContext runContext, IFrameworkHandle frameworkHandle) {
@@ -163,7 +152,7 @@ namespace Microsoft.PythonTools.TestAdapter {
                     break;
                 }
 
-                var runner = new TestRunner(
+                using (var runner = new TestRunner(
                     frameworkHandle,
                     runContext,
                     testGroup,
@@ -171,9 +160,9 @@ namespace Microsoft.PythonTools.TestAdapter {
                     testGroup.Key,
                     _app,
                     _cancelRequested
-                );
-
-                runner.Run();
+                )) {
+                    runner.Run();
+                }
             }
 
             if (codeCoverage) {
@@ -248,7 +237,7 @@ namespace Microsoft.PythonTools.TestAdapter {
         private static string UpdateBest(string best, string test) {
             if (best == null || best == test) {
                 best = test;
-            } else if (best != "") {
+            } else if (!string.IsNullOrEmpty(best)) {
                 best = "";
             }
 
@@ -258,7 +247,7 @@ namespace Microsoft.PythonTools.TestAdapter {
         internal static string UpdateBestFile(string bestFile, string testFile) {
             if (bestFile == null || bestFile == testFile) {
                 bestFile = testFile;
-            } else if (bestFile != "") {
+            } else if (!string.IsNullOrEmpty(bestFile)) {
                 // Get common directory name, trim to the last \\ where we 
                 // have things in common
                 int lastSlash = 0;
@@ -287,7 +276,7 @@ namespace Microsoft.PythonTools.TestAdapter {
             return false;
         }
 
-        class TestRunner {
+        sealed class TestRunner : IDisposable {
             private readonly IFrameworkHandle _frameworkHandle;
             private readonly IRunContext _context;
             private readonly IEnumerable<TestCase> _tests;
@@ -348,6 +337,14 @@ namespace Microsoft.PythonTools.TestAdapter {
                 _socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
                 _socket.Listen(0);
                 _socket.BeginAccept(AcceptConnection, _socket);
+            }
+
+            [SuppressMessage("Microsoft.Usage", "CA2213:DisposableFieldsShouldBeDisposed", MessageId = "_connection")]
+            public void Dispose() {
+                _connected.Dispose();
+                _done.Dispose();
+                _connection?.Dispose();
+                _socket.Dispose();
             }
 
             private static Task RequestHandler(RequestArgs arg1, Func<Response, Task> arg2) {
