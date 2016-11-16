@@ -16,12 +16,10 @@
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CookiecutterTools.Infrastructure;
-using Microsoft.Win32;
 
 namespace Microsoft.CookiecutterTools.Model {
     class GitClient : IGitClient {
@@ -31,50 +29,6 @@ namespace Microsoft.CookiecutterTools.Model {
         public GitClient(string gitExeFilePath, Redirector redirector) {
             _gitExeFilePath = gitExeFilePath;
             _redirector = redirector;
-        }
-
-        public static string RecommendedGitFilePath {
-            get {
-                string gitExeFilePath = TeamExplorerGitFilePath;
-                if (File.Exists(gitExeFilePath)) {
-                    return gitExeFilePath;
-                }
-
-                try {
-                    if (ExecutableOnPath(GitExecutableName)) {
-                        return GitExecutableName;
-                    }
-                } catch (NotSupportedException) {
-                }
-
-                return null;
-            }
-        }
-
-        private static string GitExecutableName {
-            get {
-                return "git.exe";
-            }
-        }
-
-        private static string TeamExplorerGitFilePath {
-            get {
-                try {
-                    using (var key = Registry.LocalMachine.OpenSubKey(@"Software\\Microsoft\VisualStudio\SxS\VS7")) {
-                        var installRoot = (string)key.GetValue(AssemblyVersionInfo.VSVersion);
-                        if (installRoot != null) {
-                            // git.exe is in a folder path with a symlink to the actual extension dir with random name
-                            var gitFolder = Path.Combine(installRoot, @"Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer\Git\cmd");
-                            var finalGitFolder = PathUtils.GetFinalPathName(gitFolder);
-                            var gitExe = Path.Combine(finalGitFolder, GitExecutableName);
-                            return gitExe;
-                        }
-                    }
-                } catch (Exception e) when (!e.IsCriticalException()) {
-                }
-
-                return null;
-            }
         }
 
         public async Task<string> CloneAsync(string repoUrl, string targetParentFolderPath) {
@@ -93,9 +47,19 @@ namespace Microsoft.CookiecutterTools.Model {
                 var r = new ProcessOutputResult() {
                     ExeFileName = _gitExeFilePath,
                     ExitCode = output.ExitCode,
+                    StandardOutputLines = output.StandardOutputLines.ToArray(),
+                    StandardErrorLines = output.StandardErrorLines.ToArray(),
                 };
 
-                if (r.ExitCode < 0) {
+                if (output.ExitCode < 0 || HasFatalError(output)) {
+                    if (Directory.Exists(localTemplateFolder)) {
+                        // Don't leave a failed clone on disk
+                        try {
+                            ShellUtils.DeleteDirectory(localTemplateFolder);
+                        } catch (Exception ex) when (!ex.IsCriticalException()) {
+                        }
+                    }
+
                     throw new ProcessException(r);
                 }
 
@@ -147,11 +111,14 @@ namespace Microsoft.CookiecutterTools.Model {
 
         public async Task FetchAsync(string repoFolderPath) {
             var arguments = new string[] { "fetch" };
-            using (var output = ProcessOutput.Run(_gitExeFilePath, arguments, repoFolderPath, null, false, _redirector)) {
-                if (await output < 0) {
+            using (var output = ProcessOutput.Run(_gitExeFilePath, arguments, repoFolderPath, null, false, null)) {
+                await output;
+                if (output.ExitCode < 0 || HasFatalError(output)) {
                     throw new ProcessException(new ProcessOutputResult() {
                         ExeFileName = _gitExeFilePath,
                         ExitCode = output.ExitCode,
+                        StandardErrorLines = output.StandardErrorLines.ToArray(),
+                        StandardOutputLines = output.StandardOutputLines.ToArray(),
                     });
                 }
             }
@@ -167,6 +134,10 @@ namespace Microsoft.CookiecutterTools.Model {
                     });
                 }
             }
+        }
+
+        private static bool HasFatalError(ProcessOutput output) {
+            return output.StandardErrorLines.Any(line => line.StartsWith("fatal:", StringComparison.InvariantCultureIgnoreCase));
         }
 
         private static string GetClonedFolder(string repoUrl, string targetParentFolderPath) {
@@ -210,19 +181,6 @@ namespace Microsoft.CookiecutterTools.Model {
 
             name = repoUrl.Substring(index + 1);
             return true;
-        }
-
-        private static bool ExecutableOnPath(string executable) {
-            try {
-                ProcessStartInfo info = new ProcessStartInfo("where", executable);
-                info.UseShellExecute = false;
-                info.CreateNoWindow = true;
-                var process = Process.Start(info);
-                process.WaitForExit();
-                return process.ExitCode == 0;
-            } catch (Win32Exception) {
-                throw new NotSupportedException();
-            }
         }
     }
 }

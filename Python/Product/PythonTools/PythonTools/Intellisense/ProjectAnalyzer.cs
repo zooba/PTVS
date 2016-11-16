@@ -17,6 +17,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -25,6 +26,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Infrastructure;
+using Microsoft.PythonTools.InteractiveWindow;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Ipc.Json;
 using Microsoft.PythonTools.Parsing;
@@ -33,6 +35,7 @@ using Microsoft.PythonTools.Projects;
 using Microsoft.PythonTools.Repl;
 using Microsoft.VisualStudio.InteractiveWindow;
 using Microsoft.VisualStudio.Language.Intellisense;
+using Microsoft.VisualStudio.Language.StandardClassification;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
@@ -41,7 +44,6 @@ using Microsoft.VisualStudioTools;
 using MSBuild = Microsoft.Build.Evaluation;
 
 namespace Microsoft.PythonTools.Intellisense {
-    using VisualStudio.Language.StandardClassification;
     using AP = AnalysisProtocol;
 
     public sealed class VsProjectAnalyzer : ProjectAnalyzer, IDisposable {
@@ -286,6 +288,8 @@ namespace Microsoft.PythonTools.Intellisense {
                     if (!_analysisProcess.WaitForExit(500)) {
                         _analysisProcess.Kill();
                     }
+                } catch (Win32Exception) {
+                    // access denied
                 } catch (InvalidOperationException) {
                     // race w/ process exit...
                 }
@@ -491,7 +495,7 @@ namespace Microsoft.PythonTools.Intellisense {
                 }
 
                 var monitoredResult = await MonitorTextBufferAsync(buffers[0]);
-                if (monitoredResult.AnalysisEntry != null) {
+                if (monitoredResult?.AnalysisEntry != null) {
                     for (int i = 1; i < buffers.Length; i++) {
                         monitoredResult.AddBuffer(buffers[i]);
                     }
@@ -1477,6 +1481,8 @@ namespace Microsoft.PythonTools.Intellisense {
                 _pyService.Logger.LogEvent(Logging.PythonLogEvent.AnalysisOperationCancelled);
             } catch (FailedRequestException e) {
                 _pyService.Logger.LogEvent(Logging.PythonLogEvent.AnalysisOperationFailed, e.Message);
+            } catch (ObjectDisposedException) {
+                _pyService.Logger.LogEvent(Logging.PythonLogEvent.AnalysisOperationCancelled);
             } finally {
                 linkedSource?.Dispose();
                 timeoutSource?.Dispose();
@@ -1774,20 +1780,20 @@ namespace Microsoft.PythonTools.Intellisense {
             }
 
             try {
-                try {
-                    return (await conn.SendRequestAsync(new AP.AvailableImportsRequest() {
-                        name = name
-                    }, cancel)).imports.Select(x => new ExportedMemberInfo(x.fromName, x.importName));
-                } catch (OperationCanceledException) {
-                    _pyService.Logger.LogEvent(Logging.PythonLogEvent.AnalysisOperationCancelled);
-                } catch (FailedRequestException e) {
-                    _pyService.Logger.LogEvent(Logging.PythonLogEvent.AnalysisOperationFailed, e.Message);
-                }
-                return Enumerable.Empty<ExportedMemberInfo>();
+                return (await conn.SendRequestAsync(new AP.AvailableImportsRequest() {
+                    name = name
+                }, cancel)).imports.Select(x => new ExportedMemberInfo(x.fromName, x.importName));
+            } catch (OperationCanceledException) {
+                _pyService.Logger.LogEvent(Logging.PythonLogEvent.AnalysisOperationCancelled);
+            } catch (FailedRequestException e) {
+                _pyService.Logger.LogEvent(Logging.PythonLogEvent.AnalysisOperationFailed, e.Message);
+            } catch (ObjectDisposedException) {
+                _pyService.Logger.LogEvent(Logging.PythonLogEvent.AnalysisOperationCancelled);
             } finally {
                 registration1.Dispose();
                 registration2.Dispose();
             }
+            return Enumerable.Empty<ExportedMemberInfo>();
         }
 
         internal async Task<VersionedResponse<AP.ExtractMethodResponse>> ExtractMethodAsync(AnalysisEntry entry, ITextBuffer textBuffer, ITextView view, string name, string[] parameters, int? targetScope = null) {
