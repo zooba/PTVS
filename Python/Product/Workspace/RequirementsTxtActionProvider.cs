@@ -25,34 +25,7 @@ using Microsoft.VisualStudio.Workspace;
 using Microsoft.VisualStudio.Workspace.Extensions.Build;
 
 namespace Microsoft.PythonTools.Workspace {
-    class RequirementsTxtContext {
-        public const string ContextType = "{9545F0EB-133D-4148-9B6F-8312BCA5DBC2}";
-        public static readonly Guid ContextTypeGuid = new Guid(ContextType);
-
-        public string InterpreterName { get; set; }
-        public string InterpreterPath { get; set; }
-
-        public static IEnumerable<RequirementsTxtContext> GetContextsFromInterpreters(IEnumerable<string> interpreters) {
-            foreach (var interpreter in interpreters) {
-                // TODO: Better selection of unambiguous names
-                var intName = PathUtils.GetParent(interpreter);
-                if (PathUtils.GetFileOrDirectoryName(intName).Equals("scripts", StringComparison.InvariantCultureIgnoreCase)) {
-                    intName = PathUtils.GetParent(intName);
-                }
-                intName = PathUtils.GetFileOrDirectoryName(intName);
-                if (string.IsNullOrEmpty(intName)) {
-                    continue;
-                }
-
-                yield return new RequirementsTxtContext {
-                    InterpreterName = intName,
-                    InterpreterPath = interpreter
-                };
-            }
-        }
-    }
-
-    [ExportFileContextProvider(ProviderType, RequirementsTxtContext.ContextType)]
+    [ExportFileContextProvider(ProviderType, PythonEnvironmentContext.ContextType)]
     class RequirementsTxtContextProvider : IWorkspaceProviderFactory<IFileContextProvider> {
         public const string ProviderType = "{6B5CDE8E-F1C4-4FD2-9A02-1B7C94DA7548}";
         public static readonly Guid ProviderTypeGuid = new Guid(ProviderType);
@@ -74,13 +47,10 @@ namespace Microsoft.PythonTools.Workspace {
             ) {
                 var res = new List<FileContext>();
 
-                var interpreters = new StringCollector();
-                await _workspace.GetFindFilesService().FindFilesAsync("python.exe", interpreters, cancellationToken);
-
-                foreach (var ctxt in RequirementsTxtContext.GetContextsFromInterpreters(interpreters.Collection)) {
+                foreach (var ctxt in await PythonEnvironmentContext.GetVirtualEnvironmentsAsync(_workspace, cancellationToken)) {
                     res.Add(new FileContext(
                         ProviderTypeGuid,
-                        RequirementsTxtContext.ContextTypeGuid,
+                        PythonEnvironmentContext.ContextTypeGuid,
                         ctxt,
                         new[] { filePath }
                     ));
@@ -89,17 +59,10 @@ namespace Microsoft.PythonTools.Workspace {
                 return res;
             }
 
-            class StringCollector : IProgress<string> {
-                public readonly List<string> Collection = new List<string>();
-
-                public void Report(string value) {
-                    Collection.Add(value);
-                }
-            }
         }
     }
 
-    [ExportFileContextActionProvider(ProviderType, RequirementsTxtContext.ContextType)]
+    [ExportFileContextActionProvider(ProviderType, PythonEnvironmentContext.ContextType)]
     class RequirementsTxtActionProvider : IWorkspaceProviderFactory<IFileContextActionProvider> {
         private const string ProviderType = "{A9F1584A-936F-4128-982C-2C1D1C15C856}";
 
@@ -126,14 +89,14 @@ namespace Microsoft.PythonTools.Workspace {
         public InstallRequirementsTxtAction(string filePath, FileContext fileContext) {
             _path = filePath;
             Source = fileContext;
-            if (!Source.ContextType.Equals(RequirementsTxtContext.ContextTypeGuid)) {
+            if (!Source.ContextType.Equals(PythonEnvironmentContext.ContextTypeGuid)) {
                 throw new ArgumentException("fileContext");
             }
         }
 
-        private RequirementsTxtContext Context => (RequirementsTxtContext)Source.Context;
+        private PythonEnvironmentContext Context => (PythonEnvironmentContext)Source.Context;
 
-        public string DisplayName => "Install into {0}".FormatUI(Context.InterpreterName);
+        public string DisplayName => "Install into {0}".FormatUI(Context.Configuration.Description);
         public FileContext Source { get; }
 
         public async Task<IFileContextActionResult> ExecuteAsync(
@@ -141,7 +104,7 @@ namespace Microsoft.PythonTools.Workspace {
             CancellationToken cancellationToken
         ) {
             using (var p = ProcessOutput.RunHiddenAndCapture(
-                Context.InterpreterPath, "-m", "pip", "install", "-r", _path
+                Context.Configuration.InterpreterPath, "-m", "pip", "install", "-r", _path
             )) {
                 var exitCode = await p;
 
