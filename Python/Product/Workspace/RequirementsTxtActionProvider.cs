@@ -131,8 +131,8 @@ namespace Microsoft.PythonTools.Workspace {
 
         public FileContext Source { get; }
 
-        public Guid CommandGroup => GuidList.guidPythonToolsCmdSet;
-        public uint CommandId => PkgCmdIDList.cmdidInstallRequirementsTxt;
+        public Guid CommandGroup => WorkspaceGuids.GuidWorkspaceExplorerFileContextActionsCmdSet;
+        public uint CommandId => 0x1000;
 
         public async Task<IFileContextActionResult> ExecuteAsync(
             IProgress<IFileContextActionProgressUpdate> progress,
