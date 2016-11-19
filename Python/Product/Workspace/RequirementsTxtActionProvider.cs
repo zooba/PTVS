@@ -16,16 +16,21 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Infrastructure;
+using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.Workspace;
 using Microsoft.VisualStudio.Workspace.Extensions.Build;
 
 namespace Microsoft.PythonTools.Workspace {
-    [ExportFileContextProvider(ProviderType, PythonEnvironmentContext.ContextType)]
+    [ExportFileContextProvider(ProviderType,
+        PythonEnvironmentContext.ContextType,
+        NewPythonEnvironmentContext.ContextType
+    )]
     class RequirementsTxtContextProvider : IWorkspaceProviderFactory<IFileContextProvider> {
         public const string ProviderType = "{6B5CDE8E-F1C4-4FD2-9A02-1B7C94DA7548}";
         public static readonly Guid ProviderTypeGuid = new Guid(ProviderType);
@@ -47,7 +52,7 @@ namespace Microsoft.PythonTools.Workspace {
             ) {
                 var res = new List<FileContext>();
 
-                foreach (var ctxt in await PythonEnvironmentContext.GetVirtualEnvironmentsAsync(_workspace, cancellationToken)) {
+                foreach (var ctxt in await PythonEnvironmentContext.GetEnvironmentsAsync(_workspace, cancellationToken)) {
                     res.Add(new FileContext(
                         ProviderTypeGuid,
                         PythonEnvironmentContext.ContextTypeGuid,
@@ -56,13 +61,28 @@ namespace Microsoft.PythonTools.Workspace {
                     ));
                 }
 
+                var newName = PathUtils.GetAbsoluteDirectoryPath(_workspace.Location, "env");
+                for (int i = 1; Directory.Exists(newName) && i < int.MaxValue; ++i) {
+                    newName = PathUtils.GetAbsoluteDirectoryPath(_workspace.Location, "env{0}".FormatInvariant(i));
+                }
+
+                res.Add(new FileContext(
+                    ProviderTypeGuid,
+                    NewPythonEnvironmentContext.ContextTypeGuid,
+                    new NewPythonEnvironmentContext(PathUtils.GetFileOrDirectoryName(newName), newName),
+                    new[] { filePath }
+                ));
+
                 return res;
             }
 
         }
     }
 
-    [ExportFileContextActionProvider(ProviderType, PythonEnvironmentContext.ContextType)]
+    [ExportFileContextActionProvider(ProviderType,
+        PythonEnvironmentContext.ContextType,
+        NewPythonEnvironmentContext.ContextType
+    )]
     class RequirementsTxtActionProvider : IWorkspaceProviderFactory<IFileContextActionProvider> {
         private const string ProviderType = "{A9F1584A-936F-4128-982C-2C1D1C15C856}";
 
@@ -78,6 +98,7 @@ namespace Microsoft.PythonTools.Workspace {
             ) {
                 var res = new List<IFileContextAction>();
                 res.Add(new InstallRequirementsTxtAction(filePath, fileContext));
+                //res.Add(new RegenerateRequirementsTxtAction(filePath, fileContext));
                 return res;
             }
         }
@@ -89,22 +110,51 @@ namespace Microsoft.PythonTools.Workspace {
         public InstallRequirementsTxtAction(string filePath, FileContext fileContext) {
             _path = filePath;
             Source = fileContext;
-            if (!Source.ContextType.Equals(PythonEnvironmentContext.ContextTypeGuid)) {
+            if (!Source.ContextType.Equals(PythonEnvironmentContext.ContextTypeGuid) &&
+                !Source.ContextType.Equals(NewPythonEnvironmentContext.ContextTypeGuid)) {
                 throw new ArgumentException("fileContext");
             }
         }
 
-        private PythonEnvironmentContext Context => (PythonEnvironmentContext)Source.Context;
+        private PythonEnvironmentContext Context => Source.Context as PythonEnvironmentContext;
+        private NewPythonEnvironmentContext NewContext => Source.Context as NewPythonEnvironmentContext;
 
-        public string DisplayName => "Install into {0}".FormatUI(Context.Configuration.Description);
+        public string DisplayName {
+            get {
+                if (Context != null) {
+                    return "Install into {0}".FormatUI(Context.Configuration.Description);
+                }
+                return "Create and install into {0}".FormatUI(NewContext.Description);
+            }
+        }
+
         public FileContext Source { get; }
 
         public async Task<IFileContextActionResult> ExecuteAsync(
             IProgress<IFileContextActionProgressUpdate> progress,
             CancellationToken cancellationToken
         ) {
+            InterpreterConfiguration config = Context?.Configuration;
+
+            if (config == null && NewContext != null) {
+
+                using (var p = ProcessOutput.RunHiddenAndCapture(
+                    "py", "-m", "venv", NewContext.PrefixPath
+                )) {
+                    if ((await p) != 0) {
+                        return new FileContextActionResult(false);
+                    }
+                }
+                config = new InterpreterConfiguration(
+                    NewContext.Description,
+                    NewContext.Description,
+                    NewContext.PrefixPath,
+                    PathUtils.GetAbsoluteFilePath(NewContext.PrefixPath, "scripts\\python.exe")
+                );
+            }
+
             using (var p = ProcessOutput.RunHiddenAndCapture(
-                Context.Configuration.InterpreterPath, "-m", "pip", "install", "-r", _path
+                config.InterpreterPath, "-m", "pip", "install", "-r", _path
             )) {
                 var exitCode = await p;
 
@@ -117,4 +167,40 @@ namespace Microsoft.PythonTools.Workspace {
         }
     }
     
+    //class RegenerateRequirementsTxtAction : IFileContextAction {
+    //    private readonly string _path;
+
+    //    public RegenerateRequirementsTxtAction(string filePath, FileContext fileContext) {
+    //        _path = filePath;
+    //        Source = fileContext;
+    //        if (!Source.ContextType.Equals(PythonEnvironmentContext.ContextTypeGuid)) {
+    //            throw new ArgumentException("fileContext");
+    //        }
+    //    }
+
+    //    private PythonEnvironmentContext Context => (PythonEnvironmentContext)Source.Context;
+
+    //    public string DisplayName => "Regenerate from {0}".FormatUI(Context.Configuration.Description);
+    //    public FileContext Source { get; }
+
+    //    public async Task<IFileContextActionResult> ExecuteAsync(
+    //        IProgress<IFileContextActionProgressUpdate> progress,
+    //        CancellationToken cancellationToken
+    //    ) {
+    //        using (var p = ProcessOutput.RunHiddenAndCapture(
+    //            Context.Configuration.InterpreterPath, "-m", "pip", "freeze"
+    //        )) {
+    //            var exitCode = await p;
+
+    //            if (exitCode != 0) {
+    //                return new FileContextActionResult(false);
+    //            }
+
+    //            // TODO: Merge this properly
+    //            File.WriteAllLines(_path, p.StandardOutputLines);
+    //        }
+
+    //        return new FileContextActionResult(true);
+    //    }
+    //}
 }
