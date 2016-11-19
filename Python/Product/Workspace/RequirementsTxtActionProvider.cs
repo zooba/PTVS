@@ -25,6 +25,7 @@ using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.Workspace;
 using Microsoft.VisualStudio.Workspace.Extensions.Build;
+using Microsoft.VisualStudio.Workspace.Extensions.VS;
 
 namespace Microsoft.PythonTools.Workspace {
     [ExportFileContextProvider(ProviderType,
@@ -104,7 +105,7 @@ namespace Microsoft.PythonTools.Workspace {
         }
     }
 
-    class InstallRequirementsTxtAction : IFileContextAction {
+    class InstallRequirementsTxtAction : IFileContextAction, IVsCommandItem {
         private readonly string _path;
 
         public InstallRequirementsTxtAction(string filePath, FileContext fileContext) {
@@ -130,6 +131,9 @@ namespace Microsoft.PythonTools.Workspace {
 
         public FileContext Source { get; }
 
+        public Guid CommandGroup => GuidList.guidPythonToolsCmdSet;
+        public uint CommandId => PkgCmdIDList.cmdidInstallRequirementsTxt;
+
         public async Task<IFileContextActionResult> ExecuteAsync(
             IProgress<IFileContextActionProgressUpdate> progress,
             CancellationToken cancellationToken
@@ -139,7 +143,8 @@ namespace Microsoft.PythonTools.Workspace {
             if (config == null && NewContext != null) {
 
                 using (var p = ProcessOutput.RunHiddenAndCapture(
-                    "py", "-m", "venv", NewContext.PrefixPath
+                    // TODO: Fix this
+                    "py", "-3", "-m", "venv", NewContext.PrefixPath
                 )) {
                     if ((await p) != 0) {
                         return new FileContextActionResult(false);

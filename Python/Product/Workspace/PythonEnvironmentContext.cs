@@ -71,9 +71,15 @@ namespace Microsoft.PythonTools.Workspace {
             var res = new List<PythonEnvironmentContext>();
 
             var py3Venv = new DirectoryCollector(1);
-            await workspace.GetFindFilesService().FindFilesAsync("pyvenv.cfg", py3Venv, cancellationToken);
+            //await workspace.GetFindFilesService().FindFilesAsync("pyvenv.cfg", py3Venv, cancellationToken);
+            foreach (var d in PathUtils.EnumerateFiles(workspace.Location, "pyvenv.cfg")) {
+                py3Venv.Report(d);
+            }
             var py2Venv = new DirectoryCollector(2);
-            await workspace.GetFindFilesService().FindFilesAsync("orig-prefix.txt", py2Venv, cancellationToken);
+            //await workspace.GetFindFilesService().FindFilesAsync("orig-prefix.txt", py2Venv, cancellationToken);
+            foreach (var d in PathUtils.EnumerateFiles(workspace.Location, "orig-prefix")) {
+                py2Venv.Report(d);
+            }
 
             foreach (var prefix in py3Venv.Concat(py2Venv)) {
                 var intName = PathUtils.GetFileOrDirectoryName(prefix);
