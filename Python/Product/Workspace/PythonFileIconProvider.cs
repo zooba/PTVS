@@ -36,7 +36,7 @@ namespace Microsoft.PythonTools.Workspace {
                 var ext = Path.GetExtension(fullPath);
                 if (PythonConstants.FileExtension.Equals(ext, StringComparison.OrdinalIgnoreCase) ||
                     PythonConstants.WindowsFileExtension.Equals(ext, StringComparison.OrdinalIgnoreCase)) {
-                    imageMoniker = KnownMonikers.PYSourceFile;
+                    imageMoniker = KnownMonikers.PYFileNode;
                     priority = 1000;
                     return true;
                 }
