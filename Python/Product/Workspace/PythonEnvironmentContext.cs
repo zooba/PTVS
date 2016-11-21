@@ -31,44 +31,30 @@ namespace Microsoft.PythonTools.Workspace {
         public const string ContextType = "{9545F0EB-133D-4148-9B6F-8312BCA5DBC2}";
         public static readonly Guid ContextTypeGuid = new Guid(ContextType);
 
-        public PythonEnvironmentContext(InterpreterConfiguration config) {
-            Configuration = config;
+        private readonly IWorkspace _workspace;
+        private readonly IInterpreterRegistryService _registry;
+
+        public PythonEnvironmentContext(IWorkspace workspace, IInterpreterRegistryService registry) {
+            _workspace = workspace;
+            _registry = registry;
         }
 
-        public InterpreterConfiguration Configuration { get; }
-
-        public static async Task<IReadOnlyList<PythonEnvironmentContext>> GetEnvironmentsAsync(
-            IWorkspace workspace,
+        public async Task<IReadOnlyList<InterpreterConfiguration>> GetConfigurationsAsync(
             CancellationToken cancellationToken
         ) {
-            var res = new List<PythonEnvironmentContext>();
-            res.AddRange(await GetGlobalEnvironmentsAsync(workspace, cancellationToken));
-            res.AddRange(await GetVirtualEnvironmentsAsync(workspace, cancellationToken));
-            return res;
-        }
+            var res = new List<InterpreterConfiguration>();
 
-        public static async Task<IReadOnlyList<PythonEnvironmentContext>> GetGlobalEnvironmentsAsync(
-            IWorkspace workspace,
-            CancellationToken cancellationToken
-        ) {
-            var res = new List<PythonEnvironmentContext>();
-            var service = workspace.GetComponentModel()?.GetService<IInterpreterRegistryService>();
-            if (service == null) {
-                return res;
-            }
-
-            foreach (var config in service.Configurations) {
-                res.Add(new PythonEnvironmentContext(config));
-            }
+            res.AddRange(await GetVirtualEnvironmentsAsync(_workspace, cancellationToken));
+            res.AddRange(_registry.Configurations);
 
             return res;
         }
-
-        public static async Task<IReadOnlyList<PythonEnvironmentContext>> GetVirtualEnvironmentsAsync(
+        
+        public static async Task<IReadOnlyList<InterpreterConfiguration>> GetVirtualEnvironmentsAsync(
             IWorkspace workspace,
             CancellationToken cancellationToken
         ) {
-            var res = new List<PythonEnvironmentContext>();
+            var res = new List<InterpreterConfiguration>();
 
             var py3Venv = new DirectoryCollector(1);
             //await workspace.GetFindFilesService().FindFilesAsync("pyvenv.cfg", py3Venv, cancellationToken);
@@ -93,14 +79,14 @@ namespace Microsoft.PythonTools.Workspace {
                     continue;
                 }
 
-                res.Add(new PythonEnvironmentContext(new InterpreterConfiguration(
+                res.Add(new InterpreterConfiguration(
                     intName,
                     intName,
                     prefix,
                     interpreter,
                     interpreter,
                     "PYTHONPATH"
-                )));
+                ));
             }
 
             return res;
@@ -134,19 +120,5 @@ namespace Microsoft.PythonTools.Workspace {
                 return Collection.GetEnumerator();
             }
         }
-    }
-
-    class NewPythonEnvironmentContext {
-        public const string ContextType = "{0C0C4FCC-068E-44D1-95CE-F2072352994F}";
-        public static readonly Guid ContextTypeGuid = new Guid(ContextType);
-
-        public NewPythonEnvironmentContext(string description, string prefixPath) {
-            Description = description;
-            PrefixPath = prefixPath;
-        }
-
-        public string PrefixPath { get; }
-
-        public string Description { get; }
     }
 }

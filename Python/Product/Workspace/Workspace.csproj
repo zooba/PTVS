@@ -148,8 +148,10 @@
     <Compile Include="PythonContextProvider.cs" />
     <Compile Include="PythonEnvironmentContext.cs" />
     <Compile Include="PythonFileIconProvider.cs" />
+    <Compile Include="PythonFileScanner.cs" />
     <Compile Include="PythonLaunchConfigurationProvider.cs" />
     <Compile Include="PythonLaunchDebugTargetProvider.cs" />
+    <Compile Include="RequirementsTxtFileScanner.cs" />
     <Compile Include="SetupPyActionProvider.cs" />
     <Compile Include="RequirementsTxtActionProvider.cs" />
     <Compile Include="WorkspaceGuids.cs" />

@@ -28,10 +28,7 @@ using Microsoft.VisualStudio.Workspace.Extensions.Build;
 using Microsoft.VisualStudio.Workspace.Extensions.VS;
 
 namespace Microsoft.PythonTools.Workspace {
-    [ExportFileContextProvider(ProviderType,
-        PythonEnvironmentContext.ContextType,
-        NewPythonEnvironmentContext.ContextType
-    )]
+    [ExportFileContextProvider(ProviderType, PythonEnvironmentContext.ContextType)]
     class RequirementsTxtContextProvider : IWorkspaceProviderFactory<IFileContextProvider> {
         public const string ProviderType = "{6B5CDE8E-F1C4-4FD2-9A02-1B7C94DA7548}";
         public static readonly Guid ProviderTypeGuid = new Guid(ProviderType);
@@ -51,39 +48,20 @@ namespace Microsoft.PythonTools.Workspace {
                 string filePath,
                 CancellationToken cancellationToken
             ) {
-                var res = new List<FileContext>();
-
-                foreach (var ctxt in await PythonEnvironmentContext.GetEnvironmentsAsync(_workspace, cancellationToken)) {
-                    res.Add(new FileContext(
+                return new[] {
+                    new FileContext(
                         ProviderTypeGuid,
                         PythonEnvironmentContext.ContextTypeGuid,
-                        ctxt,
+                        new PythonEnvironmentContext(_workspace, _workspace.GetComponentModel().GetService<IInterpreterRegistryService>()),
                         new[] { filePath }
-                    ));
-                }
-
-                var newName = PathUtils.GetAbsoluteDirectoryPath(_workspace.Location, "env");
-                for (int i = 1; Directory.Exists(newName) && i < int.MaxValue; ++i) {
-                    newName = PathUtils.GetAbsoluteDirectoryPath(_workspace.Location, "env{0}".FormatInvariant(i));
-                }
-
-                res.Add(new FileContext(
-                    ProviderTypeGuid,
-                    NewPythonEnvironmentContext.ContextTypeGuid,
-                    new NewPythonEnvironmentContext(PathUtils.GetFileOrDirectoryName(newName), newName),
-                    new[] { filePath }
-                ));
-
-                return res;
+                    )
+                };
             }
 
         }
     }
 
-    [ExportFileContextActionProvider(ProviderType,
-        PythonEnvironmentContext.ContextType,
-        NewPythonEnvironmentContext.ContextType
-    )]
+    [ExportFileContextActionProvider(ProviderType, PythonEnvironmentContext.ContextType)]
     class RequirementsTxtActionProvider : IWorkspaceProviderFactory<IFileContextActionProvider> {
         private const string ProviderType = "{A9F1584A-936F-4128-982C-2C1D1C15C856}";
 
@@ -105,14 +83,19 @@ namespace Microsoft.PythonTools.Workspace {
         }
     }
 
-    class InstallRequirementsTxtAction : IFileContextAction, IVsCommandItem {
+    class InstallRequirementsTxtAction : IFileContextHierarchy<IFileContextAction> {
+        public IFileContextAction Parent { get; set; }
+        public IEnumerable<IFileContextAction> Childs { get; set; }
+    }
+
+    class InstallRequirementsTxtEnvironmentAction : IFileContextAction, IVsCommandItem {
         private readonly string _path;
 
-        public InstallRequirementsTxtAction(string filePath, FileContext fileContext) {
+        public InstallRequirementsTxtEnvironmentAction(string filePath, FileContext fileContext) {
             _path = filePath;
             Source = fileContext;
-            if (!Source.ContextType.Equals(PythonEnvironmentContext.ContextTypeGuid) &&
-                !Source.ContextType.Equals(NewPythonEnvironmentContext.ContextTypeGuid)) {
+            if (!Source.IsContextTypeOf<PythonEnvironmentContext>() &&
+                !Source.IsContextTypeOf<NewPythonEnvironmentContext>()) {
                 throw new ArgumentException("fileContext");
             }
         }
