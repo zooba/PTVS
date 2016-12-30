@@ -14,7 +14,6 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-// TODO: Implement this properly
 //using System;
 //using System.Collections.Concurrent;
 //using System.Collections.Generic;
@@ -23,13 +22,15 @@
 //using System.Threading;
 //using System.Threading.Tasks;
 //using Microsoft.VisualStudio.Workspace;
+//using Microsoft.PythonTools.Intellisense;
 
 //namespace Microsoft.PythonTools.Workspace {
 //    [ExportFileContextProvider(ProviderType, ProviderPriority.Normal, )]
 //    public sealed class PythonContextProviderFactory : IWorkspaceProviderFactory<IFileContextProvider> {
 //        public const string ProviderType = "{DDBE79D3-BB9A-4F13-BC49-5B1C2A4B0844}";
+//        public static readonly Guid ProviderGuid = new Guid(ProviderType);
 
-//        private readonly ConcurrentDictionary<IWorkspace, IFileContextProvider> _cache = 
+//        private readonly ConcurrentDictionary<IWorkspace, IFileContextProvider> _cache =
 //            new ConcurrentDictionary<IWorkspace, IFileContextProvider>();
 
 //        public IFileContextProvider CreateProvider(IWorkspace workspaceContext) {
@@ -47,25 +48,27 @@
 //    public sealed class PythonContextProvider : IFileContextProvider {
 //        private readonly IWorkspace _workspace;
 
-//        private readonly ConcurrentDictionary<string, WeakReference<IReadOnlyCollection<FileContext>>> _cache;
+//        private readonly VsProjectAnalyzer _analyzer;
+//        private readonly ConcurrentDictionary<string, FileContext> _contexts;
 
 //        public PythonContextProvider(IWorkspace workspace) {
 //            _workspace = workspace;
-//            _cache = new ConcurrentDictionary<string, WeakReference<IReadOnlyCollection<FileContext>>>();
+//            _contexts = new ConcurrentDictionary<string, FileContext>();
 //        }
 
 //        public async Task<IReadOnlyCollection<FileContext>> GetContextsForFileAsync(string filePath, CancellationToken cancellationToken) {
-//            WeakReference<IReadOnlyCollection<FileContext>> cached;
-//            IReadOnlyCollection<FileContext> result;
-
-//            if (_cache.TryGetValue(filePath, out cached)) {
-//                if (cached.TryGetTarget(out result)) {
-//                    return result;
-//                }
-//                _cache.TryRemove(filePath, out cached);
+//            FileContext context;
+//            if (_contexts.TryGetValue(filePath, out context)) {
+//                return new[] { context };
 //            }
 
-
+//            context = new FileContext(PythonContextProviderFactory.ProviderGuid, Guid.Empty, null, null);
+//            while (!_contexts.TryAdd(filePath, context)) {
+//                if (_contexts.TryGetValue(filePath, out context)) {
+//                    break;
+//                }
+//            }
+//            return new[] { context };
 //        }
 //    }
 //}

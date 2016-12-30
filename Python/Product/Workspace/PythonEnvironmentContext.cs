@@ -32,11 +32,35 @@ namespace Microsoft.PythonTools.Workspace {
         public static readonly Guid ContextTypeGuid = new Guid(ContextType);
 
         private readonly IWorkspace _workspace;
+        private readonly IServiceProvider _provider;
         private readonly IInterpreterRegistryService _registry;
 
-        public PythonEnvironmentContext(IWorkspace workspace, IInterpreterRegistryService registry) {
+        public static async Task<PythonEnvironmentContext> Create(
+            IWorkspace workspace,
+            IServiceProvider serviceProvider,
+            CancellationToken cancellationToken
+        ) {
+            var ctxt = new PythonEnvironmentContext(workspace, serviceProvider);
+            await ctxt.FinishCreatingContextAsync(cancellationToken);
+            return ctxt;
+        }
+
+        internal PythonEnvironmentContext(IWorkspace workspace, IServiceProvider serviceProvider) {
             _workspace = workspace;
-            _registry = registry;
+            _provider = serviceProvider;
+            _registry = _provider.GetComponentModel().GetService<IInterpreterRegistryService>();
+        }
+
+        internal async Task FinishCreatingContextAsync(CancellationToken cancellationToken) {
+
+        }
+
+        public IReadOnlyList<InterpreterConfiguration> Configurations { get; }
+
+        public InterpreterConfiguration Configuration {
+            get {
+                return Configurations.FirstOrDefault();
+            }
         }
 
         public async Task<IReadOnlyList<InterpreterConfiguration>> GetConfigurationsAsync(

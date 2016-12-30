@@ -34,15 +34,15 @@ namespace Microsoft.PythonTools.Workspace {
             }
 
             var fdv = new List<FileDataValue>();
-            foreach (var config in _workspace.GetComponentModel().GetService<IInterpreterRegistryService>().Configurations) {
-                fdv.Add(new FileDataValue(
-                    BuildConfigurationContext.ContextTypeGuid,
-                    "Install into " + config.Description,
-                    null,
-                    null,
-                    config.Id
-                ));
-            }
+            //foreach (var config in _workspace.GetComponentModel().GetService<IInterpreterRegistryService>().Configurations) {
+            //    fdv.Add(new FileDataValue(
+            //        BuildConfigurationContext.ContextTypeGuid,
+            //        "Install into " + config.Description,
+            //        null,
+            //        null,
+            //        config.Id
+            //    ));
+            //}
             return fdv;
         }
 

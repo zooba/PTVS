@@ -26,6 +26,8 @@ using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.Workspace;
 using Microsoft.VisualStudio.Workspace.Extensions.Build;
 using Microsoft.VisualStudio.Workspace.Extensions.VS;
+using Microsoft.VisualStudio.Shell;
+using System.ComponentModel.Composition;
 
 namespace Microsoft.PythonTools.Workspace {
     [ExportFileContextProvider(ProviderType, PythonEnvironmentContext.ContextType)]
@@ -33,15 +35,20 @@ namespace Microsoft.PythonTools.Workspace {
         public const string ProviderType = "{6B5CDE8E-F1C4-4FD2-9A02-1B7C94DA7548}";
         public static readonly Guid ProviderTypeGuid = new Guid(ProviderType);
 
+        [Import(typeof(SVsServiceProvider))]
+        internal IServiceProvider _provider = null;
+
         public IFileContextProvider CreateProvider(IWorkspace workspaceContext) {
-            return new FileContextProvider(workspaceContext);
+            return new FileContextProvider(workspaceContext, _provider);
         }
 
         private class FileContextProvider : IFileContextProvider {
             private readonly IWorkspace _workspace;
+            private readonly IServiceProvider _provider;
 
-            public FileContextProvider(IWorkspace workspace) {
+            public FileContextProvider(IWorkspace workspace, IServiceProvider provider) {
                 _workspace = workspace;
+                _provider = provider;
             }
 
             public async Task<IReadOnlyCollection<FileContext>> GetContextsForFileAsync(
@@ -52,7 +59,7 @@ namespace Microsoft.PythonTools.Workspace {
                     new FileContext(
                         ProviderTypeGuid,
                         PythonEnvironmentContext.ContextTypeGuid,
-                        new PythonEnvironmentContext(_workspace, _workspace.GetComponentModel().GetService<IInterpreterRegistryService>()),
+                        new PythonEnvironmentContext(_workspace, _provider),
                         new[] { filePath }
                     )
                 };
@@ -77,38 +84,24 @@ namespace Microsoft.PythonTools.Workspace {
             ) {
                 var res = new List<IFileContextAction>();
                 res.Add(new InstallRequirementsTxtAction(filePath, fileContext));
-                //res.Add(new RegenerateRequirementsTxtAction(filePath, fileContext));
                 return res;
             }
         }
     }
 
-    class InstallRequirementsTxtAction : IFileContextHierarchy<IFileContextAction> {
-        public IFileContextAction Parent { get; set; }
-        public IEnumerable<IFileContextAction> Childs { get; set; }
-    }
-
-    class InstallRequirementsTxtEnvironmentAction : IFileContextAction, IVsCommandItem {
+    class InstallRequirementsTxtAction : IFileContextAction, IVsCommandItem {
         private readonly string _path;
 
-        public InstallRequirementsTxtEnvironmentAction(string filePath, FileContext fileContext) {
+        public InstallRequirementsTxtAction(string filePath, FileContext fileContext) {
             _path = filePath;
             Source = fileContext;
-            if (!Source.IsContextTypeOf<PythonEnvironmentContext>() &&
-                !Source.IsContextTypeOf<NewPythonEnvironmentContext>()) {
-                throw new ArgumentException("fileContext");
-            }
         }
 
         private PythonEnvironmentContext Context => Source.Context as PythonEnvironmentContext;
-        private NewPythonEnvironmentContext NewContext => Source.Context as NewPythonEnvironmentContext;
 
         public string DisplayName {
             get {
-                if (Context != null) {
-                    return "Install into {0}".FormatUI(Context.Configuration.Description);
-                }
-                return "Create and install into {0}".FormatUI(NewContext.Description);
+                return "Install into {0}".FormatUI(Context?.Configuration.Description ?? "unknown");
             }
         }
 
@@ -123,23 +116,23 @@ namespace Microsoft.PythonTools.Workspace {
         ) {
             InterpreterConfiguration config = Context?.Configuration;
 
-            if (config == null && NewContext != null) {
+            //if (config == null && NewContext != null) {
 
-                using (var p = ProcessOutput.RunHiddenAndCapture(
-                    // TODO: Fix this
-                    "py", "-3", "-m", "venv", NewContext.PrefixPath
-                )) {
-                    if ((await p) != 0) {
-                        return new FileContextActionResult(false);
-                    }
-                }
-                config = new InterpreterConfiguration(
-                    NewContext.Description,
-                    NewContext.Description,
-                    NewContext.PrefixPath,
-                    PathUtils.GetAbsoluteFilePath(NewContext.PrefixPath, "scripts\\python.exe")
-                );
-            }
+            //    using (var p = ProcessOutput.RunHiddenAndCapture(
+            //        // TODO: Fix this
+            //        "py", "-3", "-m", "venv", NewContext.PrefixPath
+            //    )) {
+            //        if ((await p) != 0) {
+            //            return new FileContextActionResult(false);
+            //        }
+            //    }
+            //    config = new InterpreterConfiguration(
+            //        NewContext.Description,
+            //        NewContext.Description,
+            //        NewContext.PrefixPath,
+            //        PathUtils.GetAbsoluteFilePath(NewContext.PrefixPath, "scripts\\python.exe")
+            //    );
+            //}
 
             using (var p = ProcessOutput.RunHiddenAndCapture(
                 config.InterpreterPath, "-m", "pip", "install", "-r", _path
