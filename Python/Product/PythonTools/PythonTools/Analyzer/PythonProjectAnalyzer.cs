@@ -18,6 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
@@ -33,6 +34,9 @@ namespace Microsoft.PythonTools.Analyzer {
         private readonly IServiceProvider _site;
         private IPythonInterpreterFactory _factory;
         private VsProjectAnalyzer _analyzer;
+
+        private readonly CancellationTokenSource _onDispose = new CancellationTokenSource();
+        private readonly SemaphoreSlim _actionLock = new SemaphoreSlim(1);
 
         internal readonly Dictionary<string, PythonFileView> _pendingViews =
             new Dictionary<string, PythonFileView>(StringComparer.OrdinalIgnoreCase);
@@ -105,7 +109,11 @@ namespace Microsoft.PythonTools.Analyzer {
         }
 
         public void Dispose() {
-            DisposeAnalyzer();
+            if (!_onDispose.IsCancellationRequested) {
+                _onDispose.Cancel();
+                _onDispose.Dispose();
+                DisposeAnalyzer();
+            }
         }
 
         internal Task<T> SendRequestAsync<T>(
@@ -116,16 +124,33 @@ namespace Microsoft.PythonTools.Analyzer {
             return GetAnalyzer().SendRequestAsync(request, defaultValue, timeout);
         }
 
+        internal Task<IDisposable> LockAsync() {
+            CancellationToken ct;
+            try {
+                ct = _onDispose.Token;
+            } catch (ObjectDisposedException) {
+                throw new OperationCanceledException();
+            }
+            return _actionLock.LockAsync(ct);
+        }
+
         public string Moniker { get; }
 
         public PythonLanguageVersion LanguageVersion => CurrentInterpreter?.GetLanguageVersion() ?? PythonLanguageVersion.None;
         public IPythonInterpreterFactory CurrentInterpreter => _analyzer?.InterpreterFactory ?? _factory;
         public event EventHandler CurrentInterpreterChanged;
+        public event EventHandler AnalysisReset;
         public event EventHandler AnalysisStarted;
         public event EventHandler AnalysisCompleted;
 
         public async Task AddFileAsync(string moniker) {
-            var entry = await GetAnalyzer().AnalyzeFileAsync(moniker);
+            using (await LockAsync()) {
+                await AddFileAsync(GetAnalyzer(), moniker);
+            }
+        }
+
+        private async Task AddFileAsync(VsProjectAnalyzer analyzer, string moniker) {
+            var entry = await analyzer.AnalyzeFileAsync(moniker);
             PythonFileView view;
             lock (_pendingViews) {
                 if (_pendingViews.TryGetValue(moniker, out view)) {
@@ -139,7 +164,13 @@ namespace Microsoft.PythonTools.Analyzer {
         }
 
         public async Task AddFilesAsync(IReadOnlyList<string> monikers) {
-            var entries = await GetAnalyzer().AnalyzeFileAsync(monikers);
+            using (await LockAsync()) {
+                await AddFilesAsync(GetAnalyzer(), monikers);
+            }
+        }
+
+        private async Task AddFilesAsync(VsProjectAnalyzer analyzer, IReadOnlyList<string> monikers) {
+            var entries = await analyzer.AnalyzeFileAsync(monikers);
             lock (_pendingViews) {
                 foreach (var entry in entries) {
                     PythonFileView view;
@@ -159,24 +190,38 @@ namespace Microsoft.PythonTools.Analyzer {
         }
 
         public async Task ForgetFileAsync(string moniker) {
-            var a = GetAnalyzer();
-            var entry = a.GetAnalysisEntryFromPath(moniker);
+            using (await LockAsync()) {
+                await ForgetFileAsync(GetAnalyzer(), moniker);
+            }
+        }
+
+        private async Task ForgetFileAsync(VsProjectAnalyzer analyzer, string moniker) {
+            var entry = analyzer.GetAnalysisEntryFromPath(moniker);
 
             if (entry != null) {
-                await a.UnloadFileAsync(entry);
+                await analyzer.UnloadFileAsync(entry);
             }
         }
 
         public async Task ResetAllAsync() {
-            var a = _analyzer;
-            _analyzer = null;
-            var b = CreateNewAnalyzer();
-            if (a == null) {
-                return;
-            }
-            // TODO: Transfer existing files from a to b
-            if (a.RemoveUser()) {
-                a.Dispose();
+            using (await LockAsync()) {
+                var a = _analyzer;
+                _analyzer = null;
+                var b = CreateNewAnalyzer();
+                if (a == null) {
+                    return;
+                }
+
+                var files = a.LoadedFiles.Keys().ToArray();
+
+                AnalysisReset?.Invoke(this, EventArgs.Empty);
+
+                await AddFilesAsync(b, files);
+
+                // TODO: Transfer existing files from a to b
+                if (a.RemoveUser()) {
+                    a.Dispose();
+                }
             }
         }
 

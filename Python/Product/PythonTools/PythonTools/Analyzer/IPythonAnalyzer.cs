@@ -40,6 +40,7 @@ namespace Microsoft.PythonTools.Analyzer {
 
         Task ResetAllAsync();
 
+        event EventHandler AnalysisReset;
         event EventHandler AnalysisStarted;
         event EventHandler AnalysisCompleted;
     }
