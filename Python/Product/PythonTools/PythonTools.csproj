@@ -248,6 +248,13 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="PythonTools\Analyzer\IPythonFileView.cs" />
+    <Compile Include="PythonTools\Analyzer\IPythonAnalyzer.cs" />
+    <Compile Include="PythonTools\Analyzer\IPythonAnalyzerService.cs" />
+    <Compile Include="PythonTools\Analyzer\PythonFileView.cs" />
+    <Compile Include="PythonTools\Analyzer\PythonProjectAnalyzer.cs" />
+    <Compile Include="PythonTools\Analyzer\PythonAnalyzerService.cs" />
+    <Compile Include="PythonTools\Analyzer\PythonFileEventArgs.cs" />
     <Compile Include="PythonTools\CodeCoverage\CoverageExporter.cs" />
     <Compile Include="PythonTools\CodeCoverage\CoverageFileInfo.cs" />
     <Compile Include="PythonTools\CodeCoverage\CoverageHit.cs" />

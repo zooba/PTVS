@@ -717,16 +717,16 @@ namespace Microsoft.PythonTools.Intellisense {
             return res;
         }
 
-        internal async Task<IReadOnlyList<AnalysisEntry>> AnalyzeFileAsync(string[] paths, string addingFromDirectory = null) {
+        internal async Task<IReadOnlyList<AnalysisEntry>> AnalyzeFileAsync(IReadOnlyList<string> paths, string addingFromDirectory = null) {
             if (_conn == null) {
                 // We aren't able to analyze code, so don't create an entry.
                 return null;
             }
 
-            var req = new AP.AddBulkFileRequest { path = new string[paths.Length], addingFromDir = addingFromDirectory };
+            var req = new AP.AddBulkFileRequest { path = new string[paths.Count], addingFromDir = addingFromDirectory };
             bool anyAdded = false;
-            AnalysisEntry[] res = new AnalysisEntry[paths.Length];
-            for (int i = 0; i < paths.Length; ++i) {
+            AnalysisEntry[] res = new AnalysisEntry[paths.Count];
+            for (int i = 0; i < paths.Count; ++i) {
                 AnalysisEntry existing;
                 if (_projectFiles.TryGetValue(paths[i], out existing)) {
                     res[i] = existing;
@@ -740,7 +740,7 @@ namespace Microsoft.PythonTools.Intellisense {
                 Interlocked.Increment(ref _parsePending);
                 var response = await SendRequestAsync(req).ConfigureAwait(false);
                 if (response != null) {
-                    for (int i = 0; i < paths.Length; ++i) {
+                    for (int i = 0; i < paths.Count; ++i) {
                         AnalysisEntry entry = null;
                         var path = paths[i];
                         var id = response.fileId[i];
