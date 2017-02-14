@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.CookiecutterTools.Infrastructure;
 using Microsoft.VisualStudio;
@@ -83,12 +84,12 @@ namespace Microsoft.CookiecutterTools.Model {
             await WaitForOutput(_envInterpreterPath, output);
         }
 
-        public async Task<ContextItem[]> LoadContextAsync(string localTemplateFolder, string userConfigFilePath) {
+        public async Task<TemplateContext> LoadUnrenderedContextAsync(string localTemplateFolder, string userConfigFilePath) {
             if (localTemplateFolder == null) {
                 throw new ArgumentNullException(nameof(localTemplateFolder));
             }
 
-            var items = new List<ContextItem>();
+            var unrenderedContext = new TemplateContext();
 
             var result = await RunGenerateContextScript(_redirector, _envInterpreterPath, localTemplateFolder, userConfigFilePath);
             var contextJson = string.Join(Environment.NewLine, result.StandardOutputLines);
@@ -103,28 +104,173 @@ namespace Microsoft.CookiecutterTools.Model {
                         if (prop.Value.Type == JTokenType.String ||
                             prop.Value.Type == JTokenType.Integer ||
                             prop.Value.Type == JTokenType.Float) {
-                            items.Add(new ContextItem(prop.Name, Selectors.String, prop.Value.ToString()));
+                            unrenderedContext.Items.Add(new ContextItem(prop.Name, Selectors.String, prop.Value.ToString()));
                         } else if (prop.Value.Type == JTokenType.Array) {
                             var elements = new List<string>();
                             JArray ar = prop.Value as JArray;
                             foreach (JToken element in ar) {
                                 elements.Add(element.ToString());
                             }
-                            items.Add(new ContextItem(prop.Name, Selectors.List, elements[0], elements.ToArray()));
+                            unrenderedContext.Items.Add(new ContextItem(prop.Name, Selectors.List, elements[0], elements.ToArray()));
                         } else {
-                            throw new InvalidOperationException(string.Format("Unsupported json element type in context file for property '{0}'.", prop.Name));
+                            throw new InvalidOperationException(Strings.CookiecutterClient_UnsupportedJsonElementTypeForPorperty.FormatUI(prop.Name));
                         }
                     } else if (prop.Name == "_visual_studio") {
                         vsExtrasProp = prop;
+                    } else if (prop.Name == "_visual_studio_post_cmds") {
+                        ReadCommands(unrenderedContext, prop);
                     }
                 }
 
                 if (vsExtrasProp != null) {
-                    LoadVisualStudioSpecificContext(items, vsExtrasProp);
+                    LoadVisualStudioSpecificContext(unrenderedContext.Items, vsExtrasProp);
                 }
             }
 
-            return items.ToArray();
+            return unrenderedContext;
+        }
+
+        public async Task<TemplateContext> LoadRenderedContextAsync(string localTemplateFolder, string userConfigFilePath, string contextPath, string outputFolderPath) {
+            if (localTemplateFolder == null) {
+                throw new ArgumentNullException(nameof(localTemplateFolder));
+            }
+
+            if (contextPath == null) {
+                throw new ArgumentNullException(nameof(contextPath));
+            }
+
+            if (outputFolderPath == null) {
+                throw new ArgumentNullException(nameof(outputFolderPath));
+            }
+
+            var renderedContext = new TemplateContext();
+
+            var result = await RunRenderContextScript(_redirector, _envInterpreterPath, localTemplateFolder, userConfigFilePath, outputFolderPath, contextPath);
+            var contextJson = string.Join(Environment.NewLine, result.StandardOutputLines);
+            var context = (JToken)JObject.Parse(contextJson).SelectToken("cookiecutter");
+            if (context != null) {
+                foreach (JProperty prop in context) {
+                    // Properties that start with underscore are for internal use,
+                    // and cookiecutter doesn't prompt for them.
+                    if (!prop.Name.StartsWith("_")) {
+                        if (prop.Value.Type == JTokenType.String ||
+                            prop.Value.Type == JTokenType.Integer ||
+                            prop.Value.Type == JTokenType.Float) {
+                            renderedContext.Items.Add(new ContextItem(prop.Name, Selectors.String, prop.Value.ToString()));
+                        } else if (prop.Value.Type == JTokenType.Array) {
+                            var elements = new List<string>();
+                            JArray ar = prop.Value as JArray;
+                            foreach (JToken element in ar) {
+                                elements.Add(element.ToString());
+                            }
+                            renderedContext.Items.Add(new ContextItem(prop.Name, Selectors.List, elements[0], elements.ToArray()));
+                        } else {
+                            throw new InvalidOperationException(Strings.CookiecutterClient_UnsupportedJsonElementTypeForPorperty.FormatUI(prop.Name));
+                        }
+                    } else if (prop.Name == "_visual_studio_post_cmds") {
+                        // List of commands to run after the folder is opened,
+                        // or the files are added to the project.
+                        // name and args are the values passed to DTE.ExecuteCommand
+                        // args type:
+                        //   - it should be of type array if the command is passed multiple arguments
+                        //   - it can be of type string for the common single argument scenario,
+                        //     this is equivalent to an array of a single element
+                        // args value passed to DTE.ExecuteCommand will
+                        // be concatenation of all values in the array, each one quoted as necessary
+                        // (for example when a value contains a space char)
+                        //
+                        // cookiecutter._output_folder_path can be used to files inside generated project
+                        //
+                        // Examples:
+                        // "_visual_studio_post_cmds": [
+                        // {
+                        //   "name": "Cookiecutter.ExternalWebBrowser",
+                        //   "args": "https://docs.microsoft.com"
+                        // },
+                        // {
+                        //   "name": "View.WebBrowser",
+                        //   "args": "https://docs.microsoft.com"
+                        // },
+                        // {
+                        //   "name": "View.WebBrowser",
+                        //   "args": "{{cookiecutter._output_folder_path}}\\readme.html"
+                        // },
+                        // {
+                        //   "name": "File.OpenFile",
+                        //   "args": [ "{{cookiecutter._output_folder_path}}\\readme.txt" ]
+                        // }
+                        // ]
+                        //
+                        // Special accommodations for switch arguments:
+                        // If the switch takes a value, the switch/value pair should be split in 2 array elements
+                        // so the value can be properly quoted independently of the switch, whose name isn't quoted
+                        // since space is not allowed in the name. The switch name should end with a colon.
+                        //
+                        // {
+                        //   "name": "File.OpenFile",
+                        //   "args": ["c:\\my folder\\my file.txt", "/e:", "Source Code (text) Editor"]
+                        // }
+                        //
+
+                        ReadCommands(renderedContext, prop);
+                    }
+                }
+            }
+
+            return renderedContext;
+        }
+
+        private void ReadCommands(TemplateContext renderedContext, JProperty prop) {
+            if (prop.Value.Type != JTokenType.Array) {
+                WrongJsonType("_visual_studio_post_cmds", JTokenType.Array, prop.Type);
+                return;
+            }
+
+            foreach (JToken element in (JArray)prop.Value) {
+                if (element.Type != JTokenType.Object) {
+                    WrongJsonType("_visual_studio_post_cmds element", JTokenType.Object, element.Type);
+                    continue;
+                }
+
+                var cmd = ReadCommand((JObject)element);
+                if (cmd != null) {
+                    renderedContext.Commands.Add(cmd);
+                }
+            }
+        }
+
+        private DteCommand ReadCommand(JObject itemObj) {
+            string name = null;
+            string args = null;
+
+            var nameToken = itemObj.SelectToken("name");
+            if (nameToken != null) {
+                if (nameToken.Type == JTokenType.String) {
+                    name = nameToken.Value<string>();
+                } else {
+                    WrongJsonType("name", JTokenType.String, nameToken.Type);
+                    return null;
+                }
+            } else {
+                MissingProperty("_visual_studio_post_cmds", "name");
+                return null;
+            }
+
+            var argsToken = itemObj.SelectToken("args");
+            if (argsToken != null) {
+                if (argsToken.Type == JTokenType.String) {
+                    var argValues = new[] { argsToken.Value<string>() };
+                    args = BuildArguments(argValues);
+                } else if (argsToken.Type == JTokenType.Array) {
+                    var argValues = ((JArray)argsToken).Values().Where(t => t.Type == JTokenType.String).Select(t => t.Value<string>());
+                    args = BuildArguments(argValues);
+                } else {
+                    WrongJsonType("args", JTokenType.Array, argsToken.Type);
+                    return null;
+                }
+            }
+
+            return new DteCommand(name, args);
         }
 
         public async Task<CreateFilesOperationResult> CreateFilesAsync(string localTemplateFolder, string userConfigFilePath, string contextFilePath, string outputFolderPath) {
@@ -165,6 +311,36 @@ namespace Microsoft.CookiecutterTools.Model {
                 candidate = PathUtils.GetAbsoluteDirectoryPath(baseName, "{0}{1}".FormatInvariant(shortName, ++counter));
             }
             return Task.FromResult(candidate);
+        }
+
+        private static string BuildArguments(IEnumerable<string> values) {
+            // Examples of valid results:
+            // "C:\My Folder\"
+            // C:\MyFolder\MyFile.txt /e:"Source Code (text) Editor"
+            //
+            // Examples of invalid results:
+            // C:\My Folder
+            // C:\MyFolder\MyFile.txt "/e:Source Code (text) Editor"
+            // C:\MyFolder\MyFile.txt /e: "Source Code (text) Editor"
+            // C:\MyFolder\MyFile.txt /e:Source Code (text) Editor
+            StringBuilder args = new StringBuilder();
+            bool insertSpace = false;
+            foreach (var val in values) {
+                if (insertSpace) {
+                    args.Append(" ");
+                }
+
+                if (val.EndsWith(":")) {
+                    args.Append(val);
+                    // no space after a switch that takes a value
+                    insertSpace = false;
+                } else {
+                    args.Append(ProcessOutput.QuoteSingleArgument(val));
+                    insertSpace = true;
+                }
+            }
+
+            return args.ToString();
         }
 
         private void LoadVisualStudioSpecificContext(List<ContextItem> items, JProperty vsExtrasProp) {
@@ -275,20 +451,29 @@ namespace Microsoft.CookiecutterTools.Model {
         }
 
         private void InvalidUrl(string url) {
-            _redirector.WriteErrorLine(string.Format("'{0}' from _visual_studio section in context file should be an absolute http or https url.", url));
+            _redirector.WriteErrorLine(Strings.CookiecutterClient_Invalidurl.FormatUI(url));
         }
 
         private void WrongJsonType(string name, JTokenType expected, JTokenType actual) {
-            _redirector.WriteErrorLine(string.Format("'{0}' from _visual_studio section in context file should be of type '{1}', instead of '{2}'.", name, expected, actual));
+            _redirector.WriteErrorLine(Strings.CookiecutterClient_WrongJsonType.FormatUI(name, expected, actual));
         }
 
         private void ReferenceNotFound(string name) {
-            _redirector.WriteErrorLine(string.Format("'{0}' is referenced from _visual_studio section in context file but was not found.", name));
+            _redirector.WriteErrorLine(Strings.CookiecutterClient_ReferenceNotFound.FormatUI(name));
+        }
+
+        private void MissingProperty(string objectName, string propertyName) {
+            _redirector.WriteErrorLine(Strings.CookiecutterClient_MissingProperty.FormatUI(propertyName, objectName));
         }
 
         private static async Task<ProcessOutputResult> RunGenerateContextScript(Redirector redirector, string interpreterPath, string templateFolderPath, string userConfigFilePath) {
             var scriptPath = PythonToolsInstallPath.GetFile("cookiecutter_load.py");
-            return await RunPythonScript(redirector, interpreterPath, scriptPath, string.Format("\"{0}\" \"{1}\"", templateFolderPath, userConfigFilePath));
+            return await RunPythonScript(redirector, interpreterPath, scriptPath, "\"{0}\" \"{1}\"".FormatInvariant(templateFolderPath, userConfigFilePath));
+        }
+
+        private static async Task<ProcessOutputResult> RunRenderContextScript(Redirector redirector, string interpreterPath, string templateFolderPath, string userConfigFilePath, string outputFolderPath, string contextPath) {
+            var scriptPath = PythonToolsInstallPath.GetFile("cookiecutter_render.py");
+            return await RunPythonScript(redirector, interpreterPath, scriptPath, "\"{0}\" \"{1}\" \"{2}\" \"{3}\"".FormatInvariant(templateFolderPath, userConfigFilePath, PathUtils.TrimEndSeparator(outputFolderPath), contextPath));
         }
 
         private static async Task<ProcessOutputResult> RunCheckScript(string interpreterPath) {
@@ -303,7 +488,7 @@ namespace Microsoft.CookiecutterTools.Model {
         }
 
         private static string GetRunArguments(string templateFolderPath, string userConfigFilePath, string outputFolderPath, string contextFilePath) {
-            return string.Format("\"{0}\" \"{1}\" \"{2}\" \"{3}\"", contextFilePath, templateFolderPath, outputFolderPath, userConfigFilePath);
+            return "\"{0}\" \"{1}\" \"{2}\" \"{3}\"".FormatInvariant(contextFilePath, templateFolderPath, outputFolderPath, userConfigFilePath);
         }
 
         private static async Task<ProcessOutputResult> RunPythonScript(Redirector redirector, string interpreterPath, string script, string parameters) {
@@ -311,7 +496,7 @@ namespace Microsoft.CookiecutterTools.Model {
             var errorLines = new List<string>();
 
             ProcessOutput output = null;
-            var arguments = string.Format("\"{0}\" {1}", script, parameters);
+            var arguments = "\"{0}\" {1}".FormatInvariant(script, parameters);
             var listRedirector = new ListRedirector(outputLines, errorLines);
             var outerRedirector = new TeeRedirector(redirector, listRedirector);
 
@@ -355,13 +540,13 @@ namespace Microsoft.CookiecutterTools.Model {
             if (subfolders.Length == 1) {
                 generatedFolder = subfolders[0];
             } else {
-                throw new InvalidOperationException("Cookiecutter generated files must have a templated folder.");
+                throw new InvalidOperationException(Strings.CookiecutterClient_MoveToDesiredFolderTemplatedFolderNotFound);
             }
 
             var res = await MoveFilesAndFoldersAsync(generatedFolder, desiredFolder);
 
             try {
-                Directory.Delete(tempFolder);
+                Directory.Delete(tempFolder, true);
             } catch (IOException) {
             }
 

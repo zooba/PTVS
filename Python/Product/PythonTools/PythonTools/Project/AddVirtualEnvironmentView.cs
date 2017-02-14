@@ -15,14 +15,11 @@
 // permissions and limitations under the License.
 
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -31,19 +28,22 @@ using Microsoft.PythonTools.Interpreter;
 
 namespace Microsoft.PythonTools.Project {
     sealed class AddVirtualEnvironmentView : DependencyObject, INotifyPropertyChanged, IDisposable {
-        readonly IInterpreterRegistryService _interpreterService;
+        private readonly IInterpreterRegistryService _interpreterService;
         private readonly PythonProjectNode _project;
-        internal readonly string _projectHome;
+        private readonly string _requirementsPath;
+        private readonly string _projectHome;
         private readonly SemaphoreSlim _ready = new SemaphoreSlim(1);
         private InterpreterView _lastUserSelectedBaseInterpreter;
 
         public AddVirtualEnvironmentView(
             PythonProjectNode project,
             IInterpreterRegistryService interpreterService,
-            string selectInterpreterId
+            string selectInterpreterId,
+            string requirementsPath
         ) {
             _interpreterService = interpreterService;
             _project = project;
+            _requirementsPath = requirementsPath;
             VirtualEnvBasePath = _projectHome = project.ProjectHome;
             Interpreters = new ObservableCollection<InterpreterView>(InterpreterView.GetInterpreters(project.Site, null, true));
             var selection = Interpreters.FirstOrDefault(v => v.Id == selectInterpreterId);
@@ -61,7 +61,7 @@ namespace Microsoft.PythonTools.Project {
             }
             VirtualEnvName = venvName;
 
-            CanInstallRequirementsTxt = File.Exists(PathUtils.GetAbsoluteFilePath(_projectHome, "requirements.txt"));
+            CanInstallRequirementsTxt = File.Exists(_requirementsPath);
             WillInstallRequirementsTxt = CanInstallRequirementsTxt;
         }
 
@@ -509,6 +509,7 @@ namespace Microsoft.PythonTools.Project {
                     WillCreateVirtualEnv,
                     UseVEnv,
                     WillInstallRequirementsTxt,
+                    _requirementsPath,
                     OutputWindowRedirector.GetGeneral(_project.Site)
                 );
                 await op.Run();

@@ -92,7 +92,7 @@ namespace Microsoft.PythonTools {
             _advancedOptions = new Lazy<AdvancedEditorOptions>(CreateAdvancedEditorOptions);
             _debuggerOptions = new Lazy<DebuggerOptions>(CreateDebuggerOptions);
             _generalOptions = new Lazy<GeneralOptions>(CreateGeneralOptions);
-            _surveyNews = new Lazy<SurveyNewsService>(() => new SurveyNewsService(container));
+            _surveyNews = new Lazy<SurveyNewsService>(() => new SurveyNewsService(this));
             _suppressDialogOptions = new Lazy<SuppressDialogOptions>(() => new SuppressDialogOptions(this));
             _interactiveOptions = new Lazy<PythonInteractiveOptions>(() => CreateInteractiveOptions("Interactive"));
             _debugInteractiveOptions = new Lazy<PythonInteractiveOptions>(() => CreateInteractiveOptions("Debug Interactive Window"));
@@ -103,6 +103,8 @@ namespace Microsoft.PythonTools {
 
         private void OnIdleInitialization(object sender, ComponentManagerEventArgs e) {
             Site.AssertShellIsInitialized();
+
+            _idleManager.OnIdle -= OnIdleInitialization;
 
             _expansionCompletions = new ExpansionCompletionSource(Site);
             InitializeLogging();
@@ -473,10 +475,14 @@ namespace Microsoft.PythonTools {
 
         internal event EventHandler<ComponentManagerEventArgs> OnIdle {
             add {
-                _idleManager.OnIdle += value;
+                lock (_idleManager) {
+                    _idleManager.OnIdle += value;
+                }
             }
             remove {
-                _idleManager.OnIdle -= value;
+                lock (_idleManager) {
+                    _idleManager.OnIdle -= value;
+                }
             }
         }
 
@@ -546,22 +552,27 @@ namespace Microsoft.PythonTools {
             var baseEnv = Environment.GetEnvironmentVariables();
             // Clear search paths from the global environment. The launch
             // configuration should include the existing value
-            baseEnv[config.Interpreter.PathEnvironmentVariable] = string.Empty;
+
+            var pathVar = config.Interpreter.PathEnvironmentVariable;
+            if (string.IsNullOrEmpty(pathVar)) {
+                pathVar = "PYTHONPATH";
+            }
+            baseEnv[pathVar] = string.Empty;
             var env = PathUtils.MergeEnvironments(
                 baseEnv.AsEnumerable<string, string>(),
                 config.GetEnvironmentVariables(),
-                "Path", config.Interpreter.PathEnvironmentVariable
+                "Path", pathVar
             );
             if (config.SearchPaths != null && config.SearchPaths.Any()) {
                 env = PathUtils.MergeEnvironments(
                     env,
                     new[] {
                         new KeyValuePair<string, string>(
-                            config.Interpreter.PathEnvironmentVariable,
+                            pathVar,
                             PathUtils.JoinPathList(config.SearchPaths)
                         )
                     },
-                    config.Interpreter.PathEnvironmentVariable
+                    pathVar
                 );
             }
             return env;

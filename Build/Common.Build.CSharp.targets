@@ -20,10 +20,12 @@
   <Target Name="_AddPTVSReferences">
     <ItemGroup>
       <_NugetAssemblies Include="$(PackagesPath)\Microsoft.VisualStudio.*\lib\Microsoft.VisualStudio.*.dll" />
+      <_NugetAssemblies Include="$(PackagesPath)\Microsoft.VisualStudio.*\lib\net46\Microsoft.VisualStudio.*.dll" />
     </ItemGroup>
     <PropertyGroup>
       <AssemblySearchPaths>
         $(BuildRoot)Python\References\Dev$(VSTarget);
+        $(BuildRoot)Python\References\Common;
         $(AssemblySearchPaths);
         $(DevEnvDir);
         $(DevEnvDir)CommonExtensions\Microsoft\Editor;

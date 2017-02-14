@@ -16,16 +16,12 @@
 
 using System;
 using System.Diagnostics;
-using System.IO;
-using System.Threading;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.PythonTools.Interpreter;
-using Microsoft.PythonTools.Navigation;
 using Microsoft.PythonTools.Project;
 using Microsoft.PythonTools.Repl;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudioTools;
-using Microsoft.VisualStudio.Imaging;
 using Microsoft.PythonTools.InteractiveWindow.Shell;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.InteractiveWindow;
@@ -63,7 +59,7 @@ namespace Microsoft.PythonTools.Commands {
                         // We have an existing window, but it needs to be reset.
                         // Let's create a new one
                         window = provider.Create(projectId);
-                        project.AddActionOnClose(window, InteractiveWindowProvider.Close);
+                        project.AddActionOnClose(window, w => InteractiveWindowProvider.CloseIfEvaluatorMatches(w, projectId));
                     }
 
                     return window;
@@ -81,7 +77,7 @@ namespace Microsoft.PythonTools.Commands {
             // No window found, so let's create one
             if (!string.IsNullOrEmpty(projectId)) {
                 window = provider.Create(projectId);
-                project.AddActionOnClose(window, InteractiveWindowProvider.Close);
+                project.AddActionOnClose(window, w => InteractiveWindowProvider.CloseIfEvaluatorMatches(w, projectId));
             } else if (!string.IsNullOrEmpty(configId)) {
                 window = provider.Create(configId);
             } else {
@@ -113,7 +109,7 @@ namespace Microsoft.PythonTools.Commands {
             if (pyProj != null) {
                 // startup project, so visible in Project mode
                 oleMenu.Visible = true;
-                oleMenu.Text = "Execute Project in P&ython Interactive";
+                oleMenu.Text = Strings.ExecuteInReplCommand_ExecuteProject;
 
                 // Only enable if runnable
                 oleMenu.Enabled = pyProj.GetInterpreterFactory().IsRunnable();
@@ -121,7 +117,7 @@ namespace Microsoft.PythonTools.Commands {
             } else if (textView != null && textView.TextBuffer.ContentType.IsOfType(PythonCoreConstants.ContentType)) {
                 // active file, so visible in File mode
                 oleMenu.Visible = true;
-                oleMenu.Text = "Execute File in P&ython Interactive";
+                oleMenu.Text = Strings.ExecuteInReplCommand_ExecuteFile;
 
                 // Only enable if runnable
                 var interpreterService = _serviceProvider.GetComponentModel().GetService<IInterpreterOptionsService>();
@@ -160,7 +156,7 @@ namespace Microsoft.PythonTools.Commands {
             await ThreadHelper.JoinableTaskFactory.RunAsync(async () => {
                 await ((IInteractiveEvaluator)eval).ResetAsync();
 
-                window.InteractiveWindow.WriteLine(string.Format("Running {0}", config.ScriptName));
+                window.InteractiveWindow.WriteLine(Strings.ExecuteInReplCommand_RunningMessage.FormatUI(config.ScriptName));
 
                 await eval.ExecuteFileAsync(config.ScriptName, config.ScriptArguments);
             });

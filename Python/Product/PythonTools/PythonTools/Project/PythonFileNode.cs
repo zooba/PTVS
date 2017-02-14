@@ -20,7 +20,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Security;
 using System.Text;
-using Microsoft.PythonTools.Analysis;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.VisualStudio;
@@ -234,7 +233,7 @@ namespace Microsoft.PythonTools.Project {
 
                 var textBuffer = GetTextBuffer(false);
 
-                BufferParser parser = analysis?.BufferParser;
+                BufferParser parser = analysis?.TryGetBufferParser();
                 if (parser != null) {
                     analyzer.ReAnalyzeTextBuffers(parser);
                 }

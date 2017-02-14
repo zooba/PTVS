@@ -43,13 +43,14 @@ namespace Microsoft.VisualStudioTools {
         internal static EnvDTE.Project GetProject(this IVsHierarchy hierarchy) {
             object project;
 
-            ErrorHandler.ThrowOnFailure(
-                hierarchy.GetProperty(
-                    VSConstants.VSITEMID_ROOT,
-                    (int)__VSHPROPID.VSHPROPID_ExtObject,
-                    out project
-                )
+            int hr = hierarchy.GetProperty(
+                VSConstants.VSITEMID_ROOT,
+                (int)__VSHPROPID.VSHPROPID_ExtObject,
+                out project
             );
+
+            Debug.Assert(ErrorHandler.Succeeded(hr), string.Format("unexpected HR={0:X08}", hr));
+            ErrorHandler.ThrowOnFailure(hr);
 
             return (project as EnvDTE.Project);
         }
@@ -102,6 +103,18 @@ namespace Microsoft.VisualStudioTools {
                 return new NoOpUIThread();
             }
             return uiThread;
+        }
+
+        [Conditional("DEBUG")]
+        // Available on serviceProvider so we can avoid the GetUIThread call on release builds
+        public static void MustBeCalledFromUIThread(this IServiceProvider serviceProvider, string message = "Invalid cross-thread call") {
+            serviceProvider.GetUIThread().MustBeCalledFromUIThread(message);
+        }
+
+        [Conditional("DEBUG")]
+        // Available on serviceProvider so we can avoid the GetUIThread call on release builds
+        public static void MustNotBeCalledFromUIThread(this IServiceProvider serviceProvider, string message = "Invalid cross-thread call") {
+            serviceProvider.GetUIThread().MustNotBeCalledFromUIThread(message);
         }
 
         [Conditional("DEBUG")]
