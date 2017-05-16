@@ -25,6 +25,9 @@ using Microsoft.VisualStudioTools.Project;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.PythonTools.Infrastructure;
 using MSBuild = Microsoft.Build.Evaluation;
+using Microsoft.PythonTools.Interpreter;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Microsoft.PythonTools.Project {
     //Set the projectsTemplatesDirectory to a non-existant path to prevent VS from including the working directory as a valid template path
@@ -121,6 +124,80 @@ namespace Microsoft.PythonTools.Project {
         /// </summary>
         public override string GetProductVersion() {
             return this.GetType().Assembly.GetName().Version.ToString();
+        }
+
+        public static void ReadProjectFile(
+            IServiceProvider site,
+            string projectPath,
+            out LaunchConfiguration config,
+            out IReadOnlyDictionary<string, IReadOnlyList<string>> items
+        ) {
+            using (var coll = new MSBuild.ProjectCollection()) {
+                var project = coll.LoadProject(projectPath);
+
+                InterpreterConfiguration intConfig = null;
+
+                var interpId = project.GetPropertyValue(MSBuildConstants.InterpreterIdProperty);
+                if (!string.IsNullOrEmpty(interpId)) {
+                    intConfig = ReadInterpreterFromProject(project, projectPath, interpId) ??
+                        site.GetComponentModel().GetService<IInterpreterRegistryService>().FindConfiguration(interpId);
+                }
+
+                if (intConfig == null) {
+                    intConfig = site.GetPythonToolsService().DefaultAnalyzer.InterpreterFactory.Configuration;
+                }
+
+                if (intConfig == null) {
+                    config = null;
+                } else {
+                    config = new LaunchConfiguration(intConfig) {
+                        // TODO: Fill out project settings
+                    };
+                }
+
+                items = new Dictionary<string, IReadOnlyList<string>>();
+            }
+        }
+
+        private static InterpreterConfiguration ReadInterpreterFromProject(
+            MSBuild.Project project,
+            string projectPath,
+            string interpreterId
+        ) {
+            var relId = MSBuildProjectInterpreterFactoryProvider.GetProjectRelativeId(projectPath, interpreterId);
+            if (string.IsNullOrEmpty(relId)) {
+                return null;
+            }
+
+            var item = project.AllEvaluatedItems
+                .FirstOrDefault(i => {
+                    return i.ItemType.Equals(MSBuildConstants.InterpreterItem, StringComparison.InvariantCultureIgnoreCase) &&
+                        i.EvaluatedInclude.Equals(relId, StringComparison.OrdinalIgnoreCase);
+                });
+
+            var projectHome = project.DirectoryPath;
+            var relHome = project.GetPropertyValue(CommonConstants.ProjectHome);
+            if (PathUtils.IsValidPath(relHome)) {
+                projectHome = PathUtils.GetAbsoluteDirectoryPath(projectHome, relHome);
+            }
+
+            if (item != null) {
+                Version version = null;
+                Version.TryParse(item.GetMetadataValue(MSBuildConstants.VersionKey), out version);
+                return new InterpreterConfiguration(
+                    interpreterId,
+                    item.GetMetadataValue(MSBuildConstants.DescriptionKey),
+                    PathUtils.GetAbsoluteDirectoryPath(projectHome, relId),
+                    item.GetMetadataValue(MSBuildConstants.InterpreterPathKey),
+                    item.GetMetadataValue(MSBuildConstants.WindowsPathKey),
+                    item.GetMetadataValue(MSBuildConstants.PathEnvVarKey),
+                    InterpreterArchitecture.TryParse(item.GetMetadataValue(MSBuildConstants.ArchitectureKey)),
+                    version,
+                    InterpreterUIMode.CannotBeAutoDefault | InterpreterUIMode.CannotBeConfigured | InterpreterUIMode.CannotBeDefault
+                );
+            }
+
+            return null;
         }
     }
 }

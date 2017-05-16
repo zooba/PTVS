@@ -142,12 +142,19 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EnvironmentSettings.cs" />
+    <Compile Include="PythonSettingsProvider.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="PyprojContext.cs" />
+    <Compile Include="PyprojFileContextProvider.cs" />
+    <Compile Include="PyprojFileScanner.cs" />
     <Compile Include="PyprojLaunchDebugTargetProvider.cs" />
     <Compile Include="PyprojLaunchConfigurationProvider.cs" />
     <Compile Include="PythonFileIconProvider.cs" />
     <Compile Include="PythonLaunchConfigurationProvider.cs" />
     <Compile Include="PythonLaunchDebugTargetProvider.cs" />
+    <Compile Include="PythonWorkspaceSettings.cs" />
+    <Compile Include="WorkspaceEnvironmentProviderFactory.cs" />
   </ItemGroup>
   <Import Project="..\ProjectAfter.settings" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
