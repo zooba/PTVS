@@ -25,6 +25,7 @@ using System.Threading.Tasks;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Workspace;
+using Microsoft.VisualStudio.Workspace.Indexing;
 using Microsoft.VisualStudio.Workspace.Settings;
 using Task = System.Threading.Tasks.Task;
 
@@ -57,11 +58,12 @@ namespace Microsoft.PythonTools.Workspace {
             _workspace = workspace;
             _settings = new ConcurrentDictionary<string, IWorkspaceSettingsSource>(StringComparer.OrdinalIgnoreCase);
         }
-        
+
         public AsyncEvent<WorkspaceSettingsChangedEventArgs> OnWorkspaceSettingsChanged { get; set; }
 
         public Task OnSettingChanged(string scope, string key) {
-            return OnWorkspaceSettingsChanged?.InvokeAsync(this, new WorkspaceSettingsChangedEventArgs(scope, key)) ?? Task.FromResult<object>(null);
+            return OnWorkspaceSettingsChanged?.InvokeAsync(this, new WorkspaceSettingsChangedEventArgs(SettingsTypes.Generic, scope))
+                ?? Task.FromResult<object>(null);
         }
 
         public Task DisposeAsync() {

@@ -43,7 +43,7 @@ namespace Microsoft.PythonTools.Workspace {
                 _provider._workspace.Location, _prefix
             ));
             _configuration = new InterpreterConfiguration(
-                "Workspace|" + name,
+                WorkspaceEnvironmentProviderFactory.FactoryId + "|" + name,
                 name,
                 _prefix,
                 PathUtils.FindFile(_prefix, "python.exe", firstCheck: new[] { "Scripts" }),

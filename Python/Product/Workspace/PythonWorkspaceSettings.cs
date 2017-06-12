@@ -20,6 +20,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Workspace;
+using Microsoft.VisualStudio.Workspace.Indexing;
 using Microsoft.VisualStudio.Workspace.Settings;
 
 namespace Microsoft.PythonTools.Workspace {
@@ -64,7 +65,7 @@ namespace Microsoft.PythonTools.Workspace {
             }
 
             if (InterpreterIdKey.Equals(key, StringComparison.OrdinalIgnoreCase)) {
-                if (typeof(string).IsEquivalentTo(typeof(T))) {
+                if (typeof(T).IsAssignableFrom(typeof(string))) {
                     value = (T)(object)_interpreterId;
                     return WorkspaceSettingsResult.Success;
                 }

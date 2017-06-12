@@ -29,11 +29,14 @@ using Microsoft.VisualStudio.Workspace.Settings;
 namespace Microsoft.PythonTools.Workspace {
     [Export(typeof(IPythonInterpreterFactoryProvider))]
     [Export(typeof(WorkspaceEnvironmentProviderFactory))]
+    [InterpreterFactoryId(FactoryId)]
     sealed class WorkspaceEnvironmentProviderFactory : IPythonInterpreterFactoryProvider, IDisposable {
         private readonly ConcurrentBag<PythonSettingsProvider> _settingsProviders;
         private readonly ConcurrentDictionary<string, InterpreterInfo> _factories;
 
         public event EventHandler InterpreterFactoriesChanged;
+
+        public const string FactoryId = "VSWorkspace";
 
         public WorkspaceEnvironmentProviderFactory() {
             _settingsProviders = new ConcurrentBag<PythonSettingsProvider>();
@@ -97,7 +100,7 @@ namespace Microsoft.PythonTools.Workspace {
 
         public object GetProperty(string id, string propName) {
             // TODO: Identify source
-            //if ("Company".Equals(propName) && id.StartsWith("Workspace|")) {
+            //if ("Company".Equals(propName) && id.StartsWith("VSWorkspace|")) {
             //    return "";
             //}
             return null;
@@ -116,7 +119,7 @@ namespace Microsoft.PythonTools.Workspace {
             }
 
             private IPythonInterpreterFactory Create() {
-                return new PythonInterpreterFactoryWithDatabase(
+                return InterpreterFactoryCreator.CreateInterpreterFactory(
                     Configuration,
                     new InterpreterFactoryCreationOptions {
                         DatabasePath = PathUtils.GetAbsoluteDirectoryPath(Configuration.PrefixPath, ".ptvs"),
