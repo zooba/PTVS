@@ -15,21 +15,21 @@
 // permissions and limitations under the License.
 
 using System;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
-using Microsoft.PythonTools.Project.Web;
-using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio;
-using Microsoft.VisualStudioTools;
-using Microsoft.VisualStudioTools.Project;
-using Microsoft.VisualStudio.Shell.Interop;
-using Microsoft.PythonTools.Infrastructure;
-using MSBuild = Microsoft.Build.Evaluation;
-using Microsoft.PythonTools.Interpreter;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
+using Microsoft.PythonTools.Infrastructure;
+using Microsoft.PythonTools.Interpreter;
+using Microsoft.PythonTools.Project.Web;
+using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudioTools;
+using Microsoft.VisualStudioTools.Project;
+using MSBuild = Microsoft.Build.Evaluation;
 
-namespace Microsoft.PythonTools.Project {
+namespace Microsoft.PythonTools.Project
+{
     //Set the projectsTemplatesDirectory to a non-existant path to prevent VS from including the working directory as a valid template path
     [PackageRegistration(UseManagedResourcesOnly = true)]
     [ProvideProjectFactory(typeof(PythonProjectFactory), PythonConstants.LanguageName, "#127", "pyproj", "pyproj", ".\\NullPath", LanguageVsTemplate = PythonConstants.LanguageName)]
