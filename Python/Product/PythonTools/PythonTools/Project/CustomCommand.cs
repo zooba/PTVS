@@ -353,12 +353,20 @@ namespace Microsoft.PythonTools.Project {
             }
 
             public override void Show() {
-                _errorListProvider.Show();
+                try {
+                    _errorListProvider.Show();
+                } catch (Exception ex) when (!ex.IsCriticalException()) {
+                    Debug.Fail(ex.ToUnhandledExceptionMessage(GetType()));
+                }
             }
 
             public override void ShowAndActivate() {
-                _errorListProvider.Show();
-                _errorListProvider.BringToFront();
+                try {
+                    _errorListProvider.Show();
+                    _errorListProvider.BringToFront();
+                } catch (Exception ex) when (!ex.IsCriticalException()) {
+                    Debug.Fail(ex.ToUnhandledExceptionMessage(GetType()));
+                }
             }
 
             private void OnNavigate(object sender, EventArgs e) {
@@ -627,6 +635,7 @@ namespace Microsoft.PythonTools.Project {
                 WorkingDirectory = startInfo.WorkingDirectory,
                 Environment = startInfo.EnvironmentVariables.ToDictionary(kv => kv.Key, kv => kv.Value)
             };
+            pyEvaluator.Configuration.LaunchOptions[PythonInteractiveEvaluator.DoNotResetConfigurationLaunchOption] = "true";
 
             project.AddActionOnClose((object)replWindow, InteractiveWindowProvider.Close);
 

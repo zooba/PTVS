@@ -240,6 +240,7 @@
     <When Condition="$(VSTarget) == '15.0'">
       <ItemGroup>
         <Reference Include="Microsoft.VisualStudio.Shell.Framework, Version=$(VSTarget).0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
+        <Reference Include="Microsoft.VisualStudio.Shell.Interop.15.3.DesignTime, Version=15.3.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
       </ItemGroup>
     </When>
     <Otherwise>
@@ -260,6 +261,7 @@
     <Compile Include="PythonTools\Commands\ImportCoverageCommand.cs" />
     <Compile Include="PythonTools\Commands\OpenWebUrlCommand.cs" />
     <Compile Include="PythonTools\Debugger\DebugLaunchHelper.cs" />
+    <Compile Include="PythonTools\Editor\ReplPromptHelpers.cs" />
     <Compile Include="PythonTools\Intellisense\AbnormalAnalysisExitEventArgs.cs" />
     <Compile Include="PythonTools\Intellisense\AnalysisLocation.cs" />
     <Compile Include="PythonTools\Intellisense\AnalysisVariable.cs" />
@@ -694,7 +696,9 @@
     <None Include="ptvsd\attach_server.py" />
     <None Include="Theme\Microsoft.PythonTools.theme.v14.0.pkgdef" />
     <None Include="Theme\Microsoft.PythonTools.theme.v15.0.pkgdef" />
-    <None Include="Theme\dark.vstheme" />
+    <None Include="Theme\dark.vstheme">
+      <SubType>Designer</SubType>
+    </None>
     <None Include="Theme\make_theme_pkgdef.py" />
     <Content Include="NoInterpreters.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -706,7 +710,9 @@
     </Content>
     <None Include="ptvsd\__init__.py" />
     <None Include="Theme\Repl\blue.vstheme" />
-    <None Include="Theme\Repl\contrast.vstheme" />
+    <None Include="Theme\Repl\contrast.vstheme">
+      <SubType>Designer</SubType>
+    </None>
     <None Include="Theme\Repl\dark.vstheme" />
     <None Include="Theme\Repl\light.vstheme" />
     <None Include="ptvsd\__main__.py" />

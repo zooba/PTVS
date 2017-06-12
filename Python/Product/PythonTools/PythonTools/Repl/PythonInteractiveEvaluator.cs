@@ -24,6 +24,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Microsoft.PythonTools.Editor;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.PythonTools.Interpreter;
@@ -70,6 +71,8 @@ namespace Microsoft.PythonTools.Repl {
         private IReadOnlyList<string> _availableScopes;
 
         private bool _isDisposed;
+
+        internal const string DoNotResetConfigurationLaunchOption = "DoNotResetConfiguration";
 
         public PythonInteractiveEvaluator(IServiceProvider serviceProvider) {
             _serviceProvider = serviceProvider;
@@ -432,9 +435,11 @@ namespace Microsoft.PythonTools.Repl {
                 return;
             }
 
-            Configuration = pyProj.GetLaunchConfigurationOrThrow();
-            if (Configuration?.Interpreter != null) {
-                ScriptsPath = GetScriptsPath(_serviceProvider, Configuration.Interpreter.Description, Configuration.Interpreter);
+            if (Configuration?.GetLaunchOption(DoNotResetConfigurationLaunchOption) == null) {
+                Configuration = pyProj.GetLaunchConfigurationOrThrow();
+                if (Configuration?.Interpreter != null) {
+                    ScriptsPath = GetScriptsPath(_serviceProvider, Configuration.Interpreter.Description, Configuration.Interpreter);
+                }
             }
 
             _projectWithHookedEvents = pyProj;
@@ -578,9 +583,15 @@ namespace Microsoft.PythonTools.Repl {
                     return res.ToString();
                 }
             }
-            return EditFilter.RemoveReplPrompts(
-                _serviceProvider.GetPythonToolsService(),
-                Clipboard.GetText(),
+
+            var txt = Clipboard.GetText();
+            if (!_serviceProvider.GetPythonToolsService().AdvancedOptions.PasteRemovesReplPrompts) {
+                return txt;
+            }
+
+
+            return ReplPromptHelpers.RemovePrompts(
+                txt,
                 _window.TextView.Options.GetNewLineCharacter()
             );
         }

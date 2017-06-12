@@ -267,8 +267,10 @@ namespace DebuggerTests {
                                     }
                                 }
 
-                                await breakpoint.AddAsync(TimeoutToken());
+                                // Bind failed and succeeded events expect to find the breakpoint
+                                // in the dictionary, so update it before sending the add request.
                                 bps.Add(breakpoint, bp);
+                                await breakpoint.AddAsync(TimeoutToken());
                             }
 
                             OnProcessLoaded?.Invoke(newproc);
@@ -645,14 +647,18 @@ namespace DebuggerTests {
             }
         }
 
-        internal async Task StartAndWaitForExitAsync(PythonProcess process) {
+        internal async Task StartAndWaitForExitAsync(PythonProcessRunInfo processRunInfo) {
             bool exited = false;
             try {
-                await process.StartAsync();
-                exited = process.WaitForExit(DefaultWaitForExitTimeout);
+                await processRunInfo.Process.StartAsync();
+
+                AssertWaited(processRunInfo.ProcessLoaded);
+                processRunInfo.ProcessLoadedException?.Throw();
+
+                exited = processRunInfo.Process.WaitForExit(DefaultWaitForExitTimeout);
             } finally {
-                if (!exited && !process.HasExited) {
-                    process.Terminate();
+                if (!exited && !processRunInfo.Process.HasExited) {
+                    processRunInfo.Process.Terminate();
                     Assert.Fail("Timeout while waiting for Python process to exit.");
                 }
             }
@@ -668,11 +674,17 @@ namespace DebuggerTests {
         }
 
         internal void TerminateProcess(PythonProcess p) {
+            // Killing the process will cause multiple ObjectDisposedException
+            // which are normal, since the communication stream is forcibly closed.
+            // Disable their logging to reduce the noise.
+            AssertListener.LogObjectDisposedExceptions = false;
             try {
                 p.Terminate();
             } catch (Exception ex) {
                 Console.WriteLine("Failed to detach process");
                 Console.WriteLine(ex);
+            } finally {
+                AssertListener.LogObjectDisposedExceptions = true;
             }
         }
 
@@ -694,12 +706,14 @@ namespace DebuggerTests {
             p.Dispose();
         }
 
-        internal object DebugProcess(PythonDebugger debugger, string runFileName, string cwd, string arguments, bool resumeOnProcessLoaded, object onLoaded, string interpreterOptions) {
-            throw new NotImplementedException();
-        }
-
         protected static CancellationToken TimeoutToken() {
             return CancellationTokens.After5s;
         }
+    }
+
+    class PythonProcessRunInfo {
+        public PythonProcess Process;
+        public ExceptionDispatchInfo ProcessLoadedException;
+        public AutoResetEvent ProcessLoaded = new AutoResetEvent(false);
     }
 }

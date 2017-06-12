@@ -35,7 +35,8 @@ namespace Microsoft.VisualStudioTools.Wpf {
         public static readonly object GrayTextKey = VsBrushes.GrayTextKey;
         public static readonly object HighlightKey = VsBrushes.HighlightKey;
         public static readonly object HighlightTextKey = VsBrushes.HighlightTextKey;
-        public static readonly object HotTrackKey = VsBrushes.CommandBarMouseOverBackgroundGradientKey;
+        public static readonly object HotTrackKey = VsBrushes.CommandBarHoverKey;
+        public static readonly object HotTrackTextKey = VsBrushes.CommandBarTextHoverKey;
 
         public static readonly object TooltipBackgroundKey = new ThemeResourceKey(EnvCategory, "ToolTip", ThemeResourceKeyType.BackgroundBrush);
         public static readonly object TooltipBackgroundColorKey = new ThemeResourceKey(EnvCategory, "ToolTip", ThemeResourceKeyType.BackgroundColor);
@@ -49,7 +50,8 @@ namespace Microsoft.VisualStudioTools.Wpf {
         public static readonly object ControlForegroundKey = VsBrushes.WindowTextKey;
         public static readonly object ControlBorderKey = VsBrushes.ComboBoxBorderKey;
         public static readonly object ControlBackgroundHoverKey = VsBrushes.ComboBoxMouseOverBackgroundGradientKey;
-        public static readonly object ControlBorderHoverKey = VsBrushes.ComboBoxMouseOverGlyphKey;
+        public static readonly object ControlBorderHoverKey = VsBrushes.ComboBoxMouseOverBorderKey;
+        public static readonly object ControlForegroundHoverKey = VsBrushes.CommandBarTextHoverKey;
         public static readonly object ControlBackgroundPressedKey = VsBrushes.ComboBoxMouseDownBackgroundKey;
         public static readonly object ControlForegroundPressedKey = VsBrushes.ComboBoxGlyphKey;
         public static readonly object ControlBorderPressedKey = VsBrushes.ComboBoxMouseDownBorderKey;
@@ -80,13 +82,15 @@ namespace Microsoft.VisualStudioTools.Wpf {
         public static readonly object ComboBoxPopupForegroundKey = VsBrushes.WindowTextKey;
 
         public static readonly object ButtonForegroundPressedKey = VsBrushes.ToolWindowButtonDownActiveGlyphKey;
-        public static readonly object ButtonBackgroundPressedKey = VsBrushes.ComboBoxMouseOverBorderKey;
-        public static readonly object ButtonBackgroundHoverKey = VsBrushes.CommandBarHoverOverSelectedKey;
-        public static readonly object ButtonBorderHoverKey = VsBrushes.ComboBoxMouseOverGlyphKey;
+        public static readonly object ButtonBackgroundPressedKey = VsBrushes.ToolWindowButtonDownKey;
+        public static readonly object ButtonForegroundHoverKey = VsBrushes.ToolWindowButtonHoverActiveGlyphKey;
+        public static readonly object ButtonBackgroundHoverKey = VsBrushes.ToolWindowButtonHoverActiveKey;
+        public static readonly object ButtonBorderHoverKey = VsBrushes.ToolWindowButtonHoverActiveBorderKey;
         public static readonly object ButtonForegroundPressedColorKey = VsColors.ToolWindowButtonDownActiveGlyphKey;
-        public static readonly object ButtonBackgroundPressedColorKey = VsColors.ComboBoxMouseOverBorderKey;
-        public static readonly object ButtonBackgroundHoverColorKey = VsColors.CommandBarHoverOverSelectedKey;
-        public static readonly object ButtonBorderHoverColorKey = VsColors.ComboBoxMouseOverGlyphKey;
+        public static readonly object ButtonBackgroundPressedColorKey = VsColors.ToolWindowButtonDownKey;
+        public static readonly object ButtonForegroundHoverColorKey = VsColors.ComboBoxMouseOverGlyphKey;
+        public static readonly object ButtonBackgroundHoverColorKey = VsColors.ComboBoxMouseOverBackgroundBeginKey;
+        public static readonly object ButtonBorderHoverColorKey = VsColors.ToolWindowButtonHoverActiveBorderKey;
 
         public static readonly object ScrollBarBackgroundKey = VsBrushes.ScrollBarBackgroundKey;
         public static readonly object ScrollBarThumbBackgroundKey = VsBrushes.ScrollBarThumbBackgroundKey;
