@@ -18,6 +18,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -60,10 +61,10 @@ namespace Microsoft.PythonTools.Workspace {
         }
 
         public AsyncEvent<WorkspaceSettingsChangedEventArgs> OnWorkspaceSettingsChanged { get; set; }
+            = new AsyncEvent<WorkspaceSettingsChangedEventArgs>();
 
-        public Task OnSettingChanged(string scope, string key) {
-            return OnWorkspaceSettingsChanged?.InvokeAsync(this, new WorkspaceSettingsChangedEventArgs(SettingsTypes.Generic, scope))
-                ?? Task.FromResult<object>(null);
+        public Task OnSettingChanged(string scopePath = null) {
+            return OnWorkspaceSettingsChanged.InvokeAsync(this, new WorkspaceSettingsChangedEventArgs(SettingsTypes.Generic, scopePath ?? _workspace.Location));
         }
 
         public Task DisposeAsync() {
@@ -81,8 +82,21 @@ namespace Microsoft.PythonTools.Workspace {
                     return _settings.GetOrAdd(scopePath, p => new PythonWorkspaceSettings(this, p));
                 }
 
-                if (File.Exists(Path.Combine(scopePath, "pyvenv.cfg"))) {
-                    return _settings.GetOrAdd(scopePath, p => new EnvironmentSettings(this, p));
+                if (File.Exists(Path.Combine(scopePath, "pyvenv.cfg")) ||
+                    File.Exists(Path.Combine(scopePath, "Lib", "orig-prefix.txt"))) {
+                    EnvironmentSettings created = null;
+                    try {
+                        result = _settings.GetOrAdd(scopePath, p => {
+                            created = new EnvironmentSettings(this, p);
+                            return created;
+                        });
+                    } catch (NotSupportedException) {
+                        return null;
+                    }
+                    if (created == result) {
+                        OnSettingChanged(scopePath).HandleAllExceptions(_site, GetType()).DoNotWait();
+                    }
+                    return result;
                 }
 
                 return null;

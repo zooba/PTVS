@@ -22,6 +22,8 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Interpreter;
+using Microsoft.VisualStudio.Workspace;
+using Microsoft.VisualStudio.Workspace.ItemFilters;
 using Microsoft.VisualStudio.Workspace.Settings;
 
 namespace Microsoft.PythonTools.Workspace {
@@ -32,13 +34,19 @@ namespace Microsoft.PythonTools.Workspace {
 
         private const string ExcludedKey = "ExcludedItems";
 
-        private static readonly string[] ExcludeFilter = new[] {
-            ".ptvs/", "Include/", "Lib/", "Scripts/", "*.*"
-        };
+        private static readonly string[] ExcludeFilter = new[] { "*/", "*.*" };
 
         public EnvironmentSettings(PythonSettingsProvider provider, string path) {
             _provider = provider;
             _prefix = path;
+
+            var exe = FindExecutable(_prefix, false);
+            if (string.IsNullOrEmpty(exe)) {
+                throw new NotSupportedException();
+            }
+
+            var exew = FindExecutable(_prefix, true);
+
             var name = PathUtils.TrimEndSeparator(PathUtils.GetRelativeDirectoryPath(
                 _provider._workspace.Location, _prefix
             ));
@@ -46,10 +54,20 @@ namespace Microsoft.PythonTools.Workspace {
                 WorkspaceEnvironmentProviderFactory.FactoryId + "|" + name,
                 name,
                 _prefix,
-                PathUtils.FindFile(_prefix, "python.exe", firstCheck: new[] { "Scripts" }),
-                PathUtils.FindFile(_prefix, "pythonw.exe", firstCheck: new[] { "Scripts" }),
-                "PYTHONPATH",
+                exe,
+                string.IsNullOrEmpty(exew) ? exe : exew,
+                CPythonInterpreterFactoryConstants.PathEnvironmentVariableName,
                 uiMode: InterpreterUIMode.CannotBeAutoDefault | InterpreterUIMode.CannotBeConfigured | InterpreterUIMode.CannotBeDefault | InterpreterUIMode.SupportsDatabase
+            );
+        }
+
+        private static string FindExecutable(string prefix, bool windowed) {
+            return PathUtils.FindFile(
+                prefix,
+                windowed ?
+                    CPythonInterpreterFactoryConstants.WindowsExecutable :
+                    CPythonInterpreterFactoryConstants.ConsoleExecutable,
+                firstCheck: new[] { "Scripts" }
             );
         }
 

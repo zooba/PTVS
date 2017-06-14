@@ -46,11 +46,7 @@ namespace Microsoft.PythonTools.Workspace {
         public void AddSettingsProvider(PythonSettingsProvider provider) {
             _settingsProviders.Add(provider);
             RefreshFactories();
-            var evt = provider.OnWorkspaceSettingsChanged;
-            if (evt == null) {
-                evt = provider.OnWorkspaceSettingsChanged = new AsyncEvent<WorkspaceSettingsChangedEventArgs>();
-            }
-            evt += OnSettingsChange;
+            provider.OnWorkspaceSettingsChanged += OnSettingsChange;
         }
 
         private async Task OnSettingsChange(object sender, WorkspaceSettingsChangedEventArgs e) {

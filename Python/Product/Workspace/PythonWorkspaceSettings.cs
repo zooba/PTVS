@@ -50,7 +50,7 @@ namespace Microsoft.PythonTools.Workspace {
 
         public Task SetActiveInterpreter(string interpreterId) {
             _interpreterId = interpreterId;
-            return _provider.OnSettingChanged(_scope, InterpreterIdKey);
+            return _provider.OnSettingChanged();
         }
 
         public WorkspaceSettingsResult GetProperty<T>(string key, out T value, T defaultValue = default(T)) {
