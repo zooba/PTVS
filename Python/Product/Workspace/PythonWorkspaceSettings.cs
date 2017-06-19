@@ -40,7 +40,7 @@ namespace Microsoft.PythonTools.Workspace {
             _provider = provider;
             _scope = scope;
 
-            _interpreterId = _provider._site.GetPythonToolsService().DefaultAnalyzer.InterpreterFactory.Configuration.Id;
+            _interpreterId = null;
         }
 
         public IEnumerable<string> GetKeys() {

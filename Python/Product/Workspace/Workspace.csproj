@@ -34,6 +34,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Microsoft.PythonTools.Workspace</RootNamespace>
     <AssemblyName>Microsoft.PythonTools.Workspace</AssemblyName>
+    <AssemblySearchPathOverride>$(DevEnvDir)CommonExtensions\Microsoft\OpenFolder;$(AssemblySearchPathOverride)</AssemblySearchPathOverride>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Platform)' == 'AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -143,11 +144,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="EnvironmentSettings.cs" />
-    <Compile Include="PythonSettingsProvider.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="PyprojBuildContextProvider.cs" />
+    <Compile Include="PyprojBuildUpToDateCheck.cs" />
     <Compile Include="PyprojContext.cs" />
     <Compile Include="PyprojFileContextProvider.cs" />
     <Compile Include="PyprojFileScanner.cs" />
+    <Compile Include="PythonSettingsProvider.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PyprojLaunchDebugTargetProvider.cs" />
     <Compile Include="PyprojLaunchConfigurationProvider.cs" />
     <Compile Include="PythonFileIconProvider.cs" />

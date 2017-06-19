@@ -137,9 +137,12 @@ namespace Microsoft.PythonTools.Project
         public static void ReadProjectFile(
             IServiceProvider site,
             string projectPath,
+            out string projectHome,
             out LaunchConfiguration config,
-            out IReadOnlyDictionary<string, IReadOnlyList<string>> items
+            out IReadOnlyDictionary<string, IReadOnlyList<string>> items,
+            out IReadOnlyList<string> targets
         ) {
+            var service = site.GetPythonToolsService();
             using (var coll = new MSBuild.ProjectCollection()) {
                 var project = coll.LoadProject(projectPath);
 
@@ -152,18 +155,46 @@ namespace Microsoft.PythonTools.Project
                 }
 
                 if (intConfig == null) {
-                    intConfig = site.GetPythonToolsService().DefaultAnalyzer.InterpreterFactory.Configuration;
+                    intConfig = service.DefaultAnalyzer.InterpreterFactory.Configuration;
+                }
+
+                projectHome = project.GetPropertyValue(CommonConstants.ProjectHome);
+                if (string.IsNullOrEmpty(projectHome)) {
+                    projectHome = PathUtils.GetParent(projectPath);
+                } else {
+                    projectHome = PathUtils.GetAbsoluteDirectoryPath(PathUtils.GetParent(projectPath), projectHome);
                 }
 
                 if (intConfig == null) {
                     config = null;
                 } else {
                     config = new LaunchConfiguration(intConfig) {
-                        // TODO: Fill out project settings
+                        InterpreterPath = project.GetPropertyValue(PythonConstants.InterpreterPathSetting),
+                        InterpreterArguments = project.GetPropertyValue(PythonConstants.InterpreterArgumentsSetting),
+                        ScriptName = project.GetPropertyValue(PythonConstants.StartupFileSetting),
+                        ScriptArguments = project.GetPropertyValue(PythonConstants.CommandLineArgumentsSetting),
+                        WorkingDirectory = project.GetPropertyValue(PythonConstants.WorkingDirectorySetting),
+                        Environment = PathUtils.ParseEnvironment(project.GetPropertyValue(PythonConstants.EnvironmentSetting)),
+                        PreferWindowedInterpreter = project.GetPropertyValue(PythonConstants.IsWindowsApplicationSetting).IsTrue(),
                     };
+
+                    var spm = new SearchPathManager();
+                    spm.LoadPathsFromString(projectHome, project.GetPropertyValue(PythonConstants.SearchPathSetting));
+                    config.SearchPaths.AddRange(spm.GetAbsoluteSearchPaths());
                 }
 
-                items = new Dictionary<string, IReadOnlyList<string>>();
+                var itemLists = new Dictionary<string, List<string>>();
+                var roItemLists = new Dictionary<string, IReadOnlyList<string>>();
+                foreach(var item in project.ItemsIgnoringCondition) {
+                    List<string> itemList;
+                    if (!itemLists.TryGetValue(item.ItemType, out itemList)) {
+                        roItemLists[item.ItemType] = itemLists[item.ItemType] = itemList = new List<string>();
+                    }
+                    itemList.Add(item.EvaluatedInclude);
+                }
+                items = roItemLists;
+
+                targets = project.Targets.Keys.ToList();
             }
         }
 

@@ -24,6 +24,7 @@
     </ItemGroup>
     <PropertyGroup>
       <AssemblySearchPaths>
+        $(AssemblySearchPathOverride);
         $(BuildRoot)Python\References\Dev$(VSTarget);
         $(BuildRoot)Python\References\Common;
         $(AssemblySearchPaths);

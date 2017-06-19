@@ -31,12 +31,19 @@ namespace Microsoft.PythonTools.Workspace {
         private readonly HashSet<string> _files;
         private readonly Lazy<IReadOnlyCollection<string>> _allFiles;
         private readonly LaunchConfiguration _config;
+        private readonly bool _canBuild;
 
-        public PyprojContext(string projectPath, IEnumerable<string> files, LaunchConfiguration launchConfiguration) {
+        public PyprojContext(
+            string projectPath,
+            IEnumerable<string> files,
+            LaunchConfiguration launchConfiguration,
+            bool canBuild
+        ) {
             _path = projectPath;
             _files = new HashSet<string>(files, StringComparer.OrdinalIgnoreCase);
             _allFiles = new Lazy<IReadOnlyCollection<string>>(() => _files.ToArray());
             _config = launchConfiguration;
+            _canBuild = canBuild;
         }
 
         public bool Contains(string filePath) {

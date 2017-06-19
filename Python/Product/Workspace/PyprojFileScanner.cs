@@ -27,18 +27,19 @@ using Microsoft.PythonTools.Interpreter;
 using Microsoft.PythonTools.Project;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Workspace;
+using Microsoft.VisualStudio.Workspace.Extensions;
 using Microsoft.VisualStudio.Workspace.Indexing;
 
 namespace Microsoft.PythonTools.Workspace {
     [ExportFileScanner(
-        FileScannerOptions.None,
+        (FileScannerOptions)(SolutionWorkspaceProviderOptions.SupportedAndOnlySolutionWorkspace),
         ProviderType,
         "PyProj",
         new[] { ".pyproj" },
         new[] { typeof(IReadOnlyDictionary<string, object>) },
-        ProviderPriority.AboveNormal
+        ProviderPriority.Normal
     )]
-    class PyprojFileScannerProvider : IWorkspaceProviderFactory<IFileScanner> {
+    public sealed class PyprojFileScannerProvider : IWorkspaceProviderFactory<IFileScanner> {
         const string ProviderType = "4B13B458-3E7A-4BFE-B314-6753688F4298";
         public static readonly Guid ProviderGuid = new Guid(ProviderType);
 
@@ -75,13 +76,22 @@ namespace Microsoft.PythonTools.Workspace {
 
             var content = new Dictionary<string, object>();
 
+            string projectHome = null;
             LaunchConfiguration config = null;
             IReadOnlyDictionary<string, IReadOnlyList<string>> files = null;
+            IReadOnlyList<string> targets = null;
 
             try {
                 await _workspace.JTF.RunAsync(VsTaskRunContext.UIThreadNormalPriority, async () => {
                     await _workspace.JTF.SwitchToMainThreadAsync(cancellationToken);
-                    PythonProjectPackage.ReadProjectFile(_site, filePath, out config, out files);
+                    PythonProjectPackage.ReadProjectFile(
+                        _site,
+                        filePath,
+                        out projectHome,
+                        out config,
+                        out files,
+                        out targets
+                    );
                 });
             } catch (OperationCanceledException) {
                 throw;
@@ -93,8 +103,14 @@ namespace Microsoft.PythonTools.Workspace {
             if (config != null) {
                 content["LaunchConfiguration"] = config;
             }
+            if (!string.IsNullOrEmpty(projectHome)) {
+                content["ProjectHome"] = projectHome;
+            }
             if (files != null) {
                 content["Items"] = files;
+            }
+            if (targets != null) {
+                content["Targets"] = targets;
             }
 
             return content as T;

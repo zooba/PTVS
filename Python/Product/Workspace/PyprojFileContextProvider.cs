@@ -97,10 +97,18 @@ namespace Microsoft.PythonTools.Workspace {
                         continue;
                     }
 
+                    bool canBuild = false;
+                    IReadOnlyList<string> targets;
+                    if (projectData.Value.TryGetValue("Targets", out o) &&
+                        (targets = o as IReadOnlyList<string>) != null) {
+                        canBuild = targets.Contains("CoreCompile", StringComparer.OrdinalIgnoreCase);
+                    }
+
                     _projects[project.Key] = new PyprojContext(
                         project.Key,
                         items.SelectMany(i => i.Value),
-                        config
+                        config,
+                        canBuild
                     );
                 }
             }
