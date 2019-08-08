@@ -16,6 +16,7 @@
 
 using System;
 using System.Diagnostics;
+using EnvDTE;
 using Microsoft.PythonTools.Parsing;
 using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.CallStack;
@@ -78,18 +79,23 @@ namespace Microsoft.PythonTools.Debugger.Concord.Proxies.Structs {
             return frame.InstructionAddress.IsInSameFunction(process.CreateNativeInstructionAddress(addr));
         }
 
-        public static unsafe PyFrameObject TryCreate(DkmStackWalkFrame frame) {
+        public static unsafe PyFrameObject TryCreate(DkmStackWalkFrame frame, DkmInspectionSession inspectionSession = null) {
             var process = frame.Process;
 
             if (frame.InstructionAddress == null) {
                 return null;
-            } 
+            }
             if (frame.RuntimeInstance.Id.RuntimeType != Guids.PythonRuntimeTypeGuid && !IsInEvalFrame(frame)) {
+                return null;
+            }
+            if (frame.ModuleInstance.GetDataItem<ExpressionEvaluator>() is CythonExpressionEvaluator) {
                 return null;
             }
 
             var cppLanguage = DkmLanguage.Create("C++", new DkmCompilerId(Guids.MicrosoftVendorGuid, Guids.CppLanguageGuid));
-            var inspectionSession = DkmInspectionSession.Create(process, null);
+            if (inspectionSession == null) {
+                inspectionSession = DkmInspectionSession.Create(process, null);
+            }
             var inspectionContext = DkmInspectionContext.Create(inspectionSession, process.GetNativeRuntimeInstance(), frame.Thread, 0,
                 DkmEvaluationFlags.TreatAsExpression | DkmEvaluationFlags.NoSideEffects, DkmFuncEvalFlags.None, 10, cppLanguage, null);
 

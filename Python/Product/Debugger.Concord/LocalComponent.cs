@@ -19,7 +19,9 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
+using EnvDTE;
 using Microsoft.Dia;
 using Microsoft.PythonTools.Debugger;
 using Microsoft.PythonTools.Debugger.Concord.Proxies;
@@ -283,7 +285,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
             var process = runtimeInstance.Process;
             process.SetDataItem(DkmDataCreationDisposition.CreateNew, new ModuleManager(process));
             process.SetDataItem(DkmDataCreationDisposition.CreateNew, new CallStackFilter(process));
-            process.SetDataItem(DkmDataCreationDisposition.CreateNew, new ExpressionEvaluator(process));
+            process.SetDataItem(DkmDataCreationDisposition.CreateNew, new PythonExpressionEvaluator(process));
             process.SetDataItem(DkmDataCreationDisposition.CreateNew, new PyObjectAllocator(process));
 
             var exceptionManager = process.GetOrCreateDataItem(() => new ExceptionManagerLocalHelper(process));
@@ -314,72 +316,58 @@ namespace Microsoft.PythonTools.Debugger.Concord {
             return new[] { input };
         }
 
-        void IDkmLanguageFrameDecoder.GetFrameName(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmStackWalkFrame frame, DkmVariableInfoFlags argumentFlags, DkmCompletionRoutine<DkmGetFrameNameAsyncResult> completionRoutine) {
+        T GetItem<T>(DkmStackWalkFrame frame, [CallerMemberName]string callerName = null) where T : DkmDataItem {
             if (frame.RuntimeInstance.Id.RuntimeType != Guids.PythonRuntimeTypeGuid) {
-                Debug.Fail("GetFrameName called on a non-Python frame.");
+                Debug.Fail($"{callerName ?? "GetItem"} called on a non-Python frame.");
                 throw new NotSupportedException();
             }
 
-            var filter = frame.Process.GetDataItem<CallStackFilter>();
-            if (filter == null) {
-                Debug.Fail("GetFrameName called, but no instance of CallStackFilter is there to handle it.");
+            T item;
+            if (typeof(T).IsAssignableFrom(typeof(ExpressionEvaluator))) {
+                item = (frame.Data?.GetDataItem<CythonExpressionEvaluator>() as T) ??
+                    (frame.Data?.GetDataItem<PythonExpressionEvaluator>() as T) ?? 
+                    (frame.ModuleInstance.GetDataItem<CythonExpressionEvaluator>() as T) ??
+                    (frame.ModuleInstance.GetDataItem<PythonExpressionEvaluator>() as T) ??
+                    (frame.Process.GetDataItem<PythonExpressionEvaluator>() as T);
+            } else {
+                item = frame.Data?.GetDataItem<T>() ??
+                    frame.ModuleInstance.GetDataItem<T>() ??
+                    frame.Process.GetDataItem<T>();
+            }
+            if (item == null) {
+                Debug.Fail($"{callerName ?? "GetItem"} called, but no instance of {typeof(T).Name} is there to handle it.");
                 throw new InvalidOperationException();
             }
+
+            return item;
+        }
+
+        void IDkmLanguageFrameDecoder.GetFrameName(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmStackWalkFrame frame, DkmVariableInfoFlags argumentFlags, DkmCompletionRoutine<DkmGetFrameNameAsyncResult> completionRoutine) {
+            var filter = GetItem<CallStackFilter>(frame);
 
             filter.GetFrameName(inspectionContext, workList, frame, argumentFlags, completionRoutine);
         }
 
         void IDkmLanguageFrameDecoder.GetFrameReturnType(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmStackWalkFrame frame, DkmCompletionRoutine<DkmGetFrameReturnTypeAsyncResult> completionRoutine) {
-            if (frame.RuntimeInstance.Id.RuntimeType != Guids.PythonRuntimeTypeGuid) {
-                Debug.Fail("GetFrameReturnType called on a non-Python frame.");
-                throw new NotSupportedException();
-            }
-
-            var filter = frame.Process.GetDataItem<CallStackFilter>();
-            if (filter == null) {
-                Debug.Fail("GetFrameReturnType called, but no instance of CallStackFilter exists in this DkmProcess to handle it.");
-                throw new InvalidOperationException();
-            }
+            var filter = GetItem<CallStackFilter>(frame);
 
             filter.GetFrameReturnType(inspectionContext, workList, frame, completionRoutine);
         }
 
         void IDkmLanguageExpressionEvaluator.EvaluateExpression(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmLanguageExpression expression, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmEvaluateExpressionAsyncResult> completionRoutine) {
-            if (stackFrame.RuntimeInstance.Id.RuntimeType != Guids.PythonRuntimeTypeGuid) {
-                Debug.Fail("EvaluateExpression called on a non-Python frame.");
-                throw new NotSupportedException();
-            }
-
-            var ee = stackFrame.Process.GetDataItem<ExpressionEvaluator>();
-            if (ee == null) {
-                Debug.Fail("EvaluateExpression called, but no instance of ExpressionEvaluator exists in this DkmProcess to handle it.");
-                throw new InvalidOperationException();
-            }
+            var ee = GetItem<ExpressionEvaluator>(stackFrame);
 
             ee.EvaluateExpression(inspectionContext, workList, expression, stackFrame, completionRoutine);
         }
 
         void IDkmLanguageExpressionEvaluator.GetFrameLocals(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmGetFrameLocalsAsyncResult> completionRoutine) {
-            if (stackFrame.RuntimeInstance.Id.RuntimeType != Guids.PythonRuntimeTypeGuid) {
-                Debug.Fail("GetFrameLocals called on a non-Python frame.");
-                throw new NotSupportedException();
-            }
+            var ee = GetItem<ExpressionEvaluator>(stackFrame);
 
-            var ee = stackFrame.Process.GetDataItem<ExpressionEvaluator>();
-            if (ee == null) {
-                Debug.Fail("GetFrameLocals called, but no instance of ExpressionEvaluator exists in this DkmProcess to handle it.");
-                throw new InvalidOperationException();
-            }
-
-            ee.GetFrameLocals(inspectionContext, workList, stackFrame, completionRoutine);            
+            ee.GetFrameLocals(inspectionContext, workList, stackFrame, completionRoutine);
         }
 
         void IDkmLanguageExpressionEvaluator.GetChildren(DkmEvaluationResult result, DkmWorkList workList, int initialRequestSize, DkmInspectionContext inspectionContext, DkmCompletionRoutine<DkmGetChildrenAsyncResult> completionRoutine) {
-            var ee = result.StackFrame.Process.GetDataItem<ExpressionEvaluator>();
-            if (ee == null) {
-                Debug.Fail("GetChildren called, but no instance of ExpressionEvaluator exists in this DkmProcess to handle it.");
-                throw new InvalidOperationException();
-            }
+            var ee = GetItem<ExpressionEvaluator>(result.StackFrame);
 
             ee.GetChildren(result, workList, initialRequestSize, inspectionContext, completionRoutine);
         }
@@ -389,31 +377,19 @@ namespace Microsoft.PythonTools.Debugger.Concord {
         }
 
         void IDkmLanguageExpressionEvaluator.GetItems(DkmEvaluationResultEnumContext enumContext, DkmWorkList workList, int startIndex, int count, DkmCompletionRoutine<DkmEvaluationEnumAsyncResult> completionRoutine) {
-            var ee = enumContext.StackFrame.Process.GetDataItem<ExpressionEvaluator>();
-            if (ee == null) {
-                Debug.Fail("GetItems called, but no instance of ExpressionEvaluator exists in this DkmProcess to handle it.");
-                throw new InvalidOperationException();
-            }
+            var ee = GetItem<ExpressionEvaluator>(enumContext.StackFrame);
 
             ee.GetItems(enumContext, workList, startIndex, count, completionRoutine);
         }
 
         string IDkmLanguageExpressionEvaluator.GetUnderlyingString(DkmEvaluationResult result) {
-            var ee = result.StackFrame.Process.GetDataItem<ExpressionEvaluator>();
-            if (ee == null) {
-                Debug.Fail("GetUnderlyingString called, but no instance of ExpressionEvaluator exists in this DkmProcess to handle it.");
-                throw new InvalidOperationException();
-            }
+            var ee = GetItem<ExpressionEvaluator>(result.StackFrame);
 
             return ee.GetUnderlyingString(result);
         }
 
         void IDkmLanguageExpressionEvaluator.SetValueAsString(DkmEvaluationResult result, string value, int timeout, out string errorText) {
-            var ee = result.StackFrame.Process.GetDataItem<ExpressionEvaluator>();
-            if (ee == null) {
-                Debug.Fail("SetValueAsString called, but no instance of ExpressionEvaluator exists in this DkmProcess to handle it.");
-                throw new InvalidOperationException();
-            }
+            var ee = GetItem<ExpressionEvaluator>(result.StackFrame);
 
             ee.SetValueAsString(result, value, timeout, out errorText);
         }

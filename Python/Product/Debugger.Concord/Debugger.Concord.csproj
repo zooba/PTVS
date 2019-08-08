@@ -94,6 +94,8 @@
     </Compile>
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="ComPtr.cs" />
+    <Compile Include="CythonExpressionEvaluator.cs" />
+    <Compile Include="CythonFrame.cs" />
     <Compile Include="ExceptionManager.cs" />
     <Compile Include="ComponentBase.cs" />
     <Compile Include="CppExpressionEvaluator.cs" />

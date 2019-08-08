@@ -44,7 +44,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
                 return null;
             }
 
-            var exprEval = process.GetDataItem<ExpressionEvaluator>();
+            var exprEval = process.GetDataItem<ExpressionEvaluator>() as PythonExpressionEvaluator;
             if (exprEval == null) {
                 Debug.Fail("PythonViewNativeVisualizer failed to obtain an instance of ExpressionEvaluator.");
                 return null;

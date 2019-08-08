@@ -15,6 +15,7 @@
 // permissions and limitations under the License.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -33,7 +34,21 @@ using Microsoft.VisualStudio.Debugger.CallStack;
 using Microsoft.VisualStudio.Debugger.Evaluation;
 
 namespace Microsoft.PythonTools.Debugger.Concord {
-    internal class ExpressionEvaluator : DkmDataItem {
+    internal abstract class ExpressionEvaluator : DkmDataItem {
+        public abstract void EvaluateExpression(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmLanguageExpression expression, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmEvaluateExpressionAsyncResult> completionRoutine);
+        public abstract void GetFrameLocals(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmGetFrameLocalsAsyncResult> completionRoutine);
+        public abstract void GetChildren(DkmEvaluationResult result, DkmWorkList workList, int initialRequestSize, DkmInspectionContext inspectionContext, DkmCompletionRoutine<DkmGetChildrenAsyncResult> completionRoutine);
+        public abstract void GetItems(DkmEvaluationResultEnumContext enumContext, DkmWorkList workList, int startIndex, int count, DkmCompletionRoutine<DkmEvaluationEnumAsyncResult> completionRoutine);
+        public abstract string GetUnderlyingString(DkmEvaluationResult result);
+        public abstract void SetValueAsString(DkmEvaluationResult result, string value, int timeout, out string errorText);
+        public abstract void OnAsyncBreakComplete(DkmThread thread);
+
+        protected class EvaluationResults : DkmDataItem {
+            public IEnumerable<DkmEvaluationResult> Results { get; set; }
+        }
+    }
+
+    internal class PythonExpressionEvaluator : ExpressionEvaluator {
         // Value of this constant must always remain in sync with DebuggerHelper/trace.cpp.
         private const int ExpressionEvaluationBufferSize = 0x1000;
 
@@ -45,7 +60,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
         private readonly UInt32Proxy _evalLoopSEHCode;
         private readonly CStringProxy _evalLoopInput;
 
-        public ExpressionEvaluator(DkmProcess process) {
+        public PythonExpressionEvaluator(DkmProcess process) {
             _process = process;
             var pyrtInfo = process.GetPythonRuntimeInfo();
 
@@ -62,7 +77,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
         }
 
         private interface IPythonEvaluationResult {
-            List<DkmEvaluationResult> GetChildren(ExpressionEvaluator exprEval, DkmEvaluationResult result, DkmInspectionContext inspectionContext);
+            List<DkmEvaluationResult> GetChildren(PythonExpressionEvaluator exprEval, DkmEvaluationResult result, DkmInspectionContext inspectionContext);
         }
 
         private interface IPythonEvaluationResultAsync {
@@ -146,7 +161,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
                 }
             }
 
-            public List<DkmEvaluationResult> GetChildren(ExpressionEvaluator exprEval, DkmEvaluationResult result, DkmInspectionContext inspectionContext) {
+            public List<DkmEvaluationResult> GetChildren(PythonExpressionEvaluator exprEval, DkmEvaluationResult result, DkmInspectionContext inspectionContext) {
                 var stackFrame = result.StackFrame;
                 var cppEval = new CppExpressionEvaluator(inspectionContext, stackFrame);
                 var obj = ValueStore.Read();
@@ -246,7 +261,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
         private class GlobalsEvaluationResult : DkmDataItem, IPythonEvaluationResult {
             public PyDictObject Globals { get; set; }
 
-            public List<DkmEvaluationResult> GetChildren(ExpressionEvaluator exprEval, DkmEvaluationResult result, DkmInspectionContext inspectionContext) {
+            public List<DkmEvaluationResult> GetChildren(PythonExpressionEvaluator exprEval, DkmEvaluationResult result, DkmInspectionContext inspectionContext) {
                 var stackFrame = result.StackFrame;
                 var cppEval = new CppExpressionEvaluator(inspectionContext, stackFrame);
                 var evalResults = new List<DkmEvaluationResult>();
@@ -276,10 +291,6 @@ namespace Microsoft.PythonTools.Debugger.Concord {
                     completionRoutine(cppResult);
                 });
             }
-        }
-
-        private class EvaluationResults : DkmDataItem {
-            public IEnumerable<DkmEvaluationResult> Results { get; set; }
         }
 
         // Names of fields of PyTypeObject struct that contain function pointers corresponding to standard methods of the type.
@@ -363,8 +374,8 @@ namespace Microsoft.PythonTools.Debugger.Concord {
                 pyObjEvalResult);
         }
 
-        public void GetFrameLocals(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmGetFrameLocalsAsyncResult> completionRoutine) {
-            var pythonFrame = PyFrameObject.TryCreate(stackFrame);
+        public override void GetFrameLocals(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmGetFrameLocalsAsyncResult> completionRoutine) {
+            var pythonFrame = PyFrameObject.TryCreate(stackFrame, inspectionContext.InspectionSession);
             if (pythonFrame == null) {
                 Debug.Fail("Non-Python frame passed to GetFrameLocals.");
                 throw new NotSupportedException();
@@ -485,7 +496,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
             completionRoutine(new DkmGetFrameLocalsAsyncResult(enumContext));
         }
 
-        public void GetChildren(DkmEvaluationResult result, DkmWorkList workList, int initialRequestSize, DkmInspectionContext inspectionContext, DkmCompletionRoutine<DkmGetChildrenAsyncResult> completionRoutine) {
+        public override void GetChildren(DkmEvaluationResult result, DkmWorkList workList, int initialRequestSize, DkmInspectionContext inspectionContext, DkmCompletionRoutine<DkmGetChildrenAsyncResult> completionRoutine) {
             var asyncEvalResult = result.GetDataItem<CppViewEvaluationResult>();
             if (asyncEvalResult != null) {
                 asyncEvalResult.GetChildren(result, workList, initialRequestSize, inspectionContext, completionRoutine);
@@ -512,7 +523,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
             throw new NotSupportedException();
         }
 
-        public void GetItems(DkmEvaluationResultEnumContext enumContext, DkmWorkList workList, int startIndex, int count, DkmCompletionRoutine<DkmEvaluationEnumAsyncResult> completionRoutine) {
+        public override void GetItems(DkmEvaluationResultEnumContext enumContext, DkmWorkList workList, int startIndex, int count, DkmCompletionRoutine<DkmEvaluationEnumAsyncResult> completionRoutine) {
             var evalResults = enumContext.GetDataItem<EvaluationResults>();
             if (evalResults == null) {
                 Debug.Fail("GetItems called on a DkmEvaluationResultEnumContext without an associated EvaluationResults.");
@@ -523,7 +534,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
             completionRoutine(new DkmEvaluationEnumAsyncResult(result));
         }
 
-        public void EvaluateExpression(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmLanguageExpression expression, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmEvaluateExpressionAsyncResult> completionRoutine) {
+        public override void EvaluateExpression(DkmInspectionContext inspectionContext, DkmWorkList workList, DkmLanguageExpression expression, DkmStackWalkFrame stackFrame, DkmCompletionRoutine<DkmEvaluateExpressionAsyncResult> completionRoutine) {
             var name = expression.Text;
             GetFrameLocals(inspectionContext, workList, stackFrame, getFrameLocalsResult => {
                 getFrameLocalsResult.EnumContext.GetItems(workList, 0, int.MaxValue, localGetItemsResult => {
@@ -769,7 +780,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
             }
         }
 
-        public void OnAsyncBreakComplete(DkmThread thread) {
+        public override void OnAsyncBreakComplete(DkmThread thread) {
             var e = _evalAbortedEvent;
             if (e != null) {
                 new RemoteComponent.EndFuncEvalExecutionRequest { ThreadId = thread.UniqueId }.SendLower(thread.Process);
@@ -777,7 +788,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
             }
         }
 
-        public string GetUnderlyingString(DkmEvaluationResult result) {
+        public override string GetUnderlyingString(DkmEvaluationResult result) {
             var rawResult = result.GetDataItem<RawEvaluationResult>();
             if (rawResult != null && rawResult.Value is string) {
                 return (string)rawResult.Value;
@@ -804,7 +815,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
             }
         }
 
-        public unsafe void SetValueAsString(DkmEvaluationResult result, string value, int timeout, out string errorText) {
+        public override unsafe void SetValueAsString(DkmEvaluationResult result, string value, int timeout, out string errorText) {
             var pyEvalResult = result.GetDataItem<PyObjectEvaluationResult>();
             if (pyEvalResult == null) {
                 Debug.Fail("SetValueAsString called on a DkmEvaluationResult without an associated PyObjectEvaluationResult.");

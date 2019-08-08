@@ -32,6 +32,7 @@ namespace Microsoft.PythonTools.Debugger {
         public static readonly Guid PythonSymbolProviderGuid = new Guid("4C802B60-6E39-4CE0-8FE8-F77F83458399");
         public static readonly Guid PythonLanguageGuid = new Guid("DA3C7D59-F9E4-4697-BEE7-3A0703AF6BFF");
         public static readonly Guid UnknownPythonModuleGuid = new Guid("42A6F911-9997-4504-861C-91015BDCE588");
+        public static readonly Guid CythonModuleGuid = new Guid("40E9067C-666A-407D-AEF0-FFDC1ACD55C8");
         public static readonly Guid CppLanguageGuid = new Guid("3A12D0B7-C26C-11D0-B442-00A0244A1DD2");
 
         public const string PythonDebugEngineId = "EC1375B7-E2CE-43E8-BF75-DC638DE1F1F9";

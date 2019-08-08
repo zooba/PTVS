@@ -20,6 +20,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
+using Microsoft.PythonTools.Infrastructure;
 using Microsoft.VisualStudio.Debugger;
 using Microsoft.VisualStudio.Debugger.Breakpoints;
 using Microsoft.VisualStudio.Debugger.CallStack;
@@ -73,6 +74,7 @@ namespace Microsoft.PythonTools.Debugger.Concord {
                 var runtimeId = new DkmRuntimeInstanceId(Guids.PythonRuntimeTypeGuid, 0);
                 var runtimeInstance = DkmCustomRuntimeInstance.Create(process, runtimeId, null);
                 new CreateModuleRequest { ModuleId = Guids.UnknownPythonModuleGuid }.Handle(process);
+                new CreateCythonModuleRequest().Handle(process);
             }
         }
 
@@ -261,6 +263,45 @@ namespace Microsoft.PythonTools.Debugger.Concord {
                     new DkmCompilerId(Guids.MicrosoftVendorGuid, Guids.PythonLanguageGuid), process.Connection, null);
                 var moduleInstance = DkmCustomModuleInstance.Create(moduleName, FileName, 0, pythonRuntime, null, null, DkmModuleFlags.None,
                     DkmModuleMemoryLayout.Unknown, 0, 0, 0, "Python", false, null, null, null);
+                moduleInstance.SetModule(module, true);
+            }
+        }
+
+        [DataContract]
+        [MessageTo(Guids.RemoteComponentId)]
+        internal class CreateCythonModuleRequest : MessageBase<CreateCythonModuleRequest> {
+            [DataMember]
+            public Guid ModuleId { get; set; } = Guids.CythonModuleGuid;
+
+            [DataMember]
+            public string FileName { get; set; }
+
+            public CreateCythonModuleRequest() {
+                FileName = "";
+            }
+
+            public override void Handle(DkmProcess process) {
+                var pythonRuntime = process.GetPythonRuntimeInstance();
+                if (pythonRuntime == null) {
+                    return;
+                }
+
+                var module = DkmModule.Create(
+                    new DkmModuleId(ModuleId, Guids.PythonSymbolProviderGuid),
+                    FileName,
+                    new DkmCompilerId(Guids.MicrosoftVendorGuid, Guids.PythonLanguageGuid),
+                    process.Connection,
+                    null
+                );
+                var moduleInstance = DkmCustomModuleInstance.Create(
+                    "Cython Module",
+                    "<Cython>", 0,
+                    pythonRuntime,
+                    null, null,
+                    DkmModuleFlags.None,
+                    DkmModuleMemoryLayout.Unknown, 0, 0, 0,
+                    "Python", false, null, null, null
+                );
                 moduleInstance.SetModule(module, true);
             }
         }

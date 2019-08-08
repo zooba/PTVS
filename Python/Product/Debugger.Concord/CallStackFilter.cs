@@ -41,6 +41,11 @@ namespace Microsoft.PythonTools.Debugger.Concord {
         }
 
         public DkmStackWalkFrame[] FilterNextFrame(DkmStackContext stackContext, DkmStackWalkFrame nativeFrame) {
+            var cythonFrame = CythonFrame.TryCreate(stackContext, nativeFrame);
+            if (cythonFrame != null) {
+                return new[] { cythonFrame };
+            }
+
             PyFrameObject pythonFrame = null;
             var nativeModuleInstance = nativeFrame.ModuleInstance;
             if (nativeModuleInstance == _pyrtInfo.DLLs.DebuggerHelper) {

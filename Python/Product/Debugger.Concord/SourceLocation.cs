@@ -59,6 +59,9 @@ namespace Microsoft.PythonTools.Debugger.Concord {
                         case 1:
                             dll = dlls.DebuggerHelper;
                             break;
+                        case 2:
+                            dll = process.FindNativeModule(ip);
+                            break;
                     }
 
                     if (dll != null) {
@@ -94,6 +97,8 @@ namespace Microsoft.PythonTools.Debugger.Concord {
                         writer.Write(0);
                     } else if (NativeAddress.ModuleInstance == dlls.DebuggerHelper) {
                         writer.Write(1);
+                    } else {
+                        writer.Write(2);
                     }
                 } else {
                     writer.Write(false);
